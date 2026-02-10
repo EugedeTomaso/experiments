@@ -11,7 +11,9 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+    const error = new Error(text || `Request failed: ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
   if (response.status === 204) {
@@ -119,5 +121,11 @@ export const api = {
   },
   deleteProviderKey(id) {
     return request(`/api/provider-keys/${id}/`, { method: "DELETE" });
+  },
+  generateSummary(nodeId, { provider, model }) {
+    return request(`/api/nodes/${nodeId}/summary`, {
+      method: "POST",
+      body: JSON.stringify({ provider, model }),
+    });
   },
 };

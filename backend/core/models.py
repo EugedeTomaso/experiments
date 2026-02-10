@@ -37,6 +37,8 @@ class Node(models.Model):
     title = models.CharField(max_length=200)
     order = models.IntegerField(default=0)
     content_md = models.TextField(blank=True, default="")
+    summary = models.TextField(blank=True, default="")
+    summary_updated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

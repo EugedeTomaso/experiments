@@ -6,6 +6,7 @@ from .views import (
     AgentConfigViewSet,
     AgentViewSet,
     CommentViewSet,
+    NodeSummaryView,
     NodeViewSet,
     ProjectViewSet,
     ProviderKeyViewSet,
@@ -26,4 +27,5 @@ router.register(r"provider-keys", ProviderKeyViewSet, basename="provider-key")
 urlpatterns = [
     path("api/", include(router.urls)),
     path("api/ai/stream", AIStreamView.as_view(), name="ai-stream"),
+    path("api/nodes/<int:node_id>/summary", NodeSummaryView.as_view(), name="node-summary"),
 ]

@@ -2,32 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { TreeItem } from "./components/TreeItem";
-import { AgentsList } from "./components/AgentsList";
-import { AgentConfigView } from "./components/AgentConfigView";
+import { ProjectSwitcher } from "./components/ProjectSwitcher";
+import { AssistantPanel } from "./components/AssistantPanel";
+import { VersionsMenu } from "./components/VersionsMenu";
 import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
-import { AIStudioSlideOver } from "./components/AIStudioSlideOver";
-import { TabBar } from "./components/TabBar";
 import { CommentInput } from "./components/CommentInput";
 import { CommentPopover } from "./components/CommentPopover";
+import { SettingsModal } from "./components/SettingsModal";
+import { createStreamParser } from "./streamParser";
 import "./App.css";
 
-const DEFAULT_AGENT = {
-  provider: "openai",
-  model: "gpt-4o-mini",
+const INITIAL_DEFAULT_AGENT = {
+  provider: "deepseek",
+  model: "deepseek-chat",
   temperature: 0.7,
   system_prompt: "",
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-
-const PROVIDERS = [
-  { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic" },
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "cerebras", label: "Cerebras" },
-  { value: "groq", label: "Groq" },
-];
 
 const normalizeId = (value) =>
   value === null || value === undefined ? null : String(value);
@@ -72,33 +64,46 @@ export default function App() {
 
   // --- Editor state ---
   const [draft, setDraft] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("saved"); // 'saved' | 'saving' | 'unsaved'
   const [comments, setComments] = useState([]);
-  const [commentDraft, setCommentDraft] = useState("");
   const [versions, setVersions] = useState([]);
-  const [activeTab, setActiveTab] = useState("comments");
+  const autoSaveTimerRef = useRef(null);
+  const loadedContentRef = useRef("");
+  const pendingSaveRef = useRef(null); // { nodeId, content } or null
+
+  // --- Layout state ---
+  const [isOutlineOpen, setIsOutlineOpen] = useState(true);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+
+  // --- Chat state ---
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isEditingDocument, setIsEditingDocument] = useState(false);
 
   // --- Agent state ---
   const [agents, setAgents] = useState([]);
-  const [activeAgentId, setActiveAgentId] = useState(null);
   const [nodeAgentConfigs, setNodeAgentConfigs] = useState([]);
   const [resolvedAgent, setResolvedAgent] = useState(null);
   const [nodeDirectConfig, setNodeDirectConfig] = useState(null);
-
-  // --- AI Studio state ---
-  const [isAIStudioOpen, setIsAIStudioOpen] = useState(false);
-  const [assistantPrompt, setAssistantPrompt] = useState("");
-  const [assistantOutput, setAssistantOutput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-
-  // --- Agent creator state ---
   const [isAgentCreatorOpen, setIsAgentCreatorOpen] = useState(false);
 
   // --- Settings state ---
   const [providerKeys, setProviderKeys] = useState([]);
-  const [providerForm, setProviderForm] = useState({ provider: "openai", api_key: "" });
-  const [providerMessage, setProviderMessage] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [autosaveDelay, setAutosaveDelay] = useState(() => {
+    const saved = localStorage.getItem("marvin:autosave-delay");
+    return saved ? Number(saved) : 1500;
+  });
+  const [defaultAgent, setDefaultAgent] = useState(() => {
+    try {
+      const saved = localStorage.getItem("marvin:default-agent");
+      return saved ? JSON.parse(saved) : INITIAL_DEFAULT_AGENT;
+    } catch {
+      return INITIAL_DEFAULT_AGENT;
+    }
+  });
 
   // --- Inline comment state ---
   const [commentInputState, setCommentInputState] = useState(null);
@@ -127,21 +132,9 @@ export default function App() {
   }, [nodes]);
 
   const activeNode = useMemo(
-    () => (activeAgentId ? null : nodes.find((n) => String(n.id) === String(activeNodeId))),
-    [nodes, activeNodeId, activeAgentId]
+    () => nodes.find((n) => String(n.id) === String(activeNodeId)),
+    [nodes, activeNodeId]
   );
-
-  const activeAgent = useMemo(
-    () => agents.find((a) => a.id === activeAgentId),
-    [agents, activeAgentId]
-  );
-
-  const selectionType = useMemo(() => {
-    if (activeAgentId) return "agent";
-    if (activeNode?.type === "file") return "file";
-    if (activeNode?.type === "folder") return "folder";
-    return "none";
-  }, [activeAgentId, activeNode]);
 
   const tree = useMemo(() => buildTree(nodes), [nodes]);
 
@@ -174,10 +167,13 @@ export default function App() {
     const lastUpdated = descendants.reduce((latest, n) => {
       return Math.max(latest, new Date(n.updated_at).getTime());
     }, new Date(activeNode.updated_at).getTime());
-    const sampleFiles = files.slice(0, 5).map((file) => ({
+    const sampleFiles = files.slice(0, 10).map((file) => ({
       id: file.id,
       title: file.title,
       snippet: buildSnippet(file.content_md, 160),
+      summary: file.summary || null,
+      summaryStale: !file.summary_updated_at ||
+        new Date(file.updated_at) > new Date(file.summary_updated_at),
     }));
     return { fileCount: files.length, folderCount: folders.length, wordCount, lastUpdated, sampleFiles };
   }, [activeNode, childrenMap]);
@@ -187,6 +183,11 @@ export default function App() {
     providerKeys.forEach((key) => map.set(key.provider, key));
     return map;
   }, [providerKeys]);
+
+  const wordCount = useMemo(() => {
+    if (!draft) return 0;
+    return draft.trim().split(/\s+/).filter(Boolean).length;
+  }, [draft]);
 
   // --- Effects ---
   useEffect(() => {
@@ -199,6 +200,14 @@ export default function App() {
   useEffect(() => {
     api.listProviderKeys().then(setProviderKeys).catch(() => setProviderKeys([]));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("marvin:autosave-delay", String(autosaveDelay));
+  }, [autosaveDelay]);
+
+  useEffect(() => {
+    localStorage.setItem("marvin:default-agent", JSON.stringify(defaultAgent));
+  }, [defaultAgent]);
 
   useEffect(() => {
     if (!activeProjectId) return;
@@ -216,7 +225,6 @@ export default function App() {
     api.listAgents(activeProjectId).then(setAgents).catch(() => setAgents([]));
   }, [activeProjectId]);
 
-  // Load all agent configs for tree indicators
   useEffect(() => {
     if (!activeProjectId || !nodes.length) { setNodeAgentConfigs([]); return; }
     api.listAgentConfigs({}).then((all) => {
@@ -225,24 +233,104 @@ export default function App() {
     }).catch(() => setNodeAgentConfigs([]));
   }, [activeProjectId, nodes]);
 
+  // Eager summary generation: when a folder is active, generate summaries for stale files in background
+  useEffect(() => {
+    if (!activeNode || activeNode.type !== "folder") return;
+    if (!folderSummary) return;
+
+    const staleFiles = folderSummary.sampleFiles.filter(
+      (f) => f.summaryStale && f.snippet
+    );
+    if (!staleFiles.length) return;
+
+    staleFiles.forEach((file) => {
+      api
+        .generateSummary(file.id, {
+          provider: defaultAgent.provider,
+          model: defaultAgent.model,
+        })
+        .then((data) => {
+          if (data.summary) {
+            setNodes((prev) =>
+              prev.map((n) =>
+                String(n.id) === String(file.id)
+                  ? { ...n, summary: data.summary, summary_updated_at: data.summary_updated_at }
+                  : n
+              )
+            );
+          }
+        })
+        .catch(() => {}); // Silently handle 429s and other errors
+    });
+  }, [activeNode?.id, folderSummary]);
+
   useEffect(() => {
     setActiveNodeId(null);
-    setActiveAgentId(null);
   }, [activeProjectId]);
 
   useEffect(() => {
+    // Flush any pending auto-save for the previous node
+    clearTimeout(autoSaveTimerRef.current);
+    if (pendingSaveRef.current) {
+      const { nodeId, content } = pendingSaveRef.current;
+      api.updateNode(nodeId, { content_md: content }).catch(() => {});
+      pendingSaveRef.current = null;
+    }
+
     if (activeNode?.type === "file") {
-      setDraft(activeNode.content_md || "");
+      const content = activeNode.content_md || "";
+      setDraft(content);
+      loadedContentRef.current = content;
+      setSaveStatus("saved");
       api.listComments(activeNode.id).then(setComments).catch(() => setComments([]));
       api.listVersions(activeNode.id).then(setVersions).catch(() => setVersions([]));
     } else {
       setDraft("");
+      loadedContentRef.current = "";
+      setSaveStatus("saved");
       setComments([]);
       setVersions([]);
     }
   }, [activeNodeId, activeNode, activeProjectId]);
 
-  // Load resolved agent for current node
+  // Auto-save with debounce
+  useEffect(() => {
+    if (!activeNodeId) return;
+    if (draft === loadedContentRef.current) {
+      setSaveStatus("saved");
+      pendingSaveRef.current = null;
+      return;
+    }
+
+    setSaveStatus("unsaved");
+    const nodeId = activeNodeId;
+    pendingSaveRef.current = { nodeId, content: draft };
+
+    clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      try {
+        const updated = await api.updateNode(nodeId, { content_md: draft });
+        setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
+        const versionList = await api.listVersions(nodeId);
+        setVersions(versionList);
+        loadedContentRef.current = draft;
+        pendingSaveRef.current = null;
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("unsaved");
+      }
+    }, autosaveDelay);
+
+    return () => clearTimeout(autoSaveTimerRef.current);
+  }, [draft, autosaveDelay]);
+
+  useEffect(() => {
+    setChatMessages([]);
+    setStreamingContent("");
+    setChatInput("");
+  }, [activeNodeId]);
+
   useEffect(() => {
     if (!activeProjectId || !activeNode) {
       setResolvedAgent(null);
@@ -318,7 +406,6 @@ export default function App() {
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
     setActiveNodeId(null);
-    setActiveAgentId(null);
   };
 
   const handleCreateNode = async (type) => {
@@ -337,7 +424,6 @@ export default function App() {
     setNodes((prev) => [...prev, node]);
     if (type === "file") {
       setActiveNodeId(String(node.id));
-      setActiveAgentId(null);
     }
   };
 
@@ -359,63 +445,6 @@ export default function App() {
 
   const handleSelectNode = (node) => {
     setActiveNodeId(String(node.id));
-    setActiveAgentId(null);
-  };
-
-  const handleSelectAgent = (agent) => {
-    setActiveAgentId(agent.id);
-    setActiveNodeId(null);
-  };
-
-  const handleOpenAgentCreator = () => {
-    if (!activeProjectId) return;
-    setIsAgentCreatorOpen(true);
-  };
-
-  const handleCreateAgentFromCreator = async ({ name, config }) => {
-    if (!activeProjectId) return;
-    const agent = await api.createAgent({
-      project: activeProjectId,
-      name,
-      config,
-    });
-    setAgents((prev) => [...prev, agent]);
-    setActiveAgentId(agent.id);
-    setActiveNodeId(null);
-  };
-
-  const handleSaveAgent = async ({ name, config }) => {
-    if (!activeAgent) return;
-    const updated = await api.updateAgent(activeAgent.id, { name, config });
-    setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-  };
-
-  const handleDeleteAgent = async () => {
-    if (!activeAgent) return;
-    if (!window.confirm(`Delete assistant "${activeAgent.name}"?`)) return;
-    await api.deleteAgent(activeAgent.id);
-    setAgents((prev) => prev.filter((a) => a.id !== activeAgent.id));
-    setActiveAgentId(null);
-  };
-
-  const handleSave = async () => {
-    if (!activeNode || activeNode.type !== "file") return;
-    setIsSaving(true);
-    try {
-      const updated = await api.updateNode(activeNode.id, { content_md: draft });
-      setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
-      const versionList = await api.listVersions(activeNode.id);
-      setVersions(versionList);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleAddComment = async () => {
-    if (!activeNode || !commentDraft.trim()) return;
-    const comment = await api.createComment({ node: activeNode.id, body: commentDraft.trim() });
-    setComments((prev) => [...prev, comment]);
-    setCommentDraft("");
   };
 
   const handleCreateInlineComment = async (body) => {
@@ -450,37 +479,65 @@ export default function App() {
         await api.deleteAgentConfig(nodeDirectConfig.id);
       }
     }
-    // Refresh
     const configs = await api.listAgentConfigs({ node: activeNode.id });
     setNodeDirectConfig(configs.length ? configs[0] : null);
     const resolved = await api.resolveAgentConfig({ node: activeNode.id });
     setResolvedAgent(resolved);
-    // Refresh tree indicators
     api.listAgentConfigs({}).then((all) => {
       const projectNodeIds = new Set(nodes.map((n) => String(n.id)));
       setNodeAgentConfigs(all.filter((c) => c.node && projectNodeIds.has(String(c.node))));
     }).catch(() => {});
   };
 
-  const handleRunAssistant = async () => {
-    if (!assistantPrompt.trim() || isStreaming || !activeProjectId) return;
-    setAssistantOutput("");
+  const handleCreateAgentFromCreator = async ({ name, config }) => {
+    if (!activeProjectId) return;
+    const agent = await api.createAgent({
+      project: activeProjectId,
+      name,
+      config,
+    });
+    setAgents((prev) => [...prev, agent]);
+  };
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || isStreaming || !activeProjectId) return;
+
+    const userMsg = chatInput.trim();
+    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setChatInput("");
     setIsStreaming(true);
+    setStreamingContent("");
+    setIsEditingDocument(false);
+
     try {
       const resolved = await api.resolveAgentConfig(
         activeNode ? { node: activeNode.id } : { project: activeProjectId }
       );
-      const config = { ...DEFAULT_AGENT, ...(resolved?.config || {}) };
-      const messages = [];
-      if (config.system_prompt) {
-        messages.push({ role: "system", content: config.system_prompt });
-      }
-      let contextBlock = "";
+      const config = { ...defaultAgent, ...(resolved?.config || {}) };
+
+      const apiMessages = [];
+      let systemContent = config.system_prompt || "";
       if (activeNode?.type === "file") {
-        contextBlock = `\n\nCurrent document:\n${draft}`;
+        systemContent += `\n\nThe user is working on a document titled "${activeNode.title}". Current content:\n\n${draft}`;
+        systemContent += `\n\nWhen the user asks you to write, edit, rewrite, expand, or modify the document content, you MUST respond using this exact format:
+
+<document>
+[The complete updated document content in markdown]
+</document>
+
+<message>
+[A brief follow-up message for the chat, e.g. "Done! I rewrote the intro. Want me to adjust anything?"]
+</message>
+
+IMPORTANT RULES:
+- The <document> block must contain the COMPLETE document content (not a diff or partial update)
+- The <message> block should be a short, conversational follow-up (1-2 sentences)
+- If the user is NOT asking you to edit the document (e.g., they ask a question, want feedback, or want a summary), respond normally WITHOUT any <document> or <message> tags
+- Never put document content outside of <document> tags when editing
+- Never omit the <message> tag when you include a <document> tag`;
       } else if (activeNode?.type === "folder" && folderSummary) {
         const summaryLines = [
-          `\n\nCurrent folder: ${activeNode.title}`,
+          `The user is viewing a folder titled "${activeNode.title}".`,
           `Files: ${folderSummary.fileCount}, Folders: ${folderSummary.folderCount}`,
           `Total words: ${folderSummary.wordCount}`,
         ];
@@ -490,9 +547,16 @@ export default function App() {
             summaryLines.push(`- ${file.title}: ${file.snippet || "Empty"}`);
           });
         }
-        contextBlock = `\n\n${summaryLines.join("\n")}`;
+        systemContent += "\n\n" + summaryLines.join("\n");
       }
-      messages.push({ role: "user", content: `${assistantPrompt}${contextBlock}` });
+      if (systemContent.trim()) {
+        apiMessages.push({ role: "system", content: systemContent.trim() });
+      }
+
+      for (const msg of chatMessages) {
+        apiMessages.push({ role: msg.role, content: msg.content });
+      }
+      apiMessages.push({ role: "user", content: userMsg });
 
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
         method: "POST",
@@ -501,7 +565,7 @@ export default function App() {
           provider: config.provider,
           model: config.model,
           temperature: config.temperature,
-          messages,
+          messages: apiMessages,
         }),
       });
 
@@ -513,6 +577,29 @@ export default function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let fullContent = "";
+      const parser = createStreamParser();
+      let lastApplyTime = 0;
+      let appliedDocument = false;
+
+      const finalize = () => {
+        const finalState = parser.getState();
+        if (finalState.mode === "document_edit") {
+          // Apply final complete document content
+          if (finalState.documentContent && editorRef.current) {
+            editorRef.current.replaceContent(finalState.documentContent);
+          }
+          const chatMsg = finalState.chatContent || "I've updated the document.";
+          setChatMessages((prev) => [...prev, { role: "assistant", content: chatMsg }]);
+        } else {
+          if (fullContent) {
+            setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+          }
+        }
+        setStreamingContent("");
+        setIsStreaming(false);
+        setIsEditingDocument(false);
+      };
 
       while (true) {
         const { value, done } = await reader.read();
@@ -527,15 +614,129 @@ export default function App() {
             .map((line) => line.slice(5).trim());
           if (!dataLines.length) continue;
           const data = dataLines.join("\n");
-          if (data === "[DONE]") { setIsStreaming(false); return; }
+          if (data === "[DONE]") {
+            finalize();
+            return;
+          }
           try {
             const parsed = JSON.parse(data);
-            if (parsed.delta) setAssistantOutput((prev) => prev + parsed.delta);
+            if (parsed.delta) {
+              fullContent += parsed.delta;
+              const state = parser.push(parsed.delta);
+
+              if (state.mode === "document_edit") {
+                setIsEditingDocument(true);
+                // Typewriter: apply partial content throttled every ~200ms
+                const now = Date.now();
+                if (state.documentContent && editorRef.current && now - lastApplyTime >= 200) {
+                  editorRef.current.replaceContent(state.documentContent);
+                  lastApplyTime = now;
+                  appliedDocument = true;
+                }
+                // Show chat message portion (streams in after </document>)
+                setStreamingContent(state.chatContent || "");
+              } else if (state.mode === "chat") {
+                setStreamingContent(fullContent);
+              }
+              // mode === "pending": don't update streaming content yet
+            }
           } catch (_) {}
         }
       }
+
+      finalize();
     } catch (error) {
-      setAssistantOutput("Error: " + error.message);
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Error: " + error.message },
+      ]);
+      setStreamingContent("");
+      setIsEditingDocument(false);
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (isStreaming || !activeNode || activeNode.type !== "file" || !draft.trim()) return;
+    setIsAssistantOpen(true);
+    const userMsg = `Summarize the chapter "${activeNode.title}"`;
+    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setIsStreaming(true);
+    setStreamingContent("");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/ai/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: defaultAgent.provider,
+          model: defaultAgent.model,
+          temperature: 0.3,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a writing assistant. Provide a concise summary of the following chapter content. " +
+                "Highlight key themes, main arguments, and important details. Keep the summary to 2-4 paragraphs.",
+            },
+            {
+              role: "user",
+              content: `Please summarize this chapter titled "${activeNode.title}":\n\n${draft}`,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        const text = await response.text();
+        throw new Error(text || "Summarization failed");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const event of events) {
+          const lines = event.split("\n");
+          const dataLines = lines
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim());
+          if (!dataLines.length) continue;
+          const data = dataLines.join("\n");
+          if (data === "[DONE]") {
+            setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+            setStreamingContent("");
+            setIsStreaming(false);
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.delta) {
+              fullContent += parsed.delta;
+              setStreamingContent(fullContent);
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (fullContent) {
+        setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+      }
+      setStreamingContent("");
+    } catch (error) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Error: " + error.message },
+      ]);
+      setStreamingContent("");
     } finally {
       setIsStreaming(false);
     }
@@ -543,34 +744,27 @@ export default function App() {
 
   const handleRestoreVersion = (version) => setDraft(version.content_md || "");
 
-  const handleSaveProviderKey = async () => {
-    if (!providerForm.api_key.trim()) { setProviderMessage("Enter a key before saving."); return; }
-    const existing = providerKeyMap.get(providerForm.provider);
-    const payload = { provider: providerForm.provider, api_key: providerForm.api_key.trim() };
+  const handleSaveProviderKey = async (provider, apiKey) => {
+    const existing = providerKeyMap.get(provider);
+    const payload = { provider, api_key: apiKey };
     if (existing) { await api.updateProviderKey(existing.id, payload); }
     else { await api.createProviderKey(payload); }
     const updated = await api.listProviderKeys();
     setProviderKeys(updated);
-    setProviderForm((prev) => ({ ...prev, api_key: "" }));
-    setProviderMessage("Key saved.");
   };
 
-  const handleClearProviderKey = async () => {
-    const existing = providerKeyMap.get(providerForm.provider);
-    if (!existing) { setProviderMessage("No key to clear."); return; }
+  const handleClearProviderKey = async (provider) => {
+    const existing = providerKeyMap.get(provider);
+    if (!existing) throw new Error("No key to clear.");
     await api.updateProviderKey(existing.id, { api_key: "" });
     const updated = await api.listProviderKeys();
     setProviderKeys(updated);
-    setProviderMessage("Key cleared.");
   };
 
   // --- Drag & drop ---
   const handleDragStart = (event, node) => {
     event.dataTransfer.setData("text/plain", String(node.id));
     setDraggingId(String(node.id));
-  };
-  const handleDragOver = (event) => {
-    event.preventDefault();
   };
   const handleDragOverNode = (event, node) => {
     event.preventDefault();
@@ -600,14 +794,37 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">
+        <div className="topbar-left">
           <span className="brand-name">Marvin</span>
+          <span className="topbar-divider" />
+          <ProjectSwitcher
+            projects={projects}
+            activeProjectId={activeProjectId}
+            onSelect={setActiveProjectId}
+            onCreate={handleCreateProject}
+          />
         </div>
         <div className="topbar-actions">
           <button
-            className={`ai-button ${isAIStudioOpen ? "active" : ""}`}
-            onClick={() => setIsAIStudioOpen((prev) => !prev)}
-            aria-label="Toggle AI Studio"
+            className={`topbar-icon-btn ${isOutlineOpen ? "active" : ""}`}
+            onClick={() => setIsOutlineOpen((prev) => !prev)}
+            aria-label="Toggle outline"
+            title="Outline"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path
+                d="M4 6h16M4 12h10M4 18h14"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            className={`topbar-icon-btn ${isAssistantOpen ? "active" : ""}`}
+            onClick={() => setIsAssistantOpen((prev) => !prev)}
+            aria-label="Toggle assistant"
+            title="Assistant"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path
@@ -617,45 +834,25 @@ export default function App() {
             </svg>
           </button>
           <button
-            className={`profile-button ${isSettingsOpen ? "active" : ""}`}
+            className={`topbar-icon-btn ${isSettingsOpen ? "active" : ""}`}
             onClick={() => setIsSettingsOpen((prev) => !prev)}
-            aria-label="Toggle settings"
+            aria-label="Settings"
+            title="Settings"
           >
-            <span className="profile-avatar">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53a7.76 7.76 0 0 0 .07-1 7.76 7.76 0 0 0-.07-.97l2.11-1.63a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.15 7.15 0 0 0-1.65-.96l-.37-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65a7.68 7.68 0 0 0-1.65.96l-2.49-1a.49.49 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64L4.57 11a8.3 8.3 0 0 0-.07.97 8.3 8.3 0 0 0 .07 1l-2.11 1.63a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1a7.15 7.15 0 0 0 1.65.96l.37 2.65a.5.5 0 0 0 .5.47h4a.5.5 0 0 0 .49-.42l.38-2.65a7.68 7.68 0 0 0 1.65-.96l2.49 1a.49.49 0 0 0 .61-.22l2-3.46a.49.49 0 0 0-.12-.64Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path
+                d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53a7.76 7.76 0 0 0 .07-1 7.76 7.76 0 0 0-.07-.97l2.11-1.63a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.15 7.15 0 0 0-1.65-.96l-.37-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65a7.68 7.68 0 0 0-1.65.96l-2.49-1a.49.49 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64L4.57 11a8.3 8.3 0 0 0-.07.97 8.3 8.3 0 0 0 .07 1l-2.11 1.63a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1a7.15 7.15 0 0 0 1.65.96l.37 2.65a.5.5 0 0 0 .5.47h4a.5.5 0 0 0 .49-.42l.38-2.65a7.68 7.68 0 0 0 1.65-.96l2.49 1a.49.49 0 0 0 .61-.22l2-3.46a.49.49 0 0 0-.12-.64Z"
+                fill="currentColor"
+              />
+            </svg>
           </button>
         </div>
       </header>
 
       <div className="app">
-        <aside className="sidebar">
-          <section className="panel">
-            <div className="panel-header">
-              <h2>Projects</h2>
-              <button className="ghost" onClick={handleCreateProject}>+ New</button>
-            </div>
-            <div className="project-list">
-              {projects.map((project) => (
-                <button
-                  key={project.id}
-                  className={`project-button ${activeProjectId === project.id ? "active" : ""}`}
-                  onClick={() => setActiveProjectId(project.id)}
-                >
-                  {project.name}
-                </button>
-              ))}
-              {projects.length === 0 && <div className="empty">No projects yet.</div>}
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
+        {isOutlineOpen && (
+          <aside className="outline-rail">
+            <div className="rail-header">
               <h2>Outline</h2>
               <div className="actions">
                 <button className="ghost" onClick={() => handleCreateNode("folder")}>+ Folder</button>
@@ -683,81 +880,47 @@ export default function App() {
               ))}
               {tree.length === 0 && <div className="empty">Add your first file or folder.</div>}
             </div>
-            <p className="helper">Drag files to reorder or move into folders.</p>
-          </section>
+          </aside>
+        )}
 
-          <AgentsList
-            agents={agents}
-            activeAgentId={activeAgentId}
-            onSelect={handleSelectAgent}
-            onCreate={handleOpenAgentCreator}
-          />
-        </aside>
-
-        <main className="main">
-          {selectionType === "agent" && activeAgent && (
-            <AgentConfigView
-              agent={activeAgent}
-              onSave={handleSaveAgent}
-              onDelete={handleDeleteAgent}
-            />
-          )}
-
-          {selectionType === "file" && activeNode && (
-            <>
-              <header className="main-header">
-                <div>
-                  <div className="eyebrow">Editor</div>
-                  <h1
-                    className="editable-title"
-                    contentEditable
-                    suppressContentEditableWarning
-                    spellCheck={false}
-                    onBlur={(e) => {
-                      const newTitle = e.target.textContent.trim();
-                      if (newTitle && newTitle !== activeNode.title) {
-                        handleRenameNode(activeNode.id, newTitle);
-                      } else {
-                        e.target.textContent = activeNode.title;
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
-                      if (e.key === "Escape") { e.target.textContent = activeNode.title; e.target.blur(); }
-                    }}
-                  >
-                    {activeNode.title}
-                  </h1>
+        <main className="editor-area">
+          {activeNode?.type === "file" && (
+            <div className="editor-content" ref={editorWrapperRef}>
+              <div className="document-header">
+                <h1
+                  className="editable-title"
+                  contentEditable
+                  suppressContentEditableWarning
+                  spellCheck={false}
+                  onBlur={(e) => {
+                    const newTitle = e.target.textContent.trim();
+                    if (newTitle && newTitle !== activeNode.title) {
+                      handleRenameNode(activeNode.id, newTitle);
+                    } else {
+                      e.target.textContent = activeNode.title;
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
+                    if (e.key === "Escape") { e.target.textContent = activeNode.title; e.target.blur(); }
+                  }}
+                >
+                  {activeNode.title}
+                </h1>
+                <div className="document-meta">
+                  <span className="word-count">{wordCount} words</span>
+                  <VersionsMenu versions={versions} onRestore={handleRestoreVersion} />
+                  <span className="save-status">
+                    {saveStatus === "saving" && "Saving…"}
+                    {saveStatus === "saved" && "Saved"}
+                  </span>
                 </div>
-                <div className="header-actions">
-                  <div className="agent-assignment">
-                    <label className="agent-assignment-label">Assistant</label>
-                    <select
-                      className="agent-assignment-select"
-                      value={nodeDirectConfig?.agent || ""}
-                      onChange={(e) => handleAssignAgent(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="">
-                        {resolvedAgent?.inherited && resolvedAgent?.agent_name
-                          ? `Inherited: ${resolvedAgent.agent_name}`
-                          : "None"}
-                      </option>
-                      {agents.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    className="primary"
-                    onClick={handleSave}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? "Saving" : "Save"}
-                  </button>
-                </div>
-              </header>
+              </div>
 
-              <section className="editor-section" ref={editorWrapperRef}>
+              <section
+                className="editor-section"
+                onClick={() => editorRef.current?.focus()}
+              >
                 <MarkdownEditor
                   key={activeNode.id}
                   docId={activeNode.id}
@@ -767,140 +930,39 @@ export default function App() {
                   editorRef={editorRef}
                 />
               </section>
-
-              <TabBar
-                tabs={[
-                  { key: "comments", label: `Comments (${comments.length})` },
-                  { key: "versions", label: `Versions (${versions.length})` },
-                ]}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-              />
-
-              {activeTab === "comments" && (
-                <section className="tab-content">
-                  <div className="comment-list">
-                    {comments.map((comment) => (
-                      <div
-                        className={`comment ${comment.quoted_text ? "comment-inline" : ""}`}
-                        key={comment.id}
-                        onClick={() => {
-                          if (comment.quoted_text && editorRef.current) {
-                            editorRef.current.scrollToPos(
-                              comment.position_from,
-                              comment.position_to
-                            );
-                          }
-                        }}
-                        style={{ cursor: comment.quoted_text ? "pointer" : "default" }}
-                      >
-                        {comment.quoted_text && (
-                          <div className="comment-quoted">
-                            &ldquo;{comment.quoted_text.length > 80
-                              ? comment.quoted_text.slice(0, 80) + "\u2026"
-                              : comment.quoted_text}&rdquo;
-                          </div>
-                        )}
-                        <div className="comment-body">{comment.body}</div>
-                        <div className="comment-meta">
-                          {new Date(comment.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
-                    {comments.length === 0 && (
-                      <div className="empty">No comments yet. Select text in the editor to add an inline comment.</div>
-                    )}
-                  </div>
-                  <div className="comment-input">
-                    <textarea
-                      placeholder="Add a general comment..."
-                      value={commentDraft}
-                      onChange={(e) => setCommentDraft(e.target.value)}
-                    />
-                    <button className="primary" onClick={handleAddComment}>Post</button>
-                  </div>
-                </section>
-              )}
-
-              {activeTab === "versions" && (
-                <section className="tab-content">
-                  <div className="version-list">
-                    {versions.map((version) => (
-                      <div className="version-item" key={version.id}>
-                        <div>
-                          <div className="version-title">
-                            {new Date(version.created_at).toLocaleString()}
-                          </div>
-                          <div className="version-snippet">
-                            {(version.content_md || "").slice(0, 80) || "Empty"}
-                          </div>
-                        </div>
-                        <button className="ghost" onClick={() => handleRestoreVersion(version)}>
-                          Restore
-                        </button>
-                      </div>
-                    ))}
-                    {versions.length === 0 && <div className="empty">No versions yet.</div>}
-                    {versions.length > 0 && (
-                      <div className="helper">
-                        Restoring loads content into the editor. Click Save to create a new version.
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )}
-            </>
+            </div>
           )}
 
-          {selectionType === "folder" && activeNode && (
-            <>
-              <header className="main-header">
-                <div>
-                  <div className="eyebrow">Folder</div>
-                  <h1
-                    className="editable-title"
-                    contentEditable
-                    suppressContentEditableWarning
-                    spellCheck={false}
-                    onBlur={(e) => {
-                      const newTitle = e.target.textContent.trim();
-                      if (newTitle && newTitle !== activeNode.title) {
-                        handleRenameNode(activeNode.id, newTitle);
-                      } else {
-                        e.target.textContent = activeNode.title;
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
-                      if (e.key === "Escape") { e.target.textContent = activeNode.title; e.target.blur(); }
-                    }}
-                  >
-                    {activeNode.title}
-                  </h1>
+          {activeNode?.type === "folder" && (
+            <div className="editor-content">
+              <div className="document-header">
+                <h1
+                  className="editable-title"
+                  contentEditable
+                  suppressContentEditableWarning
+                  spellCheck={false}
+                  onBlur={(e) => {
+                    const newTitle = e.target.textContent.trim();
+                    if (newTitle && newTitle !== activeNode.title) {
+                      handleRenameNode(activeNode.id, newTitle);
+                    } else {
+                      e.target.textContent = activeNode.title;
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
+                    if (e.key === "Escape") { e.target.textContent = activeNode.title; e.target.blur(); }
+                  }}
+                >
+                  {activeNode.title}
+                </h1>
+                <div className="document-meta">
+                  <span className="eyebrow">Folder</span>
                 </div>
-                <div className="header-actions">
-                  <div className="agent-assignment">
-                    <label className="agent-assignment-label">Assistant</label>
-                    <select
-                      className="agent-assignment-select"
-                      value={nodeDirectConfig?.agent || ""}
-                      onChange={(e) => handleAssignAgent(e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="">
-                        {resolvedAgent?.inherited && resolvedAgent?.agent_name
-                          ? `Inherited: ${resolvedAgent.agent_name}`
-                          : "None"}
-                      </option>
-                      {agents.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </header>
+              </div>
 
               {folderSummary && (
-                <section className="folder-summary">
+                <div className="folder-summary">
                   <div className="summary-grid">
                     <div>
                       <div className="summary-label">Files</div>
@@ -923,37 +985,69 @@ export default function App() {
                   </div>
                   <div className="summary-list">
                     {folderSummary.sampleFiles.map((file) => (
-                      <div key={file.id} className="summary-item">
-                        <div className="summary-title">{file.title}</div>
+                      <div
+                        key={file.id}
+                        className="summary-item"
+                        onClick={() => setActiveNodeId(String(file.id))}
+                      >
+                        <div className="summary-item-header">
+                          <div className="summary-title">{file.title}</div>
+                          {file.summary && !file.summaryStale && (
+                            <span className="summary-ai-badge">AI summary</span>
+                          )}
+                        </div>
                         <div className="summary-snippet">{file.snippet || "Empty"}</div>
+                        {(file.summary || file.snippet) && (
+                          <div className="summary-expand">
+                            <div className="summary-expand-content">
+                              {file.summary && !file.summaryStale ? (
+                                <>{file.summary}</>
+                              ) : (
+                                <span className="summary-loading">
+                                  <span className="summary-loading-dot" />
+                                  {file.summaryStale && file.snippet ? "Generating summary\u2026" : ""}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                     {folderSummary.sampleFiles.length === 0 && (
                       <div className="empty">No files inside this folder yet.</div>
                     )}
                   </div>
-                </section>
+                </div>
               )}
-            </>
+            </div>
           )}
 
-          {selectionType === "none" && (
+          {!activeNode && (
             <div className="empty-state">
-              <div className="empty-state-text">Select a file to start writing.</div>
+              <div className="empty-state-text">Select a document to start writing.</div>
             </div>
           )}
         </main>
-      </div>
 
-      <AIStudioSlideOver
-        isOpen={isAIStudioOpen}
-        onClose={() => setIsAIStudioOpen(false)}
-        prompt={assistantPrompt}
-        onPromptChange={setAssistantPrompt}
-        output={assistantOutput}
-        isStreaming={isStreaming}
-        onGenerate={handleRunAssistant}
-      />
+        <AssistantPanel
+          isOpen={isAssistantOpen}
+          onClose={() => setIsAssistantOpen(false)}
+          messages={chatMessages}
+          streamingContent={streamingContent}
+          currentInput={chatInput}
+          onInputChange={setChatInput}
+          onSend={handleSendMessage}
+          isStreaming={isStreaming}
+          agents={agents}
+          resolvedAgent={resolvedAgent}
+          nodeDirectConfig={nodeDirectConfig}
+          onAgentChange={handleAssignAgent}
+          onCreateAgent={() => setIsAgentCreatorOpen(true)}
+          onSummarize={handleSummarize}
+          canSummarize={activeNode?.type === "file" && !!draft.trim()}
+          isEditingDocument={isEditingDocument}
+        />
+      </div>
 
       <AgentCreatorSlideOver
         isOpen={isAgentCreatorOpen}
@@ -962,54 +1056,17 @@ export default function App() {
         apiBase={API_BASE}
       />
 
-      {isSettingsOpen && (
-        <div className="settings-overlay" onClick={() => setIsSettingsOpen(false)}>
-          <div className="panel settings-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="panel-header">
-              <h2>Settings</h2>
-              <button className="ghost" onClick={() => setIsSettingsOpen(false)}>Close</button>
-            </div>
-            <div className="settings-group">
-              <h3>Provider Keys</h3>
-              <label>
-                Provider
-                <select
-                  value={providerForm.provider}
-                  onChange={(e) => setProviderForm((prev) => ({ ...prev, provider: e.target.value }))}
-                >
-                  {PROVIDERS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                API key
-                <input
-                  type="password"
-                  placeholder="sk-..."
-                  value={providerForm.api_key}
-                  onChange={(e) => setProviderForm((prev) => ({ ...prev, api_key: e.target.value }))}
-                />
-              </label>
-              <div className="provider-actions">
-                <button className="primary" onClick={handleSaveProviderKey}>Save key</button>
-                <button className="ghost" onClick={handleClearProviderKey}>Clear key</button>
-              </div>
-              {providerMessage && <div className="helper">{providerMessage}</div>}
-              <div className="provider-list">
-                {PROVIDERS.map((p) => (
-                  <div className="provider-item" key={p.value}>
-                    <span>{p.label}</span>
-                    <span className={providerKeyMap.get(p.value)?.has_key ? "status ok" : "status"}>
-                      {providerKeyMap.get(p.value)?.has_key ? "Configured" : "Missing"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        providerKeyMap={providerKeyMap}
+        onSaveProviderKey={handleSaveProviderKey}
+        onClearProviderKey={handleClearProviderKey}
+        autosaveDelay={autosaveDelay}
+        onAutosaveDelayChange={setAutosaveDelay}
+        defaultAgent={defaultAgent}
+        onDefaultAgentChange={setDefaultAgent}
+      />
 
       {commentInputState && (
         <CommentInput

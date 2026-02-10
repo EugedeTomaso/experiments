@@ -1,10 +1,13 @@
+from datetime import timedelta
+
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .llm import stream_chat
+from .llm import generate_summary_sync, stream_chat
 from .models import Agent, AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
     AgentConfigSerializer,
@@ -198,3 +201,61 @@ class AIStreamView(APIView):
         response = StreamingHttpResponse(generator, content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         return response
+
+
+SUMMARY_DEBOUNCE = timedelta(minutes=15)
+
+
+class NodeSummaryView(APIView):
+    def post(self, request, node_id):
+        node = Node.objects.filter(id=node_id, type=Node.NodeType.FILE).first()
+        if not node:
+            return Response({"detail": "File node not found"}, status=404)
+
+        # Debounce: reject if file was edited within the last 15 min
+        now = timezone.now()
+        since_edit = now - node.updated_at
+        if since_edit < SUMMARY_DEBOUNCE:
+            remaining = int((SUMMARY_DEBOUNCE - since_edit).total_seconds())
+            return Response(
+                {"detail": "File was edited recently", "retry_after_seconds": remaining},
+                status=429,
+            )
+
+        # Freshness: if summary is up to date, return it without regenerating
+        if node.summary and node.summary_updated_at and node.summary_updated_at >= node.updated_at:
+            return Response({
+                "summary": node.summary,
+                "summary_updated_at": node.summary_updated_at,
+            })
+
+        # Must have content to summarize
+        if not node.content_md or not node.content_md.strip():
+            return Response({"detail": "No content to summarize"}, status=400)
+
+        # Resolve provider + model from request body
+        provider = request.data.get("provider")
+        model = request.data.get("model")
+        if not provider or not model:
+            return Response({"detail": "provider and model are required"}, status=400)
+
+        provider_key = ProviderKey.objects.filter(provider=provider).first()
+        api_key = provider_key.get_api_key() if provider_key else ""
+        if not api_key:
+            api_key = get_hardcoded_provider_key(provider)
+        if not api_key:
+            return Response({"detail": "Provider key missing"}, status=400)
+
+        try:
+            summary_text = generate_summary_sync(provider, api_key, model, node.title, node.content_md)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=500)
+
+        node.summary = summary_text
+        node.summary_updated_at = now
+        node.save(update_fields=["summary", "summary_updated_at"])
+
+        return Response({
+            "summary": node.summary,
+            "summary_updated_at": node.summary_updated_at,
+        })

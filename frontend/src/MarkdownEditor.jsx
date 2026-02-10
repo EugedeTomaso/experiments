@@ -6,6 +6,7 @@ import { gfm } from "@milkdown/preset-gfm";
 import { nord } from "@milkdown/theme-nord";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { TextSelection } from "@milkdown/kit/prose/state";
+import { replaceAll } from "@milkdown/utils";
 import { ProsemirrorAdapterProvider, usePluginViewFactory } from "@prosemirror-adapter/react";
 import { slash, SlashView } from "./components/SlashMenu";
 import { selectionTooltip, SelectionToolbarView } from "./components/SelectionToolbar";
@@ -77,6 +78,15 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef 
             // Position out of range
           }
         });
+      },
+      focus() {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.focus();
+        });
+      },
+      replaceContent(markdown) {
+        get().action(replaceAll(markdown));
       },
     };
   }, [loading, get, editorRef]);

@@ -1,6 +1,11 @@
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Agent, AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
+
+VERSION_INTERVAL = timedelta(minutes=10)
 from .utils import get_default_workspace
 
 
@@ -32,10 +37,12 @@ class NodeSerializer(serializers.ModelSerializer):
             "title",
             "order",
             "content_md",
+            "summary",
+            "summary_updated_at",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at", "summary", "summary_updated_at"]
 
     def validate(self, attrs):
         project = attrs.get("project") or getattr(self.instance, "project", None)
@@ -66,7 +73,9 @@ class NodeSerializer(serializers.ModelSerializer):
             and "content_md" in validated_data
             and node.content_md != previous_content
         ):
-            Version.objects.create(node=node, content_md=node.content_md)
+            last_version = node.versions.order_by("-created_at").first()
+            if not last_version or timezone.now() - last_version.created_at >= VERSION_INTERVAL:
+                Version.objects.create(node=node, content_md=node.content_md)
         return node
 
 

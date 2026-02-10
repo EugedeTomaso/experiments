@@ -1,6 +1,6 @@
-export function AgentsList({ agents, activeAgentId, onSelect, onCreate }) {
+export function AgentsList({ agents, activeAgentId, onSelect, onCreate, style }) {
   return (
-    <section className="panel">
+    <section className="panel" style={style}>
       <div className="panel-header">
         <h2>Assistants</h2>
         <button className="ghost" onClick={onCreate}>

@@ -5,6 +5,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 HARDCODED_PROVIDER_KEYS = {
     "openrouter": "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",
+    "deepseek": "sk-0f376742bdf2486cb338a6717f577698",
 }
 
 

@@ -13,6 +13,80 @@ PROVIDERS: Dict[str, Dict[str, str]] = {
 }
 
 
+SUMMARY_SYSTEM_PROMPT = (
+    "You are a writing assistant. Generate a concise 1-2 sentence summary "
+    "of the following document content. Focus on the key theme and main argument. "
+    "Do not use markdown formatting. Keep it under 200 characters."
+)
+
+
+def generate_summary_sync(provider: str, api_key: str, model: str, title: str, content_md: str) -> str:
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    messages = [
+        {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+        {"role": "user", "content": f'Summarize this document titled "{title}":\n\n{content_md[:3000]}'},
+    ]
+
+    if config["type"] == "anthropic":
+        return _sync_anthropic(api_key, config["base_url"], model, messages)
+    else:
+        return _sync_openai_compatible(api_key, config["base_url"], model, messages)
+
+
+def _sync_openai_compatible(api_key: str, base_url: str, model: str, messages: list) -> str:
+    url = f"{base_url}/chat/completions"
+    body = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.3,
+        "max_tokens": 256,
+        "stream": False,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    response = httpx.post(url, headers=headers, json=body, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    return data["choices"][0]["message"]["content"].strip()
+
+
+def _sync_anthropic(api_key: str, base_url: str, model: str, messages: list) -> str:
+    url = f"{base_url}/messages"
+    # Anthropic expects system prompt separate from messages
+    system_content = ""
+    user_messages = []
+    for msg in messages:
+        if msg["role"] == "system":
+            system_content = msg["content"]
+        else:
+            user_messages.append(msg)
+
+    body = {
+        "model": model,
+        "max_tokens": 256,
+        "messages": user_messages,
+        "temperature": 0.3,
+        "stream": False,
+    }
+    if system_content:
+        body["system"] = system_content
+
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+    }
+    response = httpx.post(url, headers=headers, json=body, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    return data["content"][0]["text"].strip()
+
+
 def stream_chat(provider: str, api_key: str, payload: dict) -> Iterable[bytes]:
     config = PROVIDERS.get(provider)
     if not config:

@@ -13,8 +13,8 @@ const GENERATION_PROMPT = `You are helping a user create a writing assistant for
 
 - "name": A short, memorable name for the assistant (1-3 words)
 - "system_prompt": A detailed system prompt that captures the described personality, writing style, and behavior. Write it as direct instructions to the AI. Be specific and actionable.
-- "provider": One of "openai", "anthropic", "openrouter", "deepseek", "cerebras", "groq" — pick the best fit for the described use case, defaulting to "openai"
-- "model": The best model for this assistant's purpose. Use "gpt-4o-mini" for general tasks, "gpt-4o" for complex writing, or suggest an appropriate model for the chosen provider.
+- "provider": One of "openai", "anthropic", "openrouter", "deepseek", "cerebras", "groq" — pick the best fit for the described use case, defaulting to "deepseek"
+- "model": The best model for this assistant's purpose. Use "deepseek-chat" for general tasks, or suggest an appropriate model for the chosen provider.
 - "temperature": A number between 0 and 2. Lower (0.2-0.5) for precise/editorial tasks, medium (0.6-0.8) for balanced writing, higher (0.9-1.2) for creative tasks.
 
 Respond with ONLY the JSON object, no markdown fencing, no explanation.`;
@@ -62,8 +62,8 @@ export function AgentCreatorSlideOver({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider: "openai",
-          model: "gpt-4o-mini",
+          provider: "deepseek",
+          model: "deepseek-chat",
           temperature: 0.7,
           messages: [
             { role: "system", content: GENERATION_PROMPT },
@@ -110,8 +110,8 @@ export function AgentCreatorSlideOver({
 
       setGenerated({
         name: config.name || "New Assistant",
-        provider: config.provider || "openai",
-        model: config.model || "gpt-4o-mini",
+        provider: config.provider || "deepseek",
+        model: config.model || "deepseek-chat",
         temperature: config.temperature ?? 0.7,
         system_prompt: config.system_prompt || "",
       });
@@ -142,8 +142,8 @@ export function AgentCreatorSlideOver({
   const handleSkipToManual = () => {
     setGenerated({
       name: "",
-      provider: "openai",
-      model: "gpt-4o-mini",
+      provider: "deepseek",
+      model: "deepseek-chat",
       temperature: 0.7,
       system_prompt: "",
     });
@@ -258,7 +258,7 @@ export function AgentCreatorSlideOver({
                     <input
                       value={generated.model}
                       onChange={(e) => updateField("model", e.target.value)}
-                      placeholder="gpt-4o-mini"
+                      placeholder="deepseek-chat"
                     />
                   </label>
                   <label className="form-label">
