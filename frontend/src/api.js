@@ -46,6 +46,9 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+  deleteNode(id) {
+    return request(`/api/nodes/${id}/`, { method: "DELETE" });
+  },
   listComments(nodeId) {
     return request(`/api/comments/?node=${nodeId}`);
   },
@@ -74,9 +77,30 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+  deleteAgentConfig(id) {
+    return request(`/api/agent-configs/${id}/`, { method: "DELETE" });
+  },
   resolveAgentConfig(params = {}) {
     const query = new URLSearchParams(params).toString();
     return request(`/api/agent-configs/resolve/?${query}`);
+  },
+  listAgents(projectId) {
+    return request(`/api/agents/?project=${projectId}`);
+  },
+  createAgent(payload) {
+    return request("/api/agents/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateAgent(id, payload) {
+    return request(`/api/agents/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteAgent(id) {
+    return request(`/api/agents/${id}/`, { method: "DELETE" });
   },
   listProviderKeys() {
     return request("/api/provider-keys/");

@@ -55,6 +55,9 @@ class Comment(models.Model):
     body = models.TextField()
     author_label = models.CharField(max_length=120, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    quoted_text = models.TextField(blank=True, default="")
+    position_from = models.IntegerField(null=True, blank=True)
+    position_to = models.IntegerField(null=True, blank=True)
 
 
 class AgentConfig(models.Model):
@@ -69,6 +72,10 @@ class AgentConfig(models.Model):
     )
     node = models.ForeignKey(
         Node, related_name="agent_configs", null=True, blank=True, on_delete=models.CASCADE
+    )
+    agent = models.ForeignKey(
+        "Agent", related_name="assignments", null=True, blank=True,
+        on_delete=models.SET_NULL
     )
     config = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -88,6 +95,22 @@ class AgentConfig(models.Model):
                 name="agentconfig_scope_valid",
             )
         ]
+
+
+class Agent(models.Model):
+    name = models.CharField(max_length=200)
+    project = models.ForeignKey(
+        Project, related_name="agents", on_delete=models.CASCADE
+    )
+    config = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("project", "name")]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.project.name})"
 
 
 class ProviderKey(models.Model):

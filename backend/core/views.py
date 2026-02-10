@@ -5,9 +5,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .llm import stream_chat
-from .models import AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
+from .models import Agent, AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
     AgentConfigSerializer,
+    AgentSerializer,
     CommentSerializer,
     NodeSerializer,
     ProjectSerializer,
@@ -64,11 +65,22 @@ class CommentViewSet(viewsets.ModelViewSet):
         return queryset
 
 
+class AgentViewSet(viewsets.ModelViewSet):
+    serializer_class = AgentSerializer
+
+    def get_queryset(self):
+        queryset = Agent.objects.all().order_by("name")
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        return queryset
+
+
 class AgentConfigViewSet(viewsets.ModelViewSet):
     serializer_class = AgentConfigSerializer
 
     def get_queryset(self):
-        queryset = AgentConfig.objects.all().order_by("created_at")
+        queryset = AgentConfig.objects.select_related("agent").order_by("created_at")
         scope_type = self.request.query_params.get("scope_type")
         project_id = self.request.query_params.get("project")
         node_id = self.request.query_params.get("node")
@@ -101,11 +113,26 @@ class AgentConfigViewSet(viewsets.ModelViewSet):
             return Response({"detail": "node or project is required"}, status=400)
 
         merged = {}
-        project_config = AgentConfig.objects.filter(
-            scope_type=AgentConfig.ScopeType.PROJECT, project=project
-        ).first()
+        last_agent_id = None
+        last_agent_name = None
+        inherited = False
+
+        def apply_config(cfg):
+            nonlocal merged, last_agent_id, last_agent_name
+            if cfg.agent:
+                merged.update(cfg.agent.config or {})
+                last_agent_id = cfg.agent.id
+                last_agent_name = cfg.agent.name
+            else:
+                merged.update(cfg.config or {})
+
+        project_config = (
+            AgentConfig.objects.select_related("agent")
+            .filter(scope_type=AgentConfig.ScopeType.PROJECT, project=project)
+            .first()
+        )
         if project_config:
-            merged.update(project_config.config or {})
+            apply_config(project_config)
 
         if node:
             chain = []
@@ -114,11 +141,29 @@ class AgentConfigViewSet(viewsets.ModelViewSet):
                 chain.append(current)
                 current = current.parent
             for item in reversed(chain):
-                config = AgentConfig.objects.filter(node=item).first()
+                config = (
+                    AgentConfig.objects.select_related("agent")
+                    .filter(node=item)
+                    .first()
+                )
                 if config:
-                    merged.update(config.config or {})
+                    apply_config(config)
 
-        return Response({"config": merged})
+        if last_agent_id and node:
+            direct_config = (
+                AgentConfig.objects.select_related("agent")
+                .filter(node=node)
+                .first()
+            )
+            if not direct_config or (direct_config.agent_id != last_agent_id):
+                inherited = True
+
+        return Response({
+            "config": merged,
+            "agent_id": last_agent_id,
+            "agent_name": last_agent_name,
+            "inherited": inherited,
+        })
 
 
 class ProviderKeyViewSet(viewsets.ModelViewSet):

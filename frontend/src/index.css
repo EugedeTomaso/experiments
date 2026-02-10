@@ -1,19 +1,71 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   color-scheme: light;
-  font-family: "Space Grotesk", system-ui, sans-serif;
+
+  /* Canvas — the app background */
+  --canvas: #f7f7f8;
+
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-inset: #f3f4f5;
+
+  /* Text hierarchy */
+  --text-1: #0d0d0d;
+  --text-2: #4b5563;
+  --text-3: #6b7280;
+  --text-4: #9ca3af;
+
+  /* Borders */
+  --border: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.05);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  /* Accent — blue, used sparingly for active/focus/links */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.06);
+  --accent-medium: rgba(37, 99, 235, 0.10);
+  --accent-border: rgba(37, 99, 235, 0.25);
+
+  /* Primary action — near-black */
+  --primary: #0d0d0d;
+  --primary-hover: #262626;
+  --on-primary: #ffffff;
+
+  /* Semantic */
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.08);
+  --success-border: rgba(5, 150, 105, 0.3);
+  --warning: #d97706;
+  --error: #dc2626;
+  --error-soft: rgba(220, 38, 38, 0.08);
+
+  /* Controls */
+  --control-bg: var(--surface);
+  --control-border: rgba(0, 0, 0, 0.12);
+  --control-focus: 0 0 0 2px rgba(37, 99, 235, 0.2);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Shadows */
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* Transitions */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* Typography */
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  --bg: #f6f2ec;
-  --bg-accent: #efe6db;
-  --ink: #1f2428;
-  --muted: #5f6b6f;
-  --primary: #d0714d;
-  --primary-dark: #b55f3e;
-  --panel: #fffaf4;
-  --panel-border: #e1d6c8;
-  --shadow: 0 20px 60px rgba(31, 36, 40, 0.1);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -22,8 +74,8 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top left, #f9f3ea, #f4ede3 35%, #efe5d8 70%);
-  color: var(--ink);
+  background: var(--canvas);
+  color: var(--text-1);
   min-height: 100vh;
 }
 
@@ -32,7 +84,7 @@ body {
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
 }
 
 button,
@@ -40,4 +92,5 @@ input,
 textarea,
 select {
   font-family: inherit;
+  font-size: inherit;
 }

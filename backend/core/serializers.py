@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
+from .models import Agent, AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
 from .utils import get_default_workspace
 
 
@@ -80,8 +80,24 @@ class VersionSerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
-        fields = ["id", "node", "body", "author_label", "created_at"]
+        fields = [
+            "id",
+            "node",
+            "body",
+            "author_label",
+            "created_at",
+            "quoted_text",
+            "position_from",
+            "position_to",
+        ]
         read_only_fields = ["created_at"]
+
+
+class AgentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Agent
+        fields = ["id", "name", "project", "config", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
 
 
 class AgentConfigSerializer(serializers.ModelSerializer):
@@ -92,6 +108,7 @@ class AgentConfigSerializer(serializers.ModelSerializer):
             "scope_type",
             "project",
             "node",
+            "agent",
             "config",
             "created_at",
             "updated_at",
