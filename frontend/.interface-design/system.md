@@ -14,7 +14,7 @@ Three-column flex layout, all collapsible:
 |------------------|----------|----------|---------------------------------------------|
 | Outline Rail     | 220px    | Left     | File tree only. Collapsible via topbar.      |
 | Editor Area      | Fluid    | Center   | Document header + editor. Max-width 760px.   |
-| Assistant Panel  | 360px    | Right    | Chat thread + input. Collapsible via topbar. |
+| Assistant Pane   | 380px    | Right    | Transparent canvas pane. Thread + composer. Toggle via topbar. |
 | Topbar           | 48px h   | Top      | Brand + project switcher (left), toggles (right) |
 
 ### Topbar Structure
@@ -25,11 +25,19 @@ Three-column flex layout, all collapsible:
 - Large title (28px/700) — editable inline
 - Meta row: word count, VersionsMenu dropdown, Save button
 
-### Assistant Panel
-- Header: title + close button
-- Agent bar: agent selector dropdown + create agent button
-- Chat thread: scrollable conversation (user + assistant messages)
-- Input area: textarea + send button (fixed at bottom)
+### Assistant Pane (Canvas Sibling)
+- Transparent pane: `background: transparent`, no border, no shadow — lives on canvas
+- Editor keeps `max-width: 760px; margin: 0 auto` — centers in available space
+- Draggable divider between editor and pane (`.pane-divider`, 12px hit zone, subtle 1px line at rest, 4px×48px handle on hover)
+- Assistant width stored in state + `localStorage('marvin:assistant-width')`, default 380px, range 280–600px
+- Double-click divider resets to default width
+- Top bar: pill-shaped agent selector + circular "+" button + close
+- Chat thread: scrollable, messages float on canvas
+- Assistant messages use `--surface` bg (white on canvas for contrast)
+- Suggestion chips: pill-shaped actions above composer
+- Composer: white pill (`--surface` bg, `--border`, 12px radius) — most prominent element
+- Enter animation: fade-in (`assistant-pane-in`)
+- Responsive (< 900px): becomes fixed bottom sheet with `--surface` bg
 
 ## Tokens
 
@@ -177,6 +185,23 @@ Features: drag-and-drop, inline rename (double-click), delete on hover, collapsi
 User messages: plain text, `--text-2` color
 Assistant messages: `--surface-inset` background, `--radius-md`, 10px 12px padding
 
+### Canvas Pane (Assistant)
+
+```css
+.assistant-pane {
+  width: 380px;
+  background: transparent;
+  /* No border, no shadow — content sits directly on canvas */
+}
+.assistant-pane-composer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+```
+
+Composer is a white pill on canvas: `--surface` bg, `--border`, 12px radius. Focus-within shows accent border + control-focus ring. Send button is 28px circle.
+
 ### Floating Panel (Popover / Menu / Dropdown)
 
 ```css
@@ -198,7 +223,7 @@ z-index: 100;
 | TreeItem          | `components/TreeItem.jsx`         | Recursive outline tree item               |
 | CommentInput      | `components/CommentInput.jsx`     | Floating inline comment input             |
 | CommentPopover    | `components/CommentPopover.jsx`   | Click-on-highlight comment popover        |
-| SelectionToolbar  | `components/SelectionToolbar.jsx` | Text selection tooltip (comment button)   |
+| SelectionToolbar  | `components/SelectionToolbar.jsx` | Formatting toolbar (Bold/Italic/Strike/Code + Comment) |
 | SlashMenu         | `components/SlashMenu.jsx`        | `/` command menu in editor                |
 | AgentCreatorSlideOver | `components/AgentCreatorSlideOver.jsx` | AI-powered agent creation flow |
 | SettingsModal     | `components/SettingsModal.jsx`    | Centered modal with left nav sections     |
@@ -216,6 +241,34 @@ Sections: Provider Keys, Editor, AI Defaults. Settings values persisted to `loca
 ```
 
 Responsive (< 900px): full-screen, nav becomes horizontal row at top.
+
+### Formatting Toolbar
+
+Floating toolbar appears on text selection. Contains inline mark toggles + comment action.
+
+```css
+.selection-toolbar { padding: 4px; gap: 2px; border-radius: var(--radius-md); box-shadow: var(--shadow-float); }
+.fmt-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); }
+.fmt-btn-active { background: var(--accent-medium); color: var(--accent); border-color: var(--accent-border); }
+```
+
+Buttons use native `addEventListener('mousedown')` to prevent ProseMirror focus loss. Active marks detected via `isMarkActive()` on every view update.
+
+### Editor Typography
+
+Document content uses larger, more readable typography than the UI shell:
+
+| Property | Value | Notes |
+|----------|-------|-------|
+| Font size | 16px | Up from 14px base — reading-optimized |
+| Line height | 1.75 | Generous interlineado for long-form text |
+| Paragraph color | `--text-2` | Slightly softer than headings |
+| Heading weight | 700/650/600 | H1/H2/H3 — clear hierarchy |
+| Block spacing | `0.75em` top margin via `> * + *` | Adjacent sibling combinator |
+| Blockquote | `3px solid --accent-border` left border, italic | |
+| Code (inline) | `--surface-inset` bg, `--border-subtle` border | |
+| Code (block) | `--surface-inset` bg, `--border` border, `16px 20px` padding | |
+| HR | `1px solid --border`, `1.5em` vertical margin | |
 
 ## Rules
 

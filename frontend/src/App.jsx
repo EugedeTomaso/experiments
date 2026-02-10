@@ -12,6 +12,59 @@ import { SettingsModal } from "./components/SettingsModal";
 import { createStreamParser } from "./streamParser";
 import "./App.css";
 
+const NEW_DOC_TEMPLATE = `\
+Welcome to your new document. This guide will help you get started — feel free to delete it when you're ready to write.
+
+## Formatting text
+
+Select any text to reveal the formatting toolbar. You can apply:
+
+- **Bold** for emphasis on key ideas
+- *Italic* for titles, subtle stress, or foreign words
+- ~~Strikethrough~~ to mark edits or crossed-out thoughts
+- \`Inline code\` for technical terms, variables, or commands
+
+You can also combine them: ***bold and italic***, or **\`bold code\`**.
+
+## Using the slash menu
+
+Type **/** at the beginning of a new line to open the command menu. From there you can insert:
+
+- Headings (H1, H2, H3) to structure your document
+- Bullet lists and numbered lists
+- Blockquotes for callouts or citations
+- Code blocks for multi-line snippets
+- Horizontal dividers to separate sections
+
+> This is a blockquote. Use it to highlight a quote, a key takeaway, or an important note.
+
+## Working with AI
+
+Open the **Assistant** panel using the button in the top-right corner. The AI can help you at any stage of writing. Here are some things you can ask:
+
+- "Help me outline an article about remote work best practices"
+- "Rewrite the second paragraph in a more conversational tone"
+- "What are the main arguments in my document so far?"
+- "Suggest a better title for this piece"
+- "Translate the last section to Spanish"
+- "Shorten this to fit in a tweet"
+
+The assistant reads your document, so you can reference specific sections or ask it to work with what you've already written.
+
+## Keyboard shortcuts
+
+A few shortcuts to speed up your workflow:
+
+- **Ctrl+B** / **⌘B** — Bold
+- **Ctrl+I** / **⌘I** — Italic
+- **Ctrl+Z** / **⌘Z** — Undo
+- **Ctrl+Shift+Z** / **⌘⇧Z** — Redo
+
+---
+
+*Delete this guide and start writing. Your changes save automatically.*
+`;
+
 const INITIAL_DEFAULT_AGENT = {
   provider: "deepseek",
   model: "deepseek-chat",
@@ -74,6 +127,10 @@ export default function App() {
   // --- Layout state ---
   const [isOutlineOpen, setIsOutlineOpen] = useState(true);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [assistantWidth, setAssistantWidth] = useState(() => {
+    const saved = localStorage.getItem("marvin:assistant-width");
+    return saved ? Number(saved) : 380;
+  });
 
   // --- Chat state ---
   const [chatMessages, setChatMessages] = useState([]);
@@ -210,6 +267,10 @@ export default function App() {
   }, [defaultAgent]);
 
   useEffect(() => {
+    localStorage.setItem("marvin:assistant-width", String(assistantWidth));
+  }, [assistantWidth]);
+
+  useEffect(() => {
     if (!activeProjectId) return;
     api.listNodes(activeProjectId).then((data) => {
       setNodes(data);
@@ -277,13 +338,17 @@ export default function App() {
       pendingSaveRef.current = null;
     }
 
-    if (activeNode?.type === "file") {
-      const content = activeNode.content_md || "";
+    // Read the node directly from the current nodes array.
+    // Both setNodes and setActiveNodeId are batched in the same handler,
+    // so the target node is always present when this effect runs.
+    const node = nodes.find((n) => String(n.id) === String(activeNodeId));
+    if (node?.type === "file") {
+      const content = node.content_md || "";
       setDraft(content);
       loadedContentRef.current = content;
       setSaveStatus("saved");
-      api.listComments(activeNode.id).then(setComments).catch(() => setComments([]));
-      api.listVersions(activeNode.id).then(setVersions).catch(() => setVersions([]));
+      api.listComments(node.id).then(setComments).catch(() => setComments([]));
+      api.listVersions(node.id).then(setVersions).catch(() => setVersions([]));
     } else {
       setDraft("");
       loadedContentRef.current = "";
@@ -291,7 +356,8 @@ export default function App() {
       setComments([]);
       setVersions([]);
     }
-  }, [activeNodeId, activeNode, activeProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNodeId]);
 
   // Auto-save with debounce
   useEffect(() => {
@@ -410,8 +476,14 @@ export default function App() {
 
   const handleCreateNode = async (type) => {
     if (!activeProjectId) return;
-    const title = window.prompt(type === "folder" ? "Folder name" : "File name");
-    if (!title) return;
+    const isFile = type === "file";
+    let title;
+    if (isFile) {
+      title = "Untitled";
+    } else {
+      title = window.prompt("Folder name");
+      if (!title) return;
+    }
     const parent = activeNode?.type === "folder" ? activeNode.id : activeNode?.parent ?? null;
     const node = await api.createNode({
       project: activeProjectId,
@@ -419,10 +491,10 @@ export default function App() {
       type,
       title,
       order: getNextOrder(parent),
-      content_md: "",
+      content_md: isFile ? NEW_DOC_TEMPLATE : "",
     });
     setNodes((prev) => [...prev, node]);
-    if (type === "file") {
+    if (isFile) {
       setActiveNodeId(String(node.id));
     }
   };
@@ -509,6 +581,11 @@ export default function App() {
     setStreamingContent("");
     setIsEditingDocument(false);
 
+    // Capture editor instance and node ID at stream start so that
+    // navigating to another document mid-stream cannot redirect writes.
+    const targetNodeId = activeNodeId;
+    const targetEditor = editorRef.current;
+
     try {
       const resolved = await api.resolveAgentConfig(
         activeNode ? { node: activeNode.id } : { project: activeProjectId }
@@ -585,9 +662,19 @@ IMPORTANT RULES:
       const finalize = () => {
         const finalState = parser.getState();
         if (finalState.mode === "document_edit") {
-          // Apply final complete document content
-          if (finalState.documentContent && editorRef.current) {
-            editorRef.current.replaceContent(finalState.documentContent);
+          // Apply final document content to the captured editor (may be unmounted)
+          if (finalState.documentContent) {
+            if (targetEditor) {
+              try { targetEditor.replaceContent(finalState.documentContent); } catch (_) {}
+            }
+            // Always persist to the correct node via API, regardless of navigation
+            if (targetNodeId) {
+              api.updateNode(targetNodeId, { content_md: finalState.documentContent })
+                .then((updated) => {
+                  setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
+                })
+                .catch(() => {});
+            }
           }
           const chatMsg = finalState.chatContent || "I've updated the document.";
           setChatMessages((prev) => [...prev, { role: "assistant", content: chatMsg }]);
@@ -628,8 +715,8 @@ IMPORTANT RULES:
                 setIsEditingDocument(true);
                 // Typewriter: apply partial content throttled every ~200ms
                 const now = Date.now();
-                if (state.documentContent && editorRef.current && now - lastApplyTime >= 200) {
-                  editorRef.current.replaceContent(state.documentContent);
+                if (state.documentContent && targetEditor && now - lastApplyTime >= 200) {
+                  try { targetEditor.replaceContent(state.documentContent); } catch (_) {}
                   lastApplyTime = now;
                   appliedDocument = true;
                 }
@@ -761,6 +848,30 @@ IMPORTANT RULES:
     setProviderKeys(updated);
   };
 
+  // --- Pane resize ---
+  const handleDividerMouseDown = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = assistantWidth;
+
+    const onMouseMove = (moveEvent) => {
+      const delta = startX - moveEvent.clientX;
+      setAssistantWidth(Math.max(280, Math.min(600, startWidth + delta)));
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  };
+
   // --- Drag & drop ---
   const handleDragStart = (event, node) => {
     event.dataTransfer.setData("text/plain", String(node.id));
@@ -883,7 +994,7 @@ IMPORTANT RULES:
           </aside>
         )}
 
-        <main className="editor-area">
+        <main className={`editor-area${isAssistantOpen ? ' with-assistant' : ''}`}>
           {activeNode?.type === "file" && (
             <div className="editor-content" ref={editorWrapperRef}>
               <div className="document-header">
@@ -924,7 +1035,7 @@ IMPORTANT RULES:
                 <MarkdownEditor
                   key={activeNode.id}
                   docId={activeNode.id}
-                  value={draft}
+                  value={activeNode.content_md || ""}
                   onChange={setDraft}
                   comments={comments}
                   editorRef={editorRef}
@@ -1029,6 +1140,14 @@ IMPORTANT RULES:
           )}
         </main>
 
+        {isAssistantOpen && (
+          <div
+            className="pane-divider"
+            onMouseDown={handleDividerMouseDown}
+            onDoubleClick={() => setAssistantWidth(380)}
+          />
+        )}
+
         <AssistantPanel
           isOpen={isAssistantOpen}
           onClose={() => setIsAssistantOpen(false)}
@@ -1046,6 +1165,7 @@ IMPORTANT RULES:
           onSummarize={handleSummarize}
           canSummarize={activeNode?.type === "file" && !!draft.trim()}
           isEditingDocument={isEditingDocument}
+          width={assistantWidth}
         />
       </div>
 
