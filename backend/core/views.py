@@ -8,11 +8,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .llm import generate_summary_sync, stream_chat
-from .models import Agent, AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
+from django.db.models import Count, Q
+
+from .models import Agent, AgentConfig, Comment, Conversation, Message, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
     AgentConfigSerializer,
     AgentSerializer,
     CommentSerializer,
+    ConversationSerializer,
+    MessageSerializer,
     NodeSerializer,
     ProjectSerializer,
     ProviderKeySerializer,
@@ -169,6 +173,37 @@ class AgentConfigViewSet(viewsets.ModelViewSet):
         })
 
 
+class ConversationViewSet(viewsets.ModelViewSet):
+    serializer_class = ConversationSerializer
+
+    def get_queryset(self):
+        queryset = Conversation.objects.annotate(
+            message_count=Count("messages")
+        ).order_by("-updated_at")
+        node_id = self.request.query_params.get("node")
+        if node_id:
+            queryset = queryset.filter(node_id=node_id)
+        return queryset
+
+
+class MessageViewSet(viewsets.ModelViewSet):
+    serializer_class = MessageSerializer
+
+    def get_queryset(self):
+        queryset = Message.objects.all().order_by("created_at")
+        conversation_id = self.request.query_params.get("conversation")
+        if conversation_id:
+            queryset = queryset.filter(conversation_id=conversation_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        message = serializer.save()
+        # Touch conversation updated_at
+        Conversation.objects.filter(id=message.conversation_id).update(
+            updated_at=timezone.now()
+        )
+
+
 class ProviderKeyViewSet(viewsets.ModelViewSet):
     serializer_class = ProviderKeySerializer
 
@@ -180,13 +215,17 @@ class ProviderKeyViewSet(viewsets.ModelViewSet):
 class AIStreamView(APIView):
     def post(self, request):
         provider = request.data.get("provider")
+        model = request.data.get("model")
+        print(f"[AIStream] provider={provider}, model={model}", flush=True)
         if not provider:
             return Response({"detail": "provider is required"}, status=400)
 
         provider_key = ProviderKey.objects.filter(provider=provider).first()
         api_key = provider_key.get_api_key() if provider_key else ""
+        print(f"[AIStream] db_key_len={len(api_key) if api_key else 0}, has_provider_key={provider_key is not None}", flush=True)
         if not api_key:
             api_key = get_hardcoded_provider_key(provider)
+            print(f"[AIStream] fallback_key_len={len(api_key) if api_key else 0}", flush=True)
         if not api_key:
             return Response(
                 {"detail": "Provider key missing"},
@@ -259,3 +298,90 @@ class NodeSummaryView(APIView):
             "summary": node.summary,
             "summary_updated_at": node.summary_updated_at,
         })
+
+
+class NodeSearchView(APIView):
+    """Full-text search across node title, summary, and content."""
+
+    def get(self, request):
+        project_id = request.query_params.get("project")
+        q = request.query_params.get("q", "").strip()
+        if not project_id or not q:
+            return Response([])
+
+        try:
+            from django.contrib.postgres.search import (
+                SearchHeadline,
+                SearchQuery,
+                SearchRank,
+                SearchVector,
+            )
+
+            search_vector = (
+                SearchVector("title", weight="A")
+                + SearchVector("summary", weight="B")
+                + SearchVector("content_md", weight="C")
+            )
+            search_query = SearchQuery(q, search_type="websearch")
+
+            results = (
+                Node.objects.filter(project_id=project_id)
+                .annotate(
+                    rank=SearchRank(search_vector, search_query),
+                    headline=SearchHeadline(
+                        "content_md",
+                        search_query,
+                        start_sel="<mark>",
+                        stop_sel="</mark>",
+                        max_words=30,
+                        min_words=15,
+                    ),
+                )
+                .filter(rank__gt=0)
+                .order_by("-rank")[:20]
+            )
+        except Exception:
+            # Fallback to simple icontains search
+            results = (
+                Node.objects.filter(project_id=project_id)
+                .filter(
+                    Q(title__icontains=q)
+                    | Q(content_md__icontains=q)
+                    | Q(summary__icontains=q)
+                )
+                .order_by("-updated_at")[:20]
+            )
+            data = []
+            for node in results:
+                snippet = ""
+                if node.content_md:
+                    idx = node.content_md.lower().find(q.lower())
+                    if idx >= 0:
+                        start = max(0, idx - 60)
+                        end = min(len(node.content_md), idx + len(q) + 60)
+                        snippet = node.content_md[start:end]
+                data.append({
+                    "id": node.id,
+                    "title": node.title,
+                    "type": node.type,
+                    "parent": node.parent_id,
+                    "summary": (node.summary or "")[:150],
+                    "headline": snippet,
+                    "updated_at": node.updated_at.isoformat(),
+                    "word_count": len(node.content_md.strip().split()) if node.content_md else 0,
+                })
+            return Response(data)
+
+        data = []
+        for node in results:
+            data.append({
+                "id": node.id,
+                "title": node.title,
+                "type": node.type,
+                "parent": node.parent_id,
+                "summary": (node.summary or "")[:150],
+                "headline": node.headline,
+                "updated_at": node.updated_at.isoformat(),
+                "word_count": len(node.content_md.strip().split()) if node.content_md else 0,
+            })
+        return Response(data)

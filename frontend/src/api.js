@@ -122,10 +122,44 @@ export const api = {
   deleteProviderKey(id) {
     return request(`/api/provider-keys/${id}/`, { method: "DELETE" });
   },
+  searchNodes(projectId, query) {
+    return request(`/api/search/?project=${projectId}&q=${encodeURIComponent(query)}`);
+  },
   generateSummary(nodeId, { provider, model }) {
     return request(`/api/nodes/${nodeId}/summary`, {
       method: "POST",
       body: JSON.stringify({ provider, model }),
+    });
+  },
+
+  // Conversations
+  listConversations(nodeId) {
+    return request(`/api/conversations/?node=${nodeId}`);
+  },
+  createConversation(payload) {
+    return request("/api/conversations/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateConversation(id, payload) {
+    return request(`/api/conversations/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteConversation(id) {
+    return request(`/api/conversations/${id}/`, { method: "DELETE" });
+  },
+
+  // Messages
+  listMessages(conversationId) {
+    return request(`/api/messages/?conversation=${conversationId}`);
+  },
+  createMessage(payload) {
+    return request("/api/messages/", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 };

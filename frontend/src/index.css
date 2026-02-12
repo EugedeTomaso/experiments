@@ -4,11 +4,11 @@
   color-scheme: light;
 
   /* Canvas — the app background */
-  --canvas: #f7f7f8;
+  --canvas: #f7f7f5;
 
   /* Surfaces */
   --surface: #ffffff;
-  --surface-inset: #f3f4f5;
+  --surface-inset: #f3f3f1;
 
   /* Text hierarchy */
   --text-1: #0d0d0d;

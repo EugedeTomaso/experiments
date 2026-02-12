@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Agent, AgentConfig, Comment, Node, Project, ProviderKey, Version, Workspace
+from .models import Agent, AgentConfig, Comment, Conversation, Message, Node, Project, ProviderKey, Version, Workspace
 
 VERSION_INTERVAL = timedelta(minutes=10)
 from .utils import get_default_workspace
@@ -140,6 +140,38 @@ class AgentConfigSerializer(serializers.ModelSerializer):
                     "Scope type must match node type for folder/file scopes."
                 )
         return attrs
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    message_count = serializers.IntegerField(read_only=True, default=0)
+    preview = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = [
+            "id",
+            "node",
+            "title",
+            "message_count",
+            "preview",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_preview(self, obj):
+        last_msg = obj.messages.order_by("-created_at").first()
+        if not last_msg:
+            return ""
+        text = last_msg.content.replace("\n", " ").strip()
+        return text[:120] if len(text) > 120 else text
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = ["id", "conversation", "role", "content", "created_at"]
+        read_only_fields = ["created_at"]
 
 
 class ProviderKeySerializer(serializers.ModelSerializer):

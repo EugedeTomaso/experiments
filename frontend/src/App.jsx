@@ -4,12 +4,17 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { TreeItem } from "./components/TreeItem";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { AssistantPanel } from "./components/AssistantPanel";
+import { FolderView } from "./components/FolderView";
+import { NodePreviewTooltip } from "./components/NodePreviewTooltip";
+import { SearchResultItem } from "./components/SearchResultItem";
 import { VersionsMenu } from "./components/VersionsMenu";
 import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
 import { CommentInput } from "./components/CommentInput";
 import { CommentPopover } from "./components/CommentPopover";
 import { SettingsModal } from "./components/SettingsModal";
+import { ProjectWizard } from "./components/ProjectWizard";
 import { createStreamParser } from "./streamParser";
+import { buildSnippet, wordCount } from "./utils";
 import "./App.css";
 
 const NEW_DOC_TEMPLATE = `\
@@ -77,10 +82,6 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 const normalizeId = (value) =>
   value === null || value === undefined ? null : String(value);
 
-const buildSnippet = (text, maxLength = 140) => {
-  if (!text) return "";
-  return text.replace(/\s+/g, " ").trim().slice(0, maxLength);
-};
 
 function buildTree(nodes) {
   const map = new Map();
@@ -123,6 +124,8 @@ export default function App() {
   const autoSaveTimerRef = useRef(null);
   const loadedContentRef = useRef("");
   const pendingSaveRef = useRef(null); // { nodeId, content } or null
+  const abortRef = useRef(null);
+  const preEditDraftRef = useRef(null);
 
   // --- Layout state ---
   const [isOutlineOpen, setIsOutlineOpen] = useState(true);
@@ -138,6 +141,15 @@ export default function App() {
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isEditingDocument, setIsEditingDocument] = useState(false);
+  const [diffVisible, setDiffVisible] = useState(false);
+  const [diffAvailable, setDiffAvailable] = useState(false);
+
+  // --- Conversation state ---
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+
+  // --- AI context from editor selection ---
+  const [pendingContext, setPendingContext] = useState(null);
 
   // --- Agent state ---
   const [agents, setAgents] = useState([]);
@@ -145,6 +157,9 @@ export default function App() {
   const [resolvedAgent, setResolvedAgent] = useState(null);
   const [nodeDirectConfig, setNodeDirectConfig] = useState(null);
   const [isAgentCreatorOpen, setIsAgentCreatorOpen] = useState(false);
+
+  // --- Wizard state ---
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
 
   // --- Settings state ---
   const [providerKeys, setProviderKeys] = useState([]);
@@ -171,6 +186,24 @@ export default function App() {
   // --- Drag & drop ---
   const [draggingId, setDraggingId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
+  const [dropPosition, setDropPosition] = useState(null); // 'before' | 'after' | 'inside'
+
+  // --- Sidebar state ---
+  const [expandedFolders, setExpandedFolders] = useState(new Set());
+  const [focusedNodeId, setFocusedNodeId] = useState(null);
+  const [outlineFilter, setOutlineFilter] = useState("");
+  const [outlineWidth, setOutlineWidth] = useState(() => {
+    const saved = localStorage.getItem("marvin:outline-width");
+    return saved ? Number(saved) : 220;
+  });
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState(null);
+  const createMenuRef = useRef(null);
+  const outlineFilterRef = useRef(null);
+  const searchTimerRef = useRef(null);
+  const hoverTimerRef = useRef(null);
 
   // --- Derived state ---
   const nodesById = useMemo(
@@ -271,9 +304,16 @@ export default function App() {
   }, [assistantWidth]);
 
   useEffect(() => {
+    localStorage.setItem("marvin:outline-width", String(outlineWidth));
+  }, [outlineWidth]);
+
+  useEffect(() => {
     if (!activeProjectId) return;
     api.listNodes(activeProjectId).then((data) => {
       setNodes(data);
+      // Auto-expand all folders on load
+      const folderIds = new Set(data.filter((n) => n.type === "folder").map((n) => String(n.id)));
+      setExpandedFolders(folderIds);
       if (!activeNodeId) {
         const firstFile = data.find((n) => n.type === "file");
         if (firstFile) setActiveNodeId(String(firstFile.id));
@@ -342,6 +382,9 @@ export default function App() {
     // Both setNodes and setActiveNodeId are batched in the same handler,
     // so the target node is always present when this effect runs.
     const node = nodes.find((n) => String(n.id) === String(activeNodeId));
+    setDiffAvailable(false);
+    setDiffVisible(false);
+
     if (node?.type === "file") {
       const content = node.content_md || "";
       setDraft(content);
@@ -391,10 +434,27 @@ export default function App() {
     return () => clearTimeout(autoSaveTimerRef.current);
   }, [draft, autosaveDelay]);
 
+  // Clear diff toggle when user edits and plugin clears its data
+  useEffect(() => {
+    if (diffAvailable && editorRef.current) {
+      if (!editorRef.current.hasDiffData()) {
+        setDiffAvailable(false);
+        setDiffVisible(false);
+      }
+    }
+  }, [draft, diffAvailable]);
+
+  // Load conversations when node changes; reset chat state
   useEffect(() => {
     setChatMessages([]);
     setStreamingContent("");
     setChatInput("");
+    setActiveConversationId(null);
+    if (activeNodeId) {
+      api.listConversations(activeNodeId).then(setConversations).catch(() => setConversations([]));
+    } else {
+      setConversations([]);
+    }
   }, [activeNodeId]);
 
   useEffect(() => {
@@ -439,13 +499,38 @@ export default function App() {
       handleHighlightClick(e.detail.commentIds, e.detail.rect);
     };
 
+    const onAiRequest = (e) => {
+      setPendingContext({ text: e.detail.text, from: e.detail.from, to: e.detail.to });
+      setIsAssistantOpen(true);
+    };
+
     el.addEventListener("comment-selection-request", onSelectionRequest);
     el.addEventListener("comment-highlight-click", onHighlightClick);
+    el.addEventListener("ai-selection-request", onAiRequest);
     return () => {
       el.removeEventListener("comment-selection-request", onSelectionRequest);
       el.removeEventListener("comment-highlight-click", onHighlightClick);
+      el.removeEventListener("ai-selection-request", onAiRequest);
     };
   }, [handleHighlightClick]);
+
+  // --- Cmd+J: toggle assistant pane ---
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        e.preventDefault();
+        setIsAssistantOpen((prev) => {
+          if (prev) {
+            // Closing — return focus to editor
+            requestAnimationFrame(() => editorRef.current?.focus());
+          }
+          return !prev;
+        });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   // --- Helpers ---
   const getNextOrder = (parentId) => {
@@ -465,13 +550,45 @@ export default function App() {
   };
 
   // --- Handlers ---
-  const handleCreateProject = async () => {
-    const name = window.prompt("Project name");
-    if (!name) return;
+  const handleCreateProject = () => {
+    setIsWizardOpen(true);
+  };
+
+  const handleWizardComplete = async ({ name, structure }) => {
+    setIsWizardOpen(false);
     const project = await api.createProject({ name });
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
-    setActiveNodeId(null);
+
+    // Create nodes from wizard structure
+    let order = 0;
+    const createNodesRecursive = async (items, parentId) => {
+      for (const item of items) {
+        const node = await api.createNode({
+          project: project.id,
+          parent: parentId,
+          type: item.type,
+          title: item.title,
+          order: order++,
+          content_md: "",
+        });
+        if (item.children?.length) {
+          await createNodesRecursive(item.children, node.id);
+        }
+      }
+    };
+
+    if (structure?.length) {
+      await createNodesRecursive(structure, null);
+    }
+
+    // Refresh nodes and select first file
+    const allNodes = await api.listNodes(project.id);
+    setNodes(allNodes);
+    const folderIds = new Set(allNodes.filter((n) => n.type === "folder").map((n) => String(n.id)));
+    setExpandedFolders(folderIds);
+    const firstFile = allNodes.find((n) => n.type === "file");
+    if (firstFile) setActiveNodeId(String(firstFile.id));
   };
 
   const handleCreateNode = async (type) => {
@@ -517,6 +634,8 @@ export default function App() {
 
   const handleSelectNode = (node) => {
     setActiveNodeId(String(node.id));
+    setHoverPreview(null);
+    clearTimeout(hoverTimerRef.current);
   };
 
   const handleCreateInlineComment = async (body) => {
@@ -571,20 +690,90 @@ export default function App() {
     setAgents((prev) => [...prev, agent]);
   };
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || isStreaming || !activeProjectId) return;
+  const handleSelectConversation = async (convId) => {
+    setActiveConversationId(convId);
+    try {
+      const msgs = await api.listMessages(convId);
+      setChatMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
+    } catch {
+      setChatMessages([]);
+    }
+  };
 
-    const userMsg = chatInput.trim();
-    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+  const handleBackToList = () => {
+    setActiveConversationId(null);
+    setChatMessages([]);
+    setStreamingContent("");
+    // Refresh conversation list to get updated previews/counts
+    if (activeNodeId) {
+      api.listConversations(activeNodeId).then(setConversations).catch(() => {});
+    }
+  };
+
+  const handleDeleteConversation = async (convId) => {
+    if (!window.confirm("Delete this conversation?")) return;
+    await api.deleteConversation(convId);
+    setConversations((prev) => prev.filter((c) => String(c.id) !== String(convId)));
+    setActiveConversationId(null);
+    setChatMessages([]);
+  };
+
+  const handleRenameConversation = async (convId, newTitle) => {
+    const updated = await api.updateConversation(convId, { title: newTitle });
+    setConversations((prev) =>
+      prev.map((c) => (String(c.id) === String(updated.id) ? { ...c, ...updated } : c))
+    );
+  };
+
+  const handleSendMessageDirect = async (overrideMsg) => {
+    const rawMsg = overrideMsg || chatInput;
+    if (!rawMsg.trim() || isStreaming || !activeProjectId) return;
+
+    abortRef.current = new AbortController();
+    const userMsg = rawMsg.trim();
+    // Build the API message with optional context
+    const context = pendingContext;
+    const apiUserMsg = context
+      ? `[Re: "${context.text}"]\n\n${userMsg}`
+      : userMsg;
+    setChatMessages((prev) => [...prev, { role: "user", content: userMsg, context: context || undefined }]);
     setChatInput("");
+    setPendingContext(null);
     setIsStreaming(true);
     setStreamingContent("");
     setIsEditingDocument(false);
+    setDiffAvailable(false);
+    setDiffVisible(false);
+    if (editorRef.current) {
+      try { editorRef.current.clearAiHighlights(); } catch (_) {}
+    }
+
+    // Save draft before AI edits for potential undo
+    preEditDraftRef.current = draft;
 
     // Capture editor instance and node ID at stream start so that
     // navigating to another document mid-stream cannot redirect writes.
     const targetNodeId = activeNodeId;
     const targetEditor = editorRef.current;
+
+    // Persist conversation + user message
+    let convId = activeConversationId;
+    try {
+      if (!convId && targetNodeId) {
+        const title = userMsg.length > 50
+          ? userMsg.slice(0, userMsg.lastIndexOf(" ", 50) || 50)
+          : userMsg;
+        const conv = await api.createConversation({ node: Number(targetNodeId), title });
+        convId = conv.id;
+        setActiveConversationId(conv.id);
+        setConversations((prev) => [conv, ...prev]);
+      }
+      if (convId) {
+        api.createMessage({ conversation: convId, role: "user", content: userMsg }).catch(() => {});
+      }
+    } catch {
+      // Non-blocking: conversation persistence shouldn't block the chat
+    }
 
     try {
       const resolved = await api.resolveAgentConfig(
@@ -631,13 +820,17 @@ IMPORTANT RULES:
       }
 
       for (const msg of chatMessages) {
-        apiMessages.push({ role: msg.role, content: msg.content });
+        const msgContent = msg.context
+          ? `[Re: "${msg.context.text}"]\n\n${msg.content}`
+          : msg.content;
+        apiMessages.push({ role: msg.role, content: msgContent });
       }
-      apiMessages.push({ role: "user", content: userMsg });
+      apiMessages.push({ role: "user", content: apiUserMsg });
 
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortRef.current?.signal,
         body: JSON.stringify({
           provider: config.provider,
           model: config.model,
@@ -661,11 +854,19 @@ IMPORTANT RULES:
 
       const finalize = () => {
         const finalState = parser.getState();
+        let assistantContent = "";
         if (finalState.mode === "document_edit") {
           // Apply final document content to the captured editor (may be unmounted)
           if (finalState.documentContent) {
             if (targetEditor) {
-              try { targetEditor.replaceContent(finalState.documentContent); } catch (_) {}
+              try { targetEditor.replaceContentDiff(finalState.documentContent); } catch (_) {}
+              setTimeout(() => {
+                try {
+                  targetEditor.showDiffHighlights();
+                  setDiffVisible(true);
+                  setDiffAvailable(true);
+                } catch (_) {}
+              }, 400);
             }
             // Always persist to the correct node via API, regardless of navigation
             if (targetNodeId) {
@@ -676,12 +877,17 @@ IMPORTANT RULES:
                 .catch(() => {});
             }
           }
-          const chatMsg = finalState.chatContent || "I've updated the document.";
-          setChatMessages((prev) => [...prev, { role: "assistant", content: chatMsg }]);
+          assistantContent = finalState.chatContent || "I've updated the document.";
+          setChatMessages((prev) => [...prev, { role: "assistant", content: assistantContent, isDocumentEdit: true }]);
         } else {
+          assistantContent = fullContent;
           if (fullContent) {
             setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
           }
+        }
+        // Persist assistant message
+        if (convId && assistantContent) {
+          api.createMessage({ conversation: convId, role: "assistant", content: assistantContent }).catch(() => {});
         }
         setStreamingContent("");
         setIsStreaming(false);
@@ -707,6 +913,16 @@ IMPORTANT RULES:
           }
           try {
             const parsed = JSON.parse(data);
+            if (parsed.error) {
+              setChatMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: "Error: " + parsed.error },
+              ]);
+              setStreamingContent("");
+              setIsStreaming(false);
+              setIsEditingDocument(false);
+              return;
+            }
             if (parsed.delta) {
               fullContent += parsed.delta;
               const state = parser.push(parsed.delta);
@@ -715,8 +931,8 @@ IMPORTANT RULES:
                 setIsEditingDocument(true);
                 // Typewriter: apply partial content throttled every ~200ms
                 const now = Date.now();
-                if (state.documentContent && targetEditor && now - lastApplyTime >= 200) {
-                  try { targetEditor.replaceContent(state.documentContent); } catch (_) {}
+                if (state.documentContent && targetEditor && now - lastApplyTime >= 80) {
+                  try { targetEditor.replaceContentDiff(state.documentContent, { streaming: true }); } catch (_) {}
                   lastApplyTime = now;
                   appliedDocument = true;
                 }
@@ -733,15 +949,51 @@ IMPORTANT RULES:
 
       finalize();
     } catch (error) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Error: " + error.message },
-      ]);
-      setStreamingContent("");
-      setIsEditingDocument(false);
+      if (error.name === "AbortError") {
+        // User stopped streaming — finalize partial content
+        const partial = streamingContent;
+        if (partial) {
+          setChatMessages((prev) => [...prev, { role: "assistant", content: partial }]);
+        }
+        setStreamingContent("");
+        setIsEditingDocument(false);
+      } else {
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Error: " + error.message },
+        ]);
+        setStreamingContent("");
+        setIsEditingDocument(false);
+      }
     } finally {
       setIsStreaming(false);
+      abortRef.current = null;
     }
+  };
+
+  const handleStopStreaming = () => {
+    abortRef.current?.abort();
+  };
+
+  const handleSendMessage = () => handleSendMessageDirect();
+
+  const handleUndoEdit = () => {
+    if (preEditDraftRef.current != null && editorRef.current) {
+      editorRef.current.replaceContent(preEditDraftRef.current);
+      editorRef.current.clearAiHighlights();
+      setDiffVisible(false);
+      setDiffAvailable(false);
+      // Persist undo
+      if (activeNodeId) {
+        api.updateNode(activeNodeId, { content_md: preEditDraftRef.current }).catch(() => {});
+      }
+      preEditDraftRef.current = null;
+    }
+  };
+
+
+  const handleSuggestionAction = (prompt) => {
+    handleSendMessageDirect(prompt);
   };
 
   const handleSummarize = async () => {
@@ -751,6 +1003,20 @@ IMPORTANT RULES:
     setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setIsStreaming(true);
     setStreamingContent("");
+
+    // Create conversation for summarize action
+    let convId = activeConversationId;
+    try {
+      if (!convId) {
+        const conv = await api.createConversation({ node: Number(activeNode.id), title: userMsg });
+        convId = conv.id;
+        setActiveConversationId(conv.id);
+        setConversations((prev) => [conv, ...prev]);
+      }
+      if (convId) {
+        api.createMessage({ conversation: convId, role: "user", content: userMsg }).catch(() => {});
+      }
+    } catch { /* non-blocking */ }
 
     try {
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
@@ -800,6 +1066,9 @@ IMPORTANT RULES:
           const data = dataLines.join("\n");
           if (data === "[DONE]") {
             setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+            if (convId && fullContent) {
+              api.createMessage({ conversation: convId, role: "assistant", content: fullContent }).catch(() => {});
+            }
             setStreamingContent("");
             setIsStreaming(false);
             return;
@@ -816,6 +1085,9 @@ IMPORTANT RULES:
 
       if (fullContent) {
         setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+        if (convId) {
+          api.createMessage({ conversation: convId, role: "assistant", content: fullContent }).catch(() => {});
+        }
       }
       setStreamingContent("");
     } catch (error) {
@@ -830,6 +1102,17 @@ IMPORTANT RULES:
   };
 
   const handleRestoreVersion = (version) => setDraft(version.content_md || "");
+
+  const handleToggleDiff = useCallback(() => {
+    if (!editorRef.current) return;
+    if (diffVisible) {
+      editorRef.current.hideAiDiffHighlights();
+      setDiffVisible(false);
+    } else {
+      editorRef.current.showDiffHighlights();
+      setDiffVisible(true);
+    }
+  }, [diffVisible]);
 
   const handleSaveProviderKey = async (provider, apiKey) => {
     const existing = providerKeyMap.get(provider);
@@ -846,6 +1129,134 @@ IMPORTANT RULES:
     await api.updateProviderKey(existing.id, { api_key: "" });
     const updated = await api.listProviderKeys();
     setProviderKeys(updated);
+  };
+
+  // --- Sidebar tree helpers ---
+  const handleExpandNode = useCallback((nodeId) => {
+    setExpandedFolders((prev) => new Set([...prev, nodeId]));
+  }, []);
+
+  const handleCollapseNode = useCallback((nodeId) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, []);
+
+  const handleHoverStart = useCallback((node, rect) => {
+    clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverPreview({ node, rect });
+    }, 300);
+  }, []);
+
+  const handleHoverEnd = useCallback(() => {
+    clearTimeout(hoverTimerRef.current);
+    // Delay clearing to allow mouse to move to tooltip
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverPreview(null);
+    }, 100);
+  }, []);
+
+  const handlePreviewMouseEnter = useCallback(() => {
+    clearTimeout(hoverTimerRef.current);
+  }, []);
+
+  const handlePreviewMouseLeave = useCallback(() => {
+    setHoverPreview(null);
+  }, []);
+
+  // Flatten visible tree for keyboard navigation
+  const flatVisibleNodes = useMemo(() => {
+    const result = [];
+    const walk = (items) => {
+      for (const item of items) {
+        result.push(item);
+        if (item.type === "folder" && expandedFolders.has(String(item.id)) && item.children?.length) {
+          walk(item.children);
+        }
+      }
+    };
+    walk(tree);
+    return result;
+  }, [tree, expandedFolders]);
+
+  const handleTreeKeyDown = useCallback((e) => {
+    if (!flatVisibleNodes.length) return;
+    const currentIndex = flatVisibleNodes.findIndex((n) => String(n.id) === String(focusedNodeId));
+
+    switch (e.key) {
+      case "ArrowDown": {
+        e.preventDefault();
+        const nextIndex = currentIndex < flatVisibleNodes.length - 1 ? currentIndex + 1 : 0;
+        setFocusedNodeId(String(flatVisibleNodes[nextIndex].id));
+        break;
+      }
+      case "ArrowUp": {
+        e.preventDefault();
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : flatVisibleNodes.length - 1;
+        setFocusedNodeId(String(flatVisibleNodes[prevIndex].id));
+        break;
+      }
+      case "ArrowLeft": {
+        e.preventDefault();
+        // If on a child item, move focus to parent
+        const current = flatVisibleNodes[currentIndex];
+        if (current && current.parent) {
+          setFocusedNodeId(String(current.parent));
+        }
+        break;
+      }
+      case "Home": {
+        e.preventDefault();
+        setFocusedNodeId(String(flatVisibleNodes[0].id));
+        break;
+      }
+      case "End": {
+        e.preventDefault();
+        setFocusedNodeId(String(flatVisibleNodes[flatVisibleNodes.length - 1].id));
+        break;
+      }
+      default:
+        break;
+    }
+  }, [flatVisibleNodes, focusedNodeId]);
+
+  // Close create menu on outside click
+  useEffect(() => {
+    if (!createMenuOpen) return;
+    const handler = (e) => {
+      if (createMenuRef.current && !createMenuRef.current.contains(e.target)) {
+        setCreateMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [createMenuOpen]);
+
+  // --- Sidebar resize ---
+  const handleOutlineDividerMouseDown = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = outlineWidth;
+
+    const onMouseMove = (moveEvent) => {
+      const delta = moveEvent.clientX - startX;
+      setOutlineWidth(Math.max(180, Math.min(320, startWidth + delta)));
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
 
   // --- Pane resize ---
@@ -876,18 +1287,49 @@ IMPORTANT RULES:
   const handleDragStart = (event, node) => {
     event.dataTransfer.setData("text/plain", String(node.id));
     setDraggingId(String(node.id));
+    setHoverPreview(null);
+    clearTimeout(hoverTimerRef.current);
   };
   const handleDragOverNode = (event, node) => {
     event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const y = event.clientY - rect.top;
+    const threshold = rect.height * 0.25;
+
+    if (node.type === "folder") {
+      // Folders: top quarter = before, middle = inside, bottom quarter = after
+      if (y < threshold) {
+        setDropPosition("before");
+      } else if (y > rect.height - threshold) {
+        setDropPosition("after");
+      } else {
+        setDropPosition("inside");
+      }
+    } else {
+      // Files: top half = before, bottom half = after
+      setDropPosition(y < rect.height / 2 ? "before" : "after");
+    }
     setDropTargetId(String(node.id));
   };
   const handleDrop = async (event, targetNode) => {
     event.preventDefault();
     const draggedId = normalizeId(draggingId || event.dataTransfer.getData("text/plain"));
-    if (!draggedId || String(draggedId) === String(targetNode.id)) return;
+    if (!draggedId || String(draggedId) === String(targetNode.id)) {
+      setDraggingId(null);
+      setDropTargetId(null);
+      setDropPosition(null);
+      return;
+    }
     const draggedNode = nodesById.get(String(draggedId));
     if (!draggedNode) return;
-    const newParent = targetNode.type === "folder" ? targetNode.id : targetNode.parent ?? null;
+
+    let newParent;
+    if (dropPosition === "inside" && targetNode.type === "folder") {
+      newParent = targetNode.id;
+    } else {
+      newParent = targetNode.parent ?? null;
+    }
+
     if (newParent === draggedNode.parent && targetNode.id === draggedNode.id) return;
     if (String(newParent) === String(draggedId)) return;
     if (newParent && isDescendant(newParent, draggedId)) return;
@@ -898,8 +1340,9 @@ IMPORTANT RULES:
     setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
     setDraggingId(null);
     setDropTargetId(null);
+    setDropPosition(null);
   };
-  const handleDragEnd = () => { setDraggingId(null); setDropTargetId(null); };
+  const handleDragEnd = () => { setDraggingId(null); setDropTargetId(null); setDropPosition(null); };
 
   // --- Render ---
   return (
@@ -960,17 +1403,146 @@ IMPORTANT RULES:
         </div>
       </header>
 
+      {isWizardOpen ? (
+        <ProjectWizard
+          onComplete={handleWizardComplete}
+          onCancel={() => setIsWizardOpen(false)}
+          defaultAgent={defaultAgent}
+          apiBase={API_BASE}
+        />
+      ) : (
       <div className="app">
-        {isOutlineOpen && (
-          <aside className="outline-rail">
-            <div className="rail-header">
-              <h2>Outline</h2>
-              <div className="actions">
-                <button className="ghost" onClick={() => handleCreateNode("folder")}>+ Folder</button>
-                <button className="ghost" onClick={() => handleCreateNode("file")}>+ File</button>
-              </div>
+        <aside
+          className={`outline-rail ${isOutlineOpen ? "" : "collapsed"}`}
+          style={isOutlineOpen ? { width: `${outlineWidth}px` } : undefined}
+        >
+          <div className="rail-header">
+            <div className="rail-search-wrapper">
+              <svg className="rail-search-icon" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              <input
+                ref={outlineFilterRef}
+                className={`rail-search-input ${searchResults !== null ? "searching" : ""}`}
+                type="text"
+                placeholder="Search..."
+                value={outlineFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setOutlineFilter(val);
+                  clearTimeout(searchTimerRef.current);
+                  if (val.trim().length >= 3 && activeProjectId) {
+                    setIsSearching(true);
+                    searchTimerRef.current = setTimeout(() => {
+                      api.searchNodes(activeProjectId, val.trim()).then((results) => {
+                        setSearchResults(results);
+                        setIsSearching(false);
+                      }).catch(() => {
+                        setSearchResults([]);
+                        setIsSearching(false);
+                      });
+                    }, 500);
+                  } else {
+                    setSearchResults(null);
+                    setIsSearching(false);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setOutlineFilter("");
+                    setSearchResults(null);
+                    setIsSearching(false);
+                    clearTimeout(searchTimerRef.current);
+                    e.target.blur();
+                  }
+                  if (e.key === "Enter" && outlineFilter.trim().length >= 3 && activeProjectId) {
+                    clearTimeout(searchTimerRef.current);
+                    setIsSearching(true);
+                    api.searchNodes(activeProjectId, outlineFilter.trim()).then((results) => {
+                      setSearchResults(results);
+                      setIsSearching(false);
+                    }).catch(() => {
+                      setSearchResults([]);
+                      setIsSearching(false);
+                    });
+                  }
+                }}
+              />
+              {outlineFilter && (
+                <button
+                  className="rail-search-clear"
+                  onClick={() => { setOutlineFilter(""); setSearchResults(null); setIsSearching(false); clearTimeout(searchTimerRef.current); outlineFilterRef.current?.focus(); }}
+                  aria-label="Clear search"
+                >
+                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
             </div>
-            <div className="tree">
+            <div className="rail-create-wrapper" ref={createMenuRef}>
+              <button
+                className="rail-create-btn"
+                onClick={() => setCreateMenuOpen((v) => !v)}
+                aria-label="Create new"
+                title="New file or folder"
+              >
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+              {createMenuOpen && (
+                <div className="rail-create-menu">
+                  <button
+                    className="rail-create-menu-item"
+                    onClick={() => { setCreateMenuOpen(false); handleCreateNode("file"); }}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                      <path d="M4.5 1.5h4.586a1 1 0 0 1 .707.293l2.914 2.914a1 1 0 0 1 .293.707V13.5a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M9 1.5v3a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                    </svg>
+                    New file
+                  </button>
+                  <button
+                    className="rail-create-menu-item"
+                    onClick={() => { setCreateMenuOpen(false); handleCreateNode("folder"); }}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                      <path d="M1.5 3.5a1 1 0 0 1 1-1h3.586a1 1 0 0 1 .707.293L8.5 4.5h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                    </svg>
+                    New folder
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {searchResults !== null ? (
+            <div className="search-results">
+              {isSearching && (
+                <div className="search-loading">Searching...</div>
+              )}
+              {!isSearching && searchResults.length === 0 && (
+                <div className="search-empty">No results found</div>
+              )}
+              {!isSearching && searchResults.map((result) => (
+                <SearchResultItem
+                  key={result.id}
+                  result={result}
+                  onSelect={(node) => {
+                    handleSelectNode(node);
+                    setOutlineFilter("");
+                    setSearchResults(null);
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div
+              className="tree"
+              role="tree"
+              onKeyDown={handleTreeKeyDown}
+            >
               {tree.map((node) => (
                 <TreeItem
                   key={node.id}
@@ -985,13 +1557,48 @@ IMPORTANT RULES:
                   onDrop={handleDrop}
                   onDragEnd={handleDragEnd}
                   dropTargetId={dropTargetId}
+                  dropPosition={dropPosition}
                   draggingId={draggingId}
                   agentNodeIds={agentNodeIds}
+                  focusedNodeId={focusedNodeId}
+                  onFocusNode={setFocusedNodeId}
+                  onExpandNode={handleExpandNode}
+                  onCollapseNode={handleCollapseNode}
+                  expandedFolders={expandedFolders}
+                  filterText={searchResults === null ? outlineFilter : ""}
+                  showMeta={outlineWidth >= 240}
+                  onHoverStart={handleHoverStart}
+                  onHoverEnd={handleHoverEnd}
                 />
               ))}
-              {tree.length === 0 && <div className="empty">Add your first file or folder.</div>}
+              {tree.length === 0 && (
+                <div className="tree-empty-state">
+                  <p>No documents yet</p>
+                  <button
+                    className="tree-empty-action"
+                    onClick={() => handleCreateNode("file")}
+                  >
+                    Create your first document
+                  </button>
+                </div>
+              )}
             </div>
-          </aside>
+          )}
+        </aside>
+        {hoverPreview && String(hoverPreview.node.id) !== String(activeNodeId) && (
+          <NodePreviewTooltip
+            node={hoverPreview.node}
+            rect={hoverPreview.rect}
+            onMouseEnter={handlePreviewMouseEnter}
+            onMouseLeave={handlePreviewMouseLeave}
+          />
+        )}
+        {isOutlineOpen && (
+          <div
+            className="outline-divider"
+            onMouseDown={handleOutlineDividerMouseDown}
+            onDoubleClick={() => setOutlineWidth(220)}
+          />
         )}
 
         <main className={`editor-area${isAssistantOpen ? ' with-assistant' : ''}`}>
@@ -1021,6 +1628,15 @@ IMPORTANT RULES:
                 <div className="document-meta">
                   <span className="word-count">{wordCount} words</span>
                   <VersionsMenu versions={versions} onRestore={handleRestoreVersion} />
+                  {diffAvailable && (
+                    <button
+                      className={`diff-toggle-btn${diffVisible ? " active" : ""}`}
+                      onClick={handleToggleDiff}
+                      title={diffVisible ? "Hide changes" : "Show changes"}
+                    >
+                      Changes
+                    </button>
+                  )}
                   <span className="save-status">
                     {saveStatus === "saving" && "Saving…"}
                     {saveStatus === "saved" && "Saved"}
@@ -1045,92 +1661,15 @@ IMPORTANT RULES:
           )}
 
           {activeNode?.type === "folder" && (
-            <div className="editor-content">
-              <div className="document-header">
-                <h1
-                  className="editable-title"
-                  contentEditable
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  onBlur={(e) => {
-                    const newTitle = e.target.textContent.trim();
-                    if (newTitle && newTitle !== activeNode.title) {
-                      handleRenameNode(activeNode.id, newTitle);
-                    } else {
-                      e.target.textContent = activeNode.title;
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
-                    if (e.key === "Escape") { e.target.textContent = activeNode.title; e.target.blur(); }
-                  }}
-                >
-                  {activeNode.title}
-                </h1>
-                <div className="document-meta">
-                  <span className="eyebrow">Folder</span>
-                </div>
-              </div>
-
-              {folderSummary && (
-                <div className="folder-summary">
-                  <div className="summary-grid">
-                    <div>
-                      <div className="summary-label">Files</div>
-                      <div className="summary-value">{folderSummary.fileCount}</div>
-                    </div>
-                    <div>
-                      <div className="summary-label">Folders</div>
-                      <div className="summary-value">{folderSummary.folderCount}</div>
-                    </div>
-                    <div>
-                      <div className="summary-label">Total words</div>
-                      <div className="summary-value">{folderSummary.wordCount}</div>
-                    </div>
-                    <div>
-                      <div className="summary-label">Last updated</div>
-                      <div className="summary-value">
-                        {new Date(folderSummary.lastUpdated).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="summary-list">
-                    {folderSummary.sampleFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="summary-item"
-                        onClick={() => setActiveNodeId(String(file.id))}
-                      >
-                        <div className="summary-item-header">
-                          <div className="summary-title">{file.title}</div>
-                          {file.summary && !file.summaryStale && (
-                            <span className="summary-ai-badge">AI summary</span>
-                          )}
-                        </div>
-                        <div className="summary-snippet">{file.snippet || "Empty"}</div>
-                        {(file.summary || file.snippet) && (
-                          <div className="summary-expand">
-                            <div className="summary-expand-content">
-                              {file.summary && !file.summaryStale ? (
-                                <>{file.summary}</>
-                              ) : (
-                                <span className="summary-loading">
-                                  <span className="summary-loading-dot" />
-                                  {file.summaryStale && file.snippet ? "Generating summary\u2026" : ""}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {folderSummary.sampleFiles.length === 0 && (
-                      <div className="empty">No files inside this folder yet.</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <FolderView
+              activeNode={activeNode}
+              folderSummary={folderSummary}
+              childrenMap={childrenMap}
+              nodesById={nodesById}
+              onSelectNode={handleSelectNode}
+              onCreateNode={handleCreateNode}
+              onRenameNode={handleRenameNode}
+            />
           )}
 
           {!activeNode && (
@@ -1162,12 +1701,27 @@ IMPORTANT RULES:
           nodeDirectConfig={nodeDirectConfig}
           onAgentChange={handleAssignAgent}
           onCreateAgent={() => setIsAgentCreatorOpen(true)}
-          onSummarize={handleSummarize}
+          onSuggestionAction={handleSuggestionAction}
           canSummarize={activeNode?.type === "file" && !!draft.trim()}
           isEditingDocument={isEditingDocument}
           width={assistantWidth}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onSelectConversation={handleSelectConversation}
+          onBackToList={handleBackToList}
+          onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
+          onEscapeComposer={() => editorRef.current?.focus()}
+          pendingContext={pendingContext}
+          onClearContext={() => setPendingContext(null)}
+          onStop={handleStopStreaming}
+          diffVisible={diffVisible}
+          diffAvailable={diffAvailable}
+          onToggleDiff={handleToggleDiff}
+          onUndoEdit={handleUndoEdit}
         />
       </div>
+      )}
 
       <AgentCreatorSlideOver
         isOpen={isAgentCreatorOpen}

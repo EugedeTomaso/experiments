@@ -117,24 +117,29 @@ def _stream_openai_compatible(api_key: str, base_url: str, payload: dict) -> Ite
         "Content-Type": "application/json",
     }
 
-    with httpx.stream("POST", url, headers=headers, json=body, timeout=None) as response:
-        response.raise_for_status()
-        for line in response.iter_lines():
-            if not line:
-                continue
-            if line.startswith("data:"):
-                data = line[len("data:"):].strip()
-                if data == "[DONE]":
-                    yield b"event: done\ndata: [DONE]\n\n"
-                    break
-                try:
-                    payload_json = json.loads(data)
-                    delta = payload_json["choices"][0]["delta"].get("content")
-                except (KeyError, IndexError, json.JSONDecodeError):
-                    delta = None
-                if delta:
-                    message = json.dumps({"delta": delta})
-                    yield f"data: {message}\n\n".encode("utf-8")
+    try:
+        with httpx.stream("POST", url, headers=headers, json=body, timeout=None) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if line.startswith("data:"):
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        yield b"event: done\ndata: [DONE]\n\n"
+                        break
+                    try:
+                        payload_json = json.loads(data)
+                        delta = payload_json["choices"][0]["delta"].get("content")
+                    except (KeyError, IndexError, json.JSONDecodeError):
+                        delta = None
+                    if delta:
+                        message = json.dumps({"delta": delta})
+                        yield f"data: {message}\n\n".encode("utf-8")
+    except httpx.HTTPStatusError as exc:
+        error_msg = json.dumps({"error": f"Provider returned {exc.response.status_code}"})
+        yield f"data: {error_msg}\n\n".encode("utf-8")
+        yield b"event: done\ndata: [DONE]\n\n"
 
 
 def _stream_anthropic(api_key: str, base_url: str, payload: dict) -> Iterable[bytes]:
@@ -153,29 +158,34 @@ def _stream_anthropic(api_key: str, base_url: str, payload: dict) -> Iterable[by
         "Content-Type": "application/json",
     }
 
-    with httpx.stream("POST", url, headers=headers, json=body, timeout=None) as response:
-        response.raise_for_status()
-        event = None
-        for line in response.iter_lines():
-            if not line:
-                continue
-            if line.startswith("event:"):
-                event = line[len("event:"):].strip()
-                continue
-            if line.startswith("data:"):
-                data = line[len("data:"):].strip()
-                if data == "[DONE]":
-                    yield b"event: done\ndata: [DONE]\n\n"
-                    break
-                try:
-                    payload_json = json.loads(data)
-                except json.JSONDecodeError:
+    try:
+        with httpx.stream("POST", url, headers=headers, json=body, timeout=None) as response:
+            response.raise_for_status()
+            event = None
+            for line in response.iter_lines():
+                if not line:
                     continue
-                if event == "content_block_delta":
-                    delta = payload_json.get("delta", {}).get("text")
-                    if delta:
-                        message = json.dumps({"delta": delta})
-                        yield f"data: {message}\n\n".encode("utf-8")
-                elif event == "message_stop":
-                    yield b"event: done\ndata: [DONE]\n\n"
-                    break
+                if line.startswith("event:"):
+                    event = line[len("event:"):].strip()
+                    continue
+                if line.startswith("data:"):
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        yield b"event: done\ndata: [DONE]\n\n"
+                        break
+                    try:
+                        payload_json = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    if event == "content_block_delta":
+                        delta = payload_json.get("delta", {}).get("text")
+                        if delta:
+                            message = json.dumps({"delta": delta})
+                            yield f"data: {message}\n\n".encode("utf-8")
+                    elif event == "message_stop":
+                        yield b"event: done\ndata: [DONE]\n\n"
+                        break
+    except httpx.HTTPStatusError as exc:
+        error_msg = json.dumps({"error": f"Provider returned {exc.response.status_code}"})
+        yield f"data: {error_msg}\n\n".encode("utf-8")
+        yield b"event: done\ndata: [DONE]\n\n"

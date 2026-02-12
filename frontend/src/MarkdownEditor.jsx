@@ -7,6 +7,8 @@ import { nord } from "@milkdown/theme-nord";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import { replaceAll } from "@milkdown/utils";
+import { diffReplaceAll } from "./diffUpdate";
+import { aiTextPlugin, aiTextPluginKey } from "./aiTextAppearPlugin";
 import { ProsemirrorAdapterProvider, usePluginViewFactory } from "@prosemirror-adapter/react";
 import { slash, SlashView } from "./components/SlashMenu";
 import { selectionTooltip, SelectionToolbarView } from "./components/SelectionToolbar";
@@ -42,6 +44,7 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef 
         .use(slash)
         .use(selectionTooltip)
         .use(commentDecoPlugin)
+        .use(aiTextPlugin)
         .config((ctx) => {
           ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
             onChange?.(markdown);
@@ -87,6 +90,40 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef 
       },
       replaceContent(markdown) {
         get().action(replaceAll(markdown));
+      },
+      replaceContentDiff(markdown, opts) {
+        get().action(diffReplaceAll(markdown, opts));
+      },
+      clearAiHighlights() {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(aiTextPluginKey, "clear"));
+        });
+      },
+      showDiffHighlights() {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(aiTextPluginKey, "show-diff"));
+        });
+      },
+      hideAiDiffHighlights() {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(aiTextPluginKey, "hide-diff"));
+        });
+      },
+      hasDiffData() {
+        try {
+          let result = false;
+          get().action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const pluginState = aiTextPluginKey.getState(view.state);
+            result = !!(pluginState && pluginState.savedOldDoc);
+          });
+          return result;
+        } catch {
+          return false;
+        }
       },
     };
   }, [loading, get, editorRef]);

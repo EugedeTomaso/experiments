@@ -55,9 +55,17 @@ const CommentIcon = (
   </svg>
 );
 
+const AskAIIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9.937 4.562 11.5 1l1.563 3.562L16.625 6.5l-3.562 1.063L11.5 11.125 9.937 7.563 6.375 6.5Z" fill="currentColor"/>
+    <path d="M17 10.5 18.25 8l1.25 2.5L22 11.75l-2.5 1.25L18.25 15.5 17 13l-2.5-1.25Z" fill="currentColor"/>
+  </svg>
+);
+
 export function SelectionToolbarView() {
   const ref = useRef(null);
   const commentBtnRef = useRef(null);
+  const aiBtnRef = useRef(null);
   const boldBtnRef = useRef(null);
   const italicBtnRef = useRef(null);
   const strikeBtnRef = useRef(null);
@@ -213,6 +221,35 @@ export function SelectionToolbarView() {
     return () => btn.removeEventListener("mousedown", handler);
   }, [loading, get]);
 
+  // Ask AI button
+  useEffect(() => {
+    const btn = aiBtnRef.current;
+    if (!btn || loading) return;
+
+    const handler = (e) => {
+      e.preventDefault();
+
+      const sel = savedSelection.current;
+      if (!sel) return;
+
+      get().action((ctx) => {
+        const editorView = ctx.get(editorViewCtx);
+        editorView.dom.dispatchEvent(
+          new CustomEvent("ai-selection-request", {
+            detail: { from: sel.from, to: sel.to, text: sel.text },
+            bubbles: true,
+          })
+        );
+      });
+
+      suppressed.current = true;
+      tooltipProvider.current?.hide();
+    };
+
+    btn.addEventListener("mousedown", handler);
+    return () => btn.removeEventListener("mousedown", handler);
+  }, [loading, get]);
+
   return (
     <div className="selection-toolbar-anchor" ref={ref}>
       <div className="selection-toolbar">
@@ -252,6 +289,14 @@ export function SelectionToolbarView() {
         >
           {CommentIcon}
           <span className="fmt-comment-label">Comment</span>
+        </button>
+        <button
+          className="fmt-btn fmt-btn-ai"
+          title="Ask AI"
+          ref={aiBtnRef}
+        >
+          {AskAIIcon}
+          <span className="fmt-comment-label">Ask AI</span>
         </button>
       </div>
     </div>

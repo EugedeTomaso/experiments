@@ -4,7 +4,7 @@ Writing and creation tool with three-zone layout: outline rail, markdown editor,
 
 ## Direction
 
-Creator-centric focused environment. Three zones that give the editor maximum space with the AI assistant as a first-class citizen alongside the document. Borders-only depth. Minimal color — blue accent used sparingly for active/focus states.
+Notion-inspired writing environment. Three zones that give the editor maximum space with the AI assistant as a first-class citizen alongside the document. Borderless editor — content floats directly on a white surface with no card container. Borders-only depth elsewhere. Minimal color — blue accent reserved for links and focus rings only, never for navigation active states. Warmer gray palette.
 
 ## Layout
 
@@ -12,9 +12,9 @@ Three-column flex layout, all collapsible:
 
 | Zone             | Width    | Position | Content                                     |
 |------------------|----------|----------|---------------------------------------------|
-| Outline Rail     | 220px    | Left     | File tree only. Collapsible via topbar.      |
-| Editor Area      | Fluid    | Center   | Document header + editor. Max-width 760px.   |
-| Assistant Pane   | 380px    | Right    | Transparent canvas pane. Thread + composer. Toggle via topbar. |
+| Outline Rail     | 220px    | Left     | File tree only. Collapsible via topbar. Canvas bg (`--canvas`). |
+| Editor Area      | Fluid    | Center   | Document header + editor. Max-width 720px. White surface bg. No card around editor — content is borderless. |
+| Assistant Pane   | 380px    | Right    | White surface pane, integrated with editor. Thread + composer. Toggle via topbar. |
 | Topbar           | 48px h   | Top      | Brand + project switcher (left), toggles (right) |
 
 ### Topbar Structure
@@ -22,20 +22,21 @@ Three-column flex layout, all collapsible:
 - **Right**: Outline toggle, Assistant toggle, Settings toggle (all `topbar-icon-btn`)
 
 ### Document Header
-- Large title (28px/700) — editable inline
-- Meta row: word count, VersionsMenu dropdown, Save button
+- Large title (40px/700) — editable inline, Notion-style
+- "Untitled" titles shown in muted `--text-4`, auto-select on focus
+- Meta row: word count, VersionsMenu dropdown, Save status
 
-### Assistant Pane (Canvas Sibling)
-- Transparent pane: `background: transparent`, no border, no shadow — lives on canvas
-- Editor keeps `max-width: 760px; margin: 0 auto` — centers in available space
-- Draggable divider between editor and pane (`.pane-divider`, 12px hit zone, subtle 1px line at rest, 4px×48px handle on hover)
+### Assistant Pane (White Surface)
+- Explicit white surface (`--surface`) background — same surface as editor
+- Separated from editor via `border-left: 1px solid --border-subtle` on the pane + invisible `.pane-divider` grab zone (8px, no visible line, 3px×32px handle on hover at 0.4 opacity)
+- Editor keeps `max-width: 720px; margin: 0 auto` — centers in available space
 - Assistant width stored in state + `localStorage('marvin:assistant-width')`, default 380px, range 280–600px
 - Double-click divider resets to default width
 - Top bar: pill-shaped agent selector + circular "+" button + close
-- Chat thread: scrollable, messages float on canvas
-- Assistant messages use `--surface` bg (white on canvas for contrast)
+- Chat thread: 20px gap, 14px/1.6 text — same reading comfort as editor
+- Messages use avatar-driven layout (24px circles) — no bubbles, clean editorial feel
 - Suggestion chips: pill-shaped actions above composer
-- Composer: white pill (`--surface` bg, `--border`, 12px radius) — most prominent element
+- Composer: white pill (`--surface` bg, `--border`, 12px radius)
 - Enter animation: fade-in (`assistant-pane-in`)
 - Responsive (< 900px): becomes fixed bottom sheet with `--surface` bg
 
@@ -72,7 +73,7 @@ Defined in `src/index.css` `:root`.
 | Body           | 13px  | 400    | —         |
 | Base           | 14px  | 400    | —         |
 | Brand          | 14px  | 600    | -0.01em   |
-| Document title | 28px  | 700    | -0.03em   |
+| Document title | 40px  | 700    | -0.03em   |
 
 ### Colors
 
@@ -129,7 +130,7 @@ border-radius: var(--radius-sm);
 font-size: 12px;
 ```
 
-States: `:hover` (--accent-soft bg, --text-1 color, --border-strong), `:focus-visible` (--accent border, --control-focus)
+States: `:hover` (`rgba(0,0,0,0.03)` bg, --text-1 color, --border-strong), `:focus-visible` (--accent border, --control-focus)
 
 ### Topbar Icon Button
 
@@ -142,7 +143,7 @@ border-radius: var(--radius-sm);
 color: var(--text-3);
 ```
 
-States: `:hover` (--accent-soft bg), `.active` (--accent border + color + bg)
+States: `:hover` (`rgba(0,0,0,0.03)` bg), `.active` (--surface-inset bg, --text-1 color — muted gray, never blue)
 
 ### Card
 
@@ -177,21 +178,30 @@ font-size: 13px;
 color: var(--text-2);
 ```
 
-States: `:hover` (--accent-soft), `.active` (--accent-medium, --accent color, weight 500)
+States: `:hover` (`rgba(0,0,0,0.03)`), `.active` (`--surface-inset` bg, `--text-1` color, weight 500 — neutral, never blue)
 Features: drag-and-drop, inline rename (double-click), delete on hover, collapsible folders.
 
 ### Chat Message
 
-User messages: plain text, `--text-2` color
-Assistant messages: `--surface-inset` background, `--radius-md`, 10px 12px padding
+Avatar-driven horizontal layout — no bubbles, no role labels. Both left-aligned.
 
-### Canvas Pane (Assistant)
+```css
+.chat-message { display: flex; gap: 10px; align-items: flex-start; }
+.chat-avatar { width: 24px; height: 24px; border-radius: 50%; }
+```
+
+- User avatar: `--surface-inset` bg, `--text-3` color, person icon (12px)
+- Assistant avatar: `--accent-soft` bg, `--accent` color, sparkle icon (12px)
+- User content: `--text-1`, 14px/1.6
+- Assistant content: `--text-2`, 14px/1.6
+- Thread gap: 20px between messages
+
+### Assistant Pane
 
 ```css
 .assistant-pane {
   width: 380px;
-  background: transparent;
-  /* No border, no shadow — content sits directly on canvas */
+  background: var(--surface);
 }
 .assistant-pane-composer {
   background: var(--surface);
@@ -200,7 +210,23 @@ Assistant messages: `--surface-inset` background, `--radius-md`, 10px 12px paddi
 }
 ```
 
-Composer is a white pill on canvas: `--surface` bg, `--border`, 12px radius. Focus-within shows accent border + control-focus ring. Send button is 28px circle.
+Composer is a clean pill: `--surface` (white) bg, `--border`, 12px radius. Focus-within shows accent border + control-focus ring. Send button is 28px circle.
+
+**Two modes: Conversation List and Thread**
+
+- **List mode** (no active conversation): Shows past conversations for the current document. Each item shows title, relative timestamp, message count, and last message preview. Clicking enters thread mode. Typing in composer creates a new conversation.
+- **Thread mode** (active conversation): Shows back button + editable title in header, messages in chat thread, composer to continue. Delete button in header actions.
+
+Conversation titles auto-generated from first user message (50 char, word-boundary truncated). Editable inline (contentEditable) in thread header.
+
+```css
+.conversation-item { padding: 12px 16px; border-radius: var(--radius-sm); }
+.conversation-item:hover { background: var(--accent-soft); }
+.conversation-item-title { font-size: 13px; font-weight: 500; color: var(--text-1); }
+.conversation-item-meta { font-size: 11px; color: var(--text-4); }
+.assistant-pane-back { width: 28px; height: 28px; /* ghost button pattern */ }
+.assistant-pane-thread-title { font-size: 13px; font-weight: 500; /* inline editable */ }
+```
 
 ### Floating Panel (Popover / Menu / Dropdown)
 
@@ -218,7 +244,7 @@ z-index: 100;
 | Component         | File                              | Description                              |
 |-------------------|-----------------------------------|------------------------------------------|
 | ProjectSwitcher   | `components/ProjectSwitcher.jsx`  | Topbar dropdown for project selection     |
-| AssistantPanel    | `components/AssistantPanel.jsx`   | Right panel with chat thread              |
+| AssistantPanel    | `components/AssistantPanel.jsx`   | Right panel with conversation history + chat thread |
 | VersionsMenu      | `components/VersionsMenu.jsx`     | Document header dropdown for versions     |
 | TreeItem          | `components/TreeItem.jsx`         | Recursive outline tree item               |
 | CommentInput      | `components/CommentInput.jsx`     | Floating inline comment input             |
@@ -227,6 +253,7 @@ z-index: 100;
 | SlashMenu         | `components/SlashMenu.jsx`        | `/` command menu in editor                |
 | AgentCreatorSlideOver | `components/AgentCreatorSlideOver.jsx` | AI-powered agent creation flow |
 | SettingsModal     | `components/SettingsModal.jsx`    | Centered modal with left nav sections     |
+| ProjectWizard     | `components/ProjectWizard.jsx`    | 5-step project creation wizard with AI structure generation |
 
 ### Settings Modal
 
@@ -242,6 +269,33 @@ Sections: Provider Keys, Editor, AI Defaults. Settings values persisted to `loca
 
 Responsive (< 900px): full-screen, nav becomes horizontal row at top.
 
+### Project Wizard
+
+Full-page 5-step project creation flow. Replaces main `.app` content when active (conditional render, not overlay). Canvas bg, 480px centered content, 64px top padding.
+
+**Steps:**
+1. **Type** — 8 project types as vertical list of bordered options (Novel, Short Story, Screenplay, TV Series, YouTube, Article, Product, Freeform). Click advances.
+2. **Description** — Type-specific prompt + textarea. Skip or Continue.
+3. **Material** — "Starting fresh" / "I have notes" / "I have a draft". Paste area for latter two.
+4. **Structure** — AI generates folder/file tree via `/api/ai/stream`. Signature: items animate in with 40ms stagger (`wizard-item-in`). Checkboxes to toggle, double-click to rename. Regenerate button. Falls back to `FALLBACK_STRUCTURES` if AI unavailable.
+5. **Name** — Input pre-filled with AI suggestion. Enter to create.
+
+Freeform type skips steps 2–4, goes directly to step 5.
+
+```css
+.wizard { flex: 1; background: var(--canvas); }
+.wizard-body { max-width: 480px; margin: 0 auto; padding: 64px 32px 48px; }
+.wizard-step { animation: wizard-step-in 250ms var(--ease); }
+.wizard-heading { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; }
+.wizard-type-option { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.wizard-type-option:hover { border-color: var(--border-strong); background: var(--surface-inset); }
+.wizard-material-option.selected { border-color: var(--accent-border); background: var(--accent-soft); }
+.wizard-structure-item { animation: wizard-item-in 200ms var(--ease) both; } /* stagger via inline animationDelay */
+.wizard-check.checked { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+```
+
+Responsive (< 640px): 32px/16px padding, 20px heading.
+
 ### Formatting Toolbar
 
 Floating toolbar appears on text selection. Contains inline mark toggles + comment action.
@@ -256,15 +310,17 @@ Buttons use native `addEventListener('mousedown')` to prevent ProseMirror focus 
 
 ### Editor Typography
 
-Document content uses larger, more readable typography than the UI shell:
+Document content uses larger, more readable typography than the UI shell (Notion-inspired):
 
 | Property | Value | Notes |
 |----------|-------|-------|
 | Font size | 16px | Up from 14px base — reading-optimized |
 | Line height | 1.75 | Generous interlineado for long-form text |
-| Paragraph color | `--text-2` | Slightly softer than headings |
-| Heading weight | 700/650/600 | H1/H2/H3 — clear hierarchy |
+| Paragraph color | `--text-1` | Same as headings — dark, unified. Notion-style. |
+| Heading sizes | 1.875em/1.5em/1.25em | H1/H2/H3 — clear hierarchy |
+| Heading weight | 700/650/600 | H1/H2/H3 |
 | Block spacing | `0.75em` top margin via `> * + *` | Adjacent sibling combinator |
+| Placeholder | "Start writing, or press '/' for commands…" | Shown when editor empty, `--text-4` |
 | Blockquote | `3px solid --accent-border` left border, italic | |
 | Code (inline) | `--surface-inset` bg, `--border-subtle` border | |
 | Code (block) | `--surface-inset` bg, `--border` border, `16px 20px` padding | |
@@ -279,5 +335,5 @@ Document content uses larger, more readable typography than the UI shell:
 5. Spacing on 4px grid (4, 8, 12, 16, 24, 32, 48)
 6. Every interactive element needs `:hover`, `:focus-visible`, and `:disabled` (where applicable)
 7. Borders-only depth for static elements — shadows reserved for floating UI
-8. Editor content centered with 760px max-width
+8. Editor content centered with 720px max-width
 9. Assistant uses chat pattern (conversation thread), not prompt+output
