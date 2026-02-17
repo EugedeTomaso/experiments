@@ -74,3 +74,28 @@ class NodeViewSetAccessTest(APITestCase):
         self.client.force_authenticate(self.bob)
         response = self.client.get(f"/api/nodes/?project={self.project.id}")
         self.assertEqual(len(response.data), 0)
+
+
+class ProjectSerializerRoleTest(APITestCase):
+    def setUp(self):
+        self.workspace = Workspace.objects.create(name="Test")
+        self.alice = User.objects.create_user("alice", "alice@test.com", "pass1234")
+        self.bob = User.objects.create_user("bob", "bob@test.com", "pass1234")
+        self.project = Project.objects.create(
+            workspace=self.workspace, name="Proj", owner=self.alice
+        )
+        ProjectMembership.objects.create(
+            project=self.project, user=self.bob, role="editor",
+            invited_by=self.alice, invited_email="bob@test.com", accepted=True,
+        )
+        self.client = APIClient()
+
+    def test_owner_sees_owner_role(self):
+        self.client.force_authenticate(self.alice)
+        response = self.client.get(f"/api/projects/{self.project.id}/")
+        self.assertEqual(response.data["current_user_role"], "owner")
+
+    def test_member_sees_their_role(self):
+        self.client.force_authenticate(self.bob)
+        response = self.client.get(f"/api/projects/{self.project.id}/")
+        self.assertEqual(response.data["current_user_role"], "editor")

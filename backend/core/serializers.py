@@ -7,6 +7,7 @@ from .models import (
     Agent, AgentConfig, Comment, Conversation, Memory, Message, Node,
     PlatformConnection, Project, ProviderKey, PublishRecord, Version, Workspace,
 )
+from .permissions import get_user_role
 
 VERSION_INTERVAL = timedelta(minutes=10)
 from .utils import get_default_workspace
@@ -19,14 +20,23 @@ class WorkspaceSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    current_user_role = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
         fields = [
             "id", "name", "project_type", "project_extension", "brief",
             "auto_context", "context_nodes", "workspace", "owner",
             "visibility", "share_token", "created_at", "updated_at",
+            "current_user_role",
         ]
         read_only_fields = ["workspace", "owner", "share_token", "created_at", "updated_at"]
+
+    def get_current_user_role(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return None
+        return get_user_role(request.user, obj)
 
     def create(self, validated_data):
         validated_data["workspace"] = get_default_workspace()
