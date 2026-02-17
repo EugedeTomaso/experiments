@@ -7,15 +7,16 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .llm import generate_summary_sync, stream_chat
+from .llm import generate_review_sync, generate_summary_sync, stream_chat
 from django.db.models import Count, Q
 
-from .models import Agent, AgentConfig, Comment, Conversation, Message, Node, Project, ProviderKey, Version, Workspace
+from .models import Agent, AgentConfig, Comment, Conversation, Memory, Message, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
     AgentConfigSerializer,
     AgentSerializer,
     CommentSerializer,
     ConversationSerializer,
+    MemorySerializer,
     MessageSerializer,
     NodeSerializer,
     ProjectSerializer,
@@ -32,15 +33,27 @@ class WorkspaceViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    queryset = Project.objects.all().order_by("created_at")
     serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Project.objects.filter(
+            Q(owner=user) | Q(memberships__user=user, memberships__accepted=True)
+        ).distinct().order_by("created_at")
 
 
 class NodeViewSet(viewsets.ModelViewSet):
     serializer_class = NodeSerializer
 
     def get_queryset(self):
-        queryset = Node.objects.all().order_by("order", "created_at")
+        user = self.request.user
+        accessible_projects = Project.objects.filter(
+            Q(owner=user) | Q(memberships__user=user, memberships__accepted=True)
+        )
+        queryset = Node.objects.filter(
+            project__in=accessible_projects
+        ).order_by("order", "created_at")
+
         project_id = self.request.query_params.get("project")
         parent_id = self.request.query_params.get("parent")
         if project_id:
@@ -65,11 +78,37 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        queryset = Comment.objects.all().order_by("created_at")
+        queryset = Comment.objects.annotate(
+            reply_count=Count("replies")
+        ).order_by("created_at")
         node_id = self.request.query_params.get("node")
         if node_id:
             queryset = queryset.filter(node_id=node_id)
+        root_only = self.request.query_params.get("root_only")
+        if root_only == "true":
+            queryset = queryset.filter(parent__isnull=True)
         return queryset
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request, pk=None):
+        comment = self.get_object()
+        comment.status = Comment.Status.APPROVED
+        comment.save(update_fields=["status"])
+        return Response(CommentSerializer(comment).data)
+
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject(self, request, pk=None):
+        comment = self.get_object()
+        comment.status = Comment.Status.REJECTED
+        comment.save(update_fields=["status"])
+        return Response(CommentSerializer(comment).data)
+
+    @action(detail=True, methods=["post"], url_path="resolve")
+    def resolve(self, request, pk=None):
+        comment = self.get_object()
+        comment.status = Comment.Status.RESOLVED
+        comment.save(update_fields=["status"])
+        return Response(CommentSerializer(comment).data)
 
 
 class AgentViewSet(viewsets.ModelViewSet):
@@ -210,6 +249,47 @@ class ProviderKeyViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         ensure_hardcoded_provider_keys()
         return ProviderKey.objects.all().order_by("provider")
+
+
+class MemoryViewSet(viewsets.ModelViewSet):
+    serializer_class = MemorySerializer
+
+    def get_queryset(self):
+        queryset = Memory.objects.filter(user=self.request.user)
+        scope = self.request.query_params.get("scope")
+        project_id = self.request.query_params.get("project")
+
+        if scope:
+            queryset = queryset.filter(scope=scope)
+        if project_id:
+            queryset = queryset.filter(
+                Q(scope="user") | Q(project_id=project_id)
+            )
+        return queryset.order_by("-created_at")
+
+    @action(detail=False, methods=["get"], url_path="resolve")
+    def resolve(self, request):
+        project_id = request.query_params.get("project")
+        queryset = Memory.objects.filter(user=request.user)
+        if project_id:
+            queryset = queryset.filter(
+                Q(scope="user") | Q(project_id=project_id)
+            )
+        else:
+            queryset = queryset.filter(scope="user")
+
+        user_memories = []
+        project_memories = []
+        for mem in queryset:
+            if mem.scope == "user":
+                user_memories.append({"id": mem.id, "content": mem.content})
+            else:
+                project_memories.append({"id": mem.id, "content": mem.content})
+
+        return Response({
+            "user_memories": user_memories,
+            "project_memories": project_memories,
+        })
 
 
 class AIStreamView(APIView):
@@ -385,3 +465,178 @@ class NodeSearchView(APIView):
                 "word_count": len(node.content_md.strip().split()) if node.content_md else 0,
             })
         return Response(data)
+
+
+class AIReviewView(APIView):
+    def post(self, request):
+        node_id = request.data.get("node_id")
+        provider = request.data.get("provider")
+        model = request.data.get("model")
+        focus = request.data.get("focus", "all")
+        selection_from = request.data.get("selection_from")
+        selection_to = request.data.get("selection_to")
+
+        if not node_id or not provider or not model:
+            return Response(
+                {"detail": "node_id, provider, and model are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        node = Node.objects.filter(id=node_id, type=Node.NodeType.FILE).first()
+        if not node:
+            return Response({"detail": "File node not found"}, status=404)
+
+        content = node.content_md or ""
+        if not content.strip():
+            return Response({"detail": "No content to review"}, status=400)
+
+        offset = 0
+        if selection_from is not None and selection_to is not None:
+            offset = int(selection_from)
+            content = content[offset:int(selection_to)]
+
+        provider_key = ProviderKey.objects.filter(provider=provider).first()
+        api_key = provider_key.get_api_key() if provider_key else ""
+        if not api_key:
+            api_key = get_hardcoded_provider_key(provider)
+        if not api_key:
+            return Response({"detail": "Provider key missing"}, status=400)
+
+        try:
+            review_items = generate_review_sync(
+                provider, api_key, model, content, focus
+            )
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=500)
+
+        comments = []
+        for item in review_items:
+            quoted = item.get("quoted_text", "")
+            pos_from = None
+            pos_to = None
+            if quoted:
+                idx = content.find(quoted)
+                if idx >= 0:
+                    pos_from = idx + offset
+                    pos_to = idx + len(quoted) + offset
+
+            comment = Comment.objects.create(
+                node=node,
+                body=item.get("body", ""),
+                author_type=Comment.AuthorType.ASSISTANT,
+                author_label="Assistant",
+                status=Comment.Status.OPEN,
+                quoted_text=quoted,
+                suggested_text=item.get("suggested_text", ""),
+                position_from=pos_from,
+                position_to=pos_to,
+            )
+            comments.append(comment)
+
+        serializer = CommentSerializer(comments, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AICommentReplyView(APIView):
+    def post(self, request):
+        comment_id = request.data.get("comment_id")
+        user_message = request.data.get("user_message")
+        provider = request.data.get("provider")
+        model = request.data.get("model")
+
+        if not comment_id or not user_message or not provider or not model:
+            return Response(
+                {"detail": "comment_id, user_message, provider, and model are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        root_comment = Comment.objects.filter(id=comment_id, parent__isnull=True).first()
+        if not root_comment:
+            return Response({"detail": "Root comment not found"}, status=404)
+
+        provider_key = ProviderKey.objects.filter(provider=provider).first()
+        api_key = provider_key.get_api_key() if provider_key else ""
+        if not api_key:
+            api_key = get_hardcoded_provider_key(provider)
+        if not api_key:
+            return Response({"detail": "Provider key missing"}, status=400)
+
+        # Create user reply
+        user_reply = Comment.objects.create(
+            node=root_comment.node,
+            parent=root_comment,
+            body=user_message,
+            author_type=Comment.AuthorType.USER,
+            author_label="",
+        )
+
+        # Build context from thread
+        replies = list(root_comment.replies.order_by("created_at"))
+
+        system_prompt = (
+            "You are a writing reviewer. A comment was made about this text:\n\n"
+            f'"{root_comment.quoted_text}"\n\n'
+            f"Original feedback: {root_comment.body}\n"
+        )
+        if root_comment.suggested_text:
+            system_prompt += f"Current suggested replacement: {root_comment.suggested_text}\n"
+        system_prompt += (
+            "\nThe user has responded in the thread. Provide a brief, helpful response. "
+            "If you want to suggest a new replacement text, include it on its own line "
+            "prefixed with SUGGESTION: (e.g., 'SUGGESTION: the new replacement text'). "
+            "Only include SUGGESTION: if you have a concrete text replacement."
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+        ]
+        for r in replies:
+            role = "user" if r.author_type == Comment.AuthorType.USER else "assistant"
+            messages.append({"role": role, "content": r.body})
+
+        from .llm import _sync_openai_compatible, _sync_anthropic, PROVIDERS
+
+        config = PROVIDERS.get(provider)
+        if not config:
+            return Response({"detail": f"Unsupported provider: {provider}"}, status=400)
+
+        try:
+            if config["type"] == "anthropic":
+                ai_response = _sync_anthropic(api_key, config["base_url"], model, messages)
+            else:
+                ai_response = _sync_openai_compatible(api_key, config["base_url"], model, messages)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=500)
+
+        # Check for updated suggestion
+        new_suggestion = None
+        lines = ai_response.split("\n")
+        clean_body_lines = []
+        for line in lines:
+            if line.strip().startswith("SUGGESTION:"):
+                new_suggestion = line.strip()[len("SUGGESTION:"):].strip()
+            else:
+                clean_body_lines.append(line)
+
+        ai_body = "\n".join(clean_body_lines).strip()
+
+        # Create AI reply
+        ai_reply = Comment.objects.create(
+            node=root_comment.node,
+            parent=root_comment,
+            body=ai_body,
+            author_type=Comment.AuthorType.ASSISTANT,
+            author_label="Assistant",
+        )
+
+        # Update root comment suggestion if AI provided one
+        if new_suggestion:
+            root_comment.suggested_text = new_suggestion
+            root_comment.save(update_fields=["suggested_text"])
+
+        from .serializers import CommentReplySerializer
+
+        return Response({
+            "reply": CommentReplySerializer(ai_reply).data,
+            "root_comment": CommentSerializer(root_comment).data,
+        })
