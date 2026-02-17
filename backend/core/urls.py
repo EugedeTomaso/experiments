@@ -16,6 +16,7 @@ from .invitation_views import (
     InvitationListView,
     InviteView,
 )
+from .member_views import MemberDetailView, MemberListView
 from .link_preview import LinkPreviewView
 from .publish_views import (
     ConnectionDeleteView,
@@ -83,6 +84,8 @@ urlpatterns = [
     path("api/invitations/", InvitationListView.as_view(), name="invitation-list"),
     path("api/invitations/<int:pk>/accept/", AcceptInvitationView.as_view(), name="invitation-accept"),
     path("api/invitations/<int:pk>/decline/", DeclineInvitationView.as_view(), name="invitation-decline"),
+    path("api/projects/<int:project_id>/members/", MemberListView.as_view(), name="member-list"),
+    path("api/projects/<int:project_id>/members/<int:user_id>/", MemberDetailView.as_view(), name="member-detail"),
     # Publish — OAuth
     path("api/publish/connect/<str:platform>/", OAuthInitiateView.as_view(), name="publish-connect"),
     path("api/publish/callback/<str:platform>/", OAuthCallbackView.as_view(), name="publish-callback"),
