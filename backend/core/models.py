@@ -45,6 +45,54 @@ class Project(models.Model):
         return self.name
 
 
+class ProjectMembership(models.Model):
+    class Role(models.TextChoices):
+        VIEWER = "viewer", "Viewer"
+        COMMENTER = "commenter", "Commenter"
+        EDITOR = "editor", "Editor"
+        ADMIN = "admin", "Admin"
+
+    ROLE_HIERARCHY = {
+        "viewer": 0,
+        "commenter": 1,
+        "editor": 2,
+        "admin": 3,
+    }
+
+    project = models.ForeignKey(
+        Project, related_name="memberships", on_delete=models.CASCADE
+    )
+    user = models.ForeignKey(
+        "auth.User", related_name="project_memberships",
+        null=True, blank=True, on_delete=models.CASCADE,
+    )
+    role = models.CharField(max_length=20, choices=Role.choices)
+    invited_by = models.ForeignKey(
+        "auth.User", related_name="sent_invitations", on_delete=models.CASCADE
+    )
+    invited_email = models.EmailField()
+    accepted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("project", "user")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "invited_email"],
+                condition=Q(accepted=False),
+                name="unique_pending_invitation",
+            )
+        ]
+
+    def has_role(self, required_role):
+        return self.ROLE_HIERARCHY.get(self.role, -1) >= self.ROLE_HIERARCHY.get(required_role, 99)
+
+    def __str__(self):
+        label = self.user.email if self.user else self.invited_email
+        return f"{label} – {self.role} on {self.project.name}"
+
+
 class Node(models.Model):
     class NodeType(models.TextChoices):
         FOLDER = "folder", "Folder"
