@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 from django.http import StreamingHttpResponse
@@ -9,6 +10,7 @@ from rest_framework.views import APIView
 
 from .llm import generate_review_sync, generate_summary_sync, stream_chat
 from django.db.models import Count, Q
+from .permissions import get_user_role
 
 from .models import Agent, AgentConfig, Comment, Conversation, Memory, Message, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
@@ -40,6 +42,23 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Project.objects.filter(
             Q(owner=user) | Q(memberships__user=user, memberships__accepted=True)
         ).distinct().order_by("created_at")
+
+    @action(detail=True, methods=["post"], url_path="regenerate-share-token")
+    def regenerate_share_token(self, request, pk=None):
+        project = self.get_object()
+        role = get_user_role(request.user, project)
+        if role not in ("owner", "admin"):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        project.share_token = uuid.uuid4()
+        project.save(update_fields=["share_token"])
+        return Response({"share_token": str(project.share_token)})
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        # Auto-generate share_token when enabling link sharing
+        if instance.visibility == "link_viewable" and not instance.share_token:
+            instance.share_token = uuid.uuid4()
+            instance.save(update_fields=["share_token"])
 
 
 class NodeViewSet(viewsets.ModelViewSet):
