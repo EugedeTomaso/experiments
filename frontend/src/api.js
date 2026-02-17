@@ -1,13 +1,72 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
+export function getAuthHeader() {
+  const token = localStorage.getItem("marvin:access_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+let _refreshPromise = null;
+
+async function refreshAccessToken() {
+  const refresh = localStorage.getItem("marvin:refresh_token");
+  if (!refresh) throw new Error("No refresh token");
+  const res = await fetch(`${API_BASE}/api/auth/refresh/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh }),
+  });
+  if (!res.ok) throw new Error("Refresh failed");
+  const data = await res.json();
+  localStorage.setItem("marvin:access_token", data.access);
+  if (data.refresh) localStorage.setItem("marvin:refresh_token", data.refresh);
+  return data.access;
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeader(),
       ...(options.headers || {}),
     },
     ...options,
   });
+
+  // On 401, try refreshing the token and retry once
+  if (response.status === 401 && localStorage.getItem("marvin:refresh_token")) {
+    try {
+      // Deduplicate concurrent refresh attempts
+      if (!_refreshPromise) {
+        _refreshPromise = refreshAccessToken().finally(() => { _refreshPromise = null; });
+      }
+      const newToken = await _refreshPromise;
+
+      const retry = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${newToken}`,
+          ...(options.headers || {}),
+        },
+      });
+
+      if (!retry.ok) {
+        const text = await retry.text();
+        const error = new Error(text || `Request failed: ${retry.status}`);
+        error.status = retry.status;
+        throw error;
+      }
+      if (retry.status === 204) return null;
+      return retry.json();
+    } catch {
+      // Refresh failed — clear tokens so user gets redirected to login
+      localStorage.removeItem("marvin:access_token");
+      localStorage.removeItem("marvin:refresh_token");
+      const error = new Error("Session expired");
+      error.status = 401;
+      throw error;
+    }
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -33,6 +92,15 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+  updateProject(id, payload) {
+    return request(`/api/projects/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteProject(id) {
+    return request(`/api/projects/${id}/`, { method: "DELETE" });
+  },
   listNodes(projectId) {
     return request(`/api/nodes/?project=${projectId}`);
   },
@@ -52,10 +120,42 @@ export const api = {
     return request(`/api/nodes/${id}/`, { method: "DELETE" });
   },
   listComments(nodeId) {
-    return request(`/api/comments/?node=${nodeId}`);
+    return request(`/api/comments/?node=${nodeId}&root_only=true`);
   },
   createComment(payload) {
     return request("/api/comments/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateComment(id, payload) {
+    return request(`/api/comments/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteComment(id) {
+    return request(`/api/comments/${id}/`, { method: "DELETE" });
+  },
+  approveComment(id) {
+    return request(`/api/comments/${id}/approve/`, { method: "POST" });
+  },
+  rejectComment(id) {
+    return request(`/api/comments/${id}/reject/`, { method: "POST" });
+  },
+  resolveComment(id) {
+    return request(`/api/comments/${id}/resolve/`, { method: "POST" });
+  },
+
+  // AI Review
+  requestReview(payload) {
+    return request("/api/ai/review", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  requestCommentReply(payload) {
+    return request("/api/ai/comment-reply", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -161,5 +261,104 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  // Memories
+  listMemories(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/api/memories/?${query}`);
+  },
+  createMemory(payload) {
+    return request("/api/memories/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateMemory(id, payload) {
+    return request(`/api/memories/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteMemory(id) {
+    return request(`/api/memories/${id}/`, { method: "DELETE" });
+  },
+  resolveMemories(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`/api/memories/resolve/?${query}`);
+  },
+
+  // Publish — Connections
+  listConnections() {
+    return request("/api/publish/connections/");
+  },
+  deleteConnection(id) {
+    return request(`/api/publish/connections/${id}/`, { method: "DELETE" });
+  },
+  initiateOAuth(platform) {
+    return request(`/api/publish/connect/${platform}/`);
+  },
+
+  // Publish — Actions
+  publish(payload) {
+    return request("/api/publish/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  previewPublish(payload) {
+    return request("/api/publish/preview/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  publishHistory() {
+    return request("/api/publish/history/");
+  },
+
+  // Export formats
+  exportFormats(projectType) {
+    return request(`/api/export/formats/?type=${encodeURIComponent(projectType)}`);
+  },
+
+  // Link preview
+  fetchLinkPreview(url) {
+    return request(`/api/link-preview/?url=${encodeURIComponent(url)}`);
+  },
+
+  // Sharing — Invitations
+  inviteToProject(projectId, { email, role }) {
+    return request(`/api/projects/${projectId}/invite/`, {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    });
+  },
+  listInvitations() {
+    return request("/api/invitations/");
+  },
+  acceptInvitation(id) {
+    return request(`/api/invitations/${id}/accept/`, { method: "POST" });
+  },
+  declineInvitation(id) {
+    return request(`/api/invitations/${id}/decline/`, { method: "POST" });
+  },
+
+  // Sharing — Members
+  listMembers(projectId) {
+    return request(`/api/projects/${projectId}/members/`);
+  },
+  updateMemberRole(projectId, userId, role) {
+    return request(`/api/projects/${projectId}/members/${userId}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+  },
+  removeMember(projectId, userId) {
+    return request(`/api/projects/${projectId}/members/${userId}/`, { method: "DELETE" });
+  },
+
+  // Sharing — Public link
+  regenerateShareToken(projectId) {
+    return request(`/api/projects/${projectId}/regenerate-share-token/`, { method: "POST" });
   },
 };
