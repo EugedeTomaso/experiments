@@ -20,6 +20,7 @@ import { linkPreviewPlugin } from "./linkPreviewPlugin";
 import { highlightPlugin, configHighlightStringify } from "./highlightPlugin";
 import { calloutPlugin, configCalloutStringify } from "./calloutPlugin";
 import { mermaidPlugin } from "./mermaidPlugin";
+import { createMarginAvatarPlugin } from "./marginAvatarPlugin";
 import "@milkdown/theme-nord/style.css";
 
 function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef, readOnly = false, currentRole, collabSession }) {
@@ -64,6 +65,7 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef,
         for (const plugin of collabSession.prosemirrorPlugins) {
           editor.use($prose(() => plugin));
         }
+        editor.use(createMarginAvatarPlugin(collabSession.awareness));
       } else {
         editor.use(history);
       }
