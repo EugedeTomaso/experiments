@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { api } from "../api";
 
 /**
@@ -9,13 +9,20 @@ import { api } from "../api";
  *   - Navigation prev/next ordering
  *   - Counter display (N/M)
  */
-export function useComments({ nodeId, editorRef, editorWrapperRef }) {
+export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
   const [comments, setComments] = useState([]);
   const [activeThread, setActiveThread] = useState(null); // { comment, rect } | null
   const [focusedId, setFocusedId] = useState(null);
   const [aiThinkingId, setAiThinkingId] = useState(null);
 
   // --- Derived state ---
+
+  // Quick check: does the quoted_text appear in the current document content?
+  // Filters out orphaned comments from previous versions of the document.
+  const isAnchored = useCallback(
+    (c) => !c.quoted_text || !content || content.includes(c.quoted_text),
+    [content]
+  );
 
   // openComments: root comments that are actionable and have inline positions.
   // Used for navigation and counting (excludes approved/rejected/resolved).
@@ -27,10 +34,11 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
           c.status !== "resolved" &&
           c.status !== "approved" &&
           c.status !== "rejected" &&
-          c.quoted_text
+          c.quoted_text &&
+          isAnchored(c)
       )
       .sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity));
-  }, [comments]);
+  }, [comments, isAnchored]);
 
   // decorationComments: includes approved/rejected for CSS fade-out transitions.
   // Only excludes "resolved" so highlights can animate out before removal.
@@ -39,6 +47,46 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
       (c) => !c.parent && c.status !== "resolved" && c.quoted_text
     );
   }, [comments]);
+
+  // Tab-filtered derived state for review/verify panels
+  const reviewTabComments = useMemo(() =>
+    comments
+      .filter(c => !c.parent && c.comment_type !== "fact_check" && c.status !== "resolved" && c.quoted_text && isAnchored(c))
+      .sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity)),
+    [comments, content]
+  );
+
+  const verifyTabComments = useMemo(() =>
+    comments
+      .filter(c => !c.parent && c.comment_type === "fact_check" && c.status !== "resolved" && c.quoted_text && isAnchored(c))
+      .sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity)),
+    [comments, content]
+  );
+
+  const reviewPendingCount = useMemo(() =>
+    reviewTabComments.filter(c => c.status === "open").length,
+    [reviewTabComments]
+  );
+
+  const verifyPendingCount = useMemo(() =>
+    verifyTabComments.filter(c => c.status === "open").length,
+    [verifyTabComments]
+  );
+
+  const reviewAcceptedCount = useMemo(() =>
+    comments.filter(c => !c.parent && c.comment_type !== "fact_check" && (c.status === "approved" || c.status === "resolved") && c.author_type === "assistant").length,
+    [comments]
+  );
+
+  const reviewDismissedCount = useMemo(() =>
+    comments.filter(c => !c.parent && c.comment_type !== "fact_check" && c.status === "rejected" && c.author_type === "assistant").length,
+    [comments]
+  );
+
+  const getReplies = useCallback((parentId) =>
+    comments.filter(c => c.parent === parentId).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+    [comments]
+  );
 
   const navIndex = useMemo(() => {
     if (!focusedId) return -1;
@@ -49,17 +97,20 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
 
   // --- Loading ---
 
+  const loadSeqRef = useRef(0);
+
   const load = useCallback(
     async (nId) => {
+      const seq = ++loadSeqRef.current;
       if (!nId) {
         setComments([]);
         return;
       }
       try {
         const list = await api.listComments(nId);
-        setComments(list);
+        if (seq === loadSeqRef.current) setComments(list);
       } catch {
-        setComments([]);
+        if (seq === loadSeqRef.current) setComments([]);
       }
     },
     []
@@ -323,8 +374,8 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
 
   // --- Review progress (derived) ---
   const reviewComments = useMemo(
-    () => comments.filter((c) => c.author_type === "assistant" && !c.parent),
-    [comments]
+    () => comments.filter((c) => c.author_type === "assistant" && !c.parent && isAnchored(c)),
+    [comments, isAnchored]
   );
   const reviewResolved = useMemo(
     () =>
@@ -343,6 +394,12 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
     comments,
     openComments,
     decorationComments,
+    reviewTabComments,
+    verifyTabComments,
+    reviewPendingCount,
+    verifyPendingCount,
+    reviewAcceptedCount,
+    reviewDismissedCount,
     activeThread,
     focusedId,
     navIndex,
@@ -368,5 +425,6 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
     addBulk,
     addOne,
     setComments,
+    getReplies,
   };
 }
