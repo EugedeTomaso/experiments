@@ -2705,6 +2705,31 @@
   line-height: 1.6;
 }
 
+/* Auto agent badge on routed messages */
+.agent-msg-routed-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.agent-msg-routed-badge:hover {
+  color: var(--text-2);
+  text-decoration: underline;
+}
+
+/* Auto agent icon in selector */
+.auto-agent-icon {
+  vertical-align: -1px;
+  margin-right: 2px;
+}
+
 .agent-msg-context {
   font-size: 12px;
   font-style: italic;

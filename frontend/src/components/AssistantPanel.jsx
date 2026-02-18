@@ -90,6 +90,8 @@ export function AssistantPanel({
   agents,
   resolvedAgent,
   nodeDirectConfig,
+  agentMode,
+  onAgentModeChange,
   onAgentChange,
   onCreateAgent,
   onEditAgent,
@@ -325,11 +327,13 @@ export function AssistantPanel({
     onDeleteConversation(convId);
   };
 
-  const agentName = nodeDirectConfig?.agent
-    ? agents.find((a) => a.id === nodeDirectConfig.agent)?.name || "Assistant"
-    : resolvedAgent?.inherited && resolvedAgent?.agent_name
-      ? resolvedAgent.agent_name
-      : "Assistant";
+  const agentName = agentMode === "auto"
+    ? "Auto"
+    : nodeDirectConfig?.agent
+      ? agents.find((a) => a.id === nodeDirectConfig.agent)?.name || "Assistant"
+      : resolvedAgent?.inherited && resolvedAgent?.agent_name
+        ? resolvedAgent.agent_name
+        : "Assistant";
 
   const hasMessages = messages.length > 0 || isStreaming;
 
@@ -406,6 +410,12 @@ export function AssistantPanel({
               onClick={() => setIsAgentDropdownOpen((prev) => !prev)}
               aria-label="Select agent"
             >
+              {agentMode === "auto" && (
+                <svg className="auto-agent-icon" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                  <path d="M8 1l1.5 3.5L13 6l-3.5 1.5L8 11 6.5 7.5 3 6l3.5-1.5L8 1z" fill="currentColor" />
+                  <path d="M12 10l.75 1.75L14.5 12.5l-1.75.75L12 15l-.75-1.75-1.75-.75 1.75-.75L12 10z" fill="currentColor" opacity="0.6" />
+                </svg>
+              )}
               <span className="agent-selector-pill-name">{agentName}</span>
               {resolvedAgent?.inherited && !nodeDirectConfig?.agent && (
                 <span className="agent-selector-pill-inherited">project</span>
@@ -418,8 +428,33 @@ export function AssistantPanel({
               <div className="assistant-agent-dropdown">
                 <div className="assistant-agent-dropdown-label">Agent</div>
                 <button
-                  className={`assistant-agent-option${!nodeDirectConfig?.agent ? " active" : ""}`}
-                  onClick={() => { onAgentChange(null); setIsAgentDropdownOpen(false); }}
+                  className={`assistant-agent-option${agentMode === "auto" ? " active" : ""}`}
+                  onClick={() => {
+                    onAgentModeChange("auto");
+                    onAgentChange(null);
+                    setIsAgentDropdownOpen(false);
+                  }}
+                >
+                  <span className="assistant-agent-option-info">
+                    <span className="assistant-agent-option-name">
+                      <svg className="auto-agent-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                        <path d="M8 1l1.5 3.5L13 6l-3.5 1.5L8 11 6.5 7.5 3 6l3.5-1.5L8 1z" fill="currentColor" />
+                        <path d="M12 10l.75 1.75L14.5 12.5l-1.75.75L12 15l-.75-1.75-1.75-.75 1.75-.75L12 10z" fill="currentColor" opacity="0.6" />
+                      </svg>
+                      Auto
+                    </span>
+                    <span className="assistant-agent-option-meta">picks the best agent per message</span>
+                  </span>
+                  {agentMode === "auto" && (
+                    <svg className="assistant-agent-option-check" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                      <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <div className="assistant-agent-dropdown-divider" />
+                <button
+                  className={`assistant-agent-option${agentMode !== "auto" && !nodeDirectConfig?.agent ? " active" : ""}`}
+                  onClick={() => { onAgentModeChange("fixed"); onAgentChange(null); setIsAgentDropdownOpen(false); }}
                 >
                   <span className="assistant-agent-option-info">
                     <span className="assistant-agent-option-name">
@@ -431,7 +466,7 @@ export function AssistantPanel({
                       <span className="assistant-agent-option-meta">inherited from project</span>
                     )}
                   </span>
-                  {!nodeDirectConfig?.agent && (
+                  {agentMode !== "auto" && !nodeDirectConfig?.agent && (
                     <svg className="assistant-agent-option-check" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                       <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -443,7 +478,7 @@ export function AssistantPanel({
                     <button
                       key={a.id}
                       className={`assistant-agent-option${isActive ? " active" : ""}`}
-                      onClick={() => { onAgentChange(a.id); setIsAgentDropdownOpen(false); }}
+                      onClick={() => { onAgentModeChange("fixed"); onAgentChange(a.id); setIsAgentDropdownOpen(false); }}
                     >
                       <span className="assistant-agent-option-info">
                         <span className="assistant-agent-option-name">{a.name}</span>
@@ -665,6 +700,18 @@ export function AssistantPanel({
                     msg.content
                   )}
                 </div>
+                {msg.role === "assistant" && msg.routedAgentName && (
+                  <button
+                    className="agent-msg-routed-badge"
+                    onClick={() => {
+                      onAgentModeChange("fixed");
+                      onAgentChange(msg.routedAgentId);
+                    }}
+                    title={`Switch to ${msg.routedAgentName}`}
+                  >
+                    via {msg.routedAgentName}
+                  </button>
+                )}
               </div>
             ))}
 
