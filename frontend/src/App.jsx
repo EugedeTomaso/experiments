@@ -13,7 +13,6 @@ import { ExportMenu } from "./components/ExportMenu";
 import { PublishDialog } from "./components/PublishDialog";
 import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
 import { CommentInput } from "./components/CommentInput";
-import { CommentThread } from "./components/CommentThread";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareDialog } from "./components/ShareDialog";
 import { InvitationBanner } from "./components/InvitationBanner";
@@ -285,35 +284,28 @@ export default function App() {
   const [docMenuOpen, setDocMenuOpen] = useState(false);
   const docMenuRef = useRef(null);
 
+  // --- Critique state ---
+  const [isCritiquing, setIsCritiquing] = useState(false);
+  const [critiques, setCritiques] = useState([]);
+  const [activeCritiqueId, setActiveCritiqueId] = useState(null);
+  const [critiqueThreadMessages, setCritiqueThreadMessages] = useState({});
+  const [discussingSection, setDiscussingSection] = useState(null);
+
   // --- Comment state (centralized hook) ---
   const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef, content: draft });
   const {
     comments, openComments, decorationComments, activeThread: activeThreadComment,
-    focusedId: focusedCommentId, navIndex: focusedNavIndex, navTotal,
+    focusedId: focusedCommentId, flashId: flashCommentId, navIndex: focusedNavIndex, navTotal,
     aiThinkingId: aiThinkingCommentId,
     reviewComments, reviewResolved, hasReviewProgress,
     load: loadComments, clear: clearComments,
     navigatePrev: handleNavPrev, navigateNext: handleNavNext,
     openThread, closeThread: handleCloseThread,
-    create: createComment, approve: handleApproveComment,
+    create: createComment, approve: handleApproveComment, approveReply: handleApproveReply,
     reject: handleRejectComment, resolve: handleResolveComment,
     remove: handleDeleteComment, reply: handleReplyToComment,
     askAI: handleAskAIInThread, addBulk: addBulkComments, addOne: addOneComment,
   } = commentState;
-
-  // Sync active highlight class on DOM
-  useEffect(() => {
-    const wrapper = editorWrapperRef.current;
-    if (!wrapper) return;
-    wrapper.querySelectorAll(".comment-highlight--active").forEach((el) => {
-      el.classList.remove("comment-highlight--active");
-    });
-    if (focusedCommentId) {
-      wrapper.querySelectorAll(`[data-comment-id="${focusedCommentId}"]`).forEach((el) => {
-        el.classList.add("comment-highlight--active");
-      });
-    }
-  }, [focusedCommentId]);
 
   // Keyboard: Cmd+Shift+Arrow to navigate comments
   useEffect(() => {
@@ -595,6 +587,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNodeId]);
 
+  // Load critiques when node changes
+  useEffect(() => {
+    if (!activeNodeId) {
+      setCritiques([]);
+      setActiveCritiqueId(null);
+      setCritiqueThreadMessages({});
+      return;
+    }
+    api.listCritiques(activeNodeId).then((data) => {
+      const list = Array.isArray(data) ? data : data.results || [];
+      setCritiques(list);
+      setActiveCritiqueId(list.length > 0 ? list[0].id : null);
+    }).catch(() => {});
+  }, [activeNodeId]);
+
   // Collab session lifecycle — only activate if WebSocket server is reachable
   useEffect(() => {
     const node = nodes.find((n) => String(n.id) === String(activeNodeId));
@@ -729,15 +736,17 @@ export default function App() {
 
   // --- Editor custom event listeners ---
   const handleHighlightClick = useCallback(
-    (commentIds, rect) => {
+    (commentIds) => {
       const rootComment = comments.find(
         (c) => commentIds.includes(c.id) && !c.parent
       );
       if (rootComment) {
-        openThread(rootComment, rect);
+        commentState.focusComment(rootComment.id);
+        setAssistantTab("review");
+        if (!isAssistantOpen) setIsAssistantOpen(true);
       }
     },
-    [comments, openThread]
+    [comments, commentState.focusComment, isAssistantOpen]
   );
 
   useEffect(() => {
@@ -1166,6 +1175,56 @@ export default function App() {
       console.error("Review failed:", err);
     } finally {
       setIsReviewing(false);
+    }
+  };
+
+  const handleRequestCritique = async () => {
+    if (!activeNode || isCritiquing) return;
+    setIsCritiquing(true);
+    setAssistantTab("review");
+    if (!isAssistantOpen) setIsAssistantOpen(true);
+    try {
+      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const provider = providerSettings.provider || "deepseek";
+      const model = providerSettings.model || "deepseek-chat";
+      const newCritique = await api.requestCritique({
+        node_id: activeNode.id,
+        provider,
+        model,
+      });
+      setCritiques((prev) => [newCritique, ...prev]);
+      setActiveCritiqueId(newCritique.id);
+      setCritiqueThreadMessages({});
+    } catch (err) {
+      console.error("Critique failed:", err);
+    } finally {
+      setIsCritiquing(false);
+    }
+  };
+
+  const handleDiscussSection = async (sectionId, message) => {
+    if (!activeCritiqueId) return;
+    setDiscussingSection(sectionId);
+    try {
+      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const provider = providerSettings.provider || "deepseek";
+      const model = providerSettings.model || "deepseek-chat";
+      const result = await api.discussCritiqueSection({
+        critique_id: activeCritiqueId,
+        section_id: sectionId,
+        message,
+        provider,
+        model,
+      });
+      setCritiqueThreadMessages((prev) => {
+        const existing = prev[sectionId] || [];
+        const userMsg = { id: `u_${Date.now()}`, role: "user", content: message };
+        return { ...prev, [sectionId]: [...existing, userMsg, result.message] };
+      });
+    } catch (err) {
+      console.error("Discuss failed:", err);
+    } finally {
+      setDiscussingSection(null);
     }
   };
 
@@ -2656,66 +2715,11 @@ Rules for memory suggestions:
                       nodes={nodes}
                       onPublish={(platform, connection) => setPublishState({ platform, connection })}
                     />
-                    <button
-                      className="review-btn"
-                      onClick={() => handleFactCheck()}
-                      disabled={isFactChecking || !draft.trim()}
-                      title="Fact-check document"
-                      style={{ marginRight: 4 }}
-                    >
-                      {isFactChecking ? (
-                        <>
-                          <svg width="12" height="12" viewBox="0 0 16 16" style={{ animation: "spin 0.8s linear infinite" }}>
-                            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
-                          </svg>
-                          {factCheckProgress
-                            ? `${factCheckProgress.done}/${factCheckProgress.total}`
-                            : "Extracting…"}
-                        </>
-                      ) : (
-                        <>
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M13.5 4.5L6.5 11.5L2.5 7.5" />
-                          </svg>
-                          Fact-Check
-                        </>
-                      )}
-                    </button>
-                    <div className="doc-more" ref={docMenuRef}>
-                      <button
-                        className="doc-more-btn"
-                        onClick={() => setDocMenuOpen((v) => !v)}
-                        title="More actions"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/></svg>
-                      </button>
-                      {docMenuOpen && (
-                        <div className="doc-more-dropdown">
-                          {["all", "grammar", "clarity", "style"].map((f) => (
-                            <button
-                              key={f}
-                              className="doc-more-item"
-                              onClick={() => { handleRequestReview(f); setDocMenuOpen(false); }}
-                              disabled={isReviewing || !draft.trim()}
-                            >
-                              {isReviewing && f === "all" ? (
-                                <>
-                                  <svg width="12" height="12" viewBox="0 0 16 16" style={{ animation: "spin 0.8s linear infinite" }}>
-                                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
-                                  </svg>
-                                  Reviewing…
-                                </>
-                              ) : `Review ${f}`}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
               </div>
 
-              {(openComments.length > 0 || diffAvailable || reviewEmptyMsg) && (
+              {(diffAvailable || reviewEmptyMsg) && (
                 <div className="review-bar">
                   {diffAvailable && (
                     <button
@@ -2727,34 +2731,6 @@ Rules for memory suggestions:
                         ? `${diffStats.modified + diffStats.added + diffStats.deleted} changes`
                         : "Changes"}
                     </button>
-                  )}
-                  {openComments.length > 0 && (
-                    <>
-                      <div className="comment-nav">
-                        <button
-                          className="comment-nav-btn"
-                          onClick={handleNavPrev}
-                          title="Previous comment (⌘⇧↑)"
-                        >
-                          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 6.5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </button>
-                        <span className="comment-nav-count">
-                          {focusedNavIndex >= 0 ? focusedNavIndex + 1 : "–"}/{navTotal}
-                        </span>
-                        <button
-                          className="comment-nav-btn"
-                          onClick={handleNavNext}
-                          title="Next comment (⌘⇧↓)"
-                        >
-                          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </button>
-                      </div>
-                      {hasReviewProgress && (
-                        <span className="review-progress">
-                          {reviewResolved}/{reviewComments.length} resolved
-                        </span>
-                      )}
-                    </>
                   )}
                   {reviewEmptyMsg && (
                     <span className="review-empty-msg">No suggestions</span>
@@ -2797,6 +2773,8 @@ Rules for memory suggestions:
                   value={activeNode.content_md || ""}
                   onChange={setDraft}
                   comments={decorationComments}
+                  focusedCommentId={focusedCommentId}
+                  flashCommentId={flashCommentId}
                   editorRef={editorRef}
                   readOnly={currentRole === "viewer"}
                   currentRole={currentRole}
@@ -2862,6 +2840,12 @@ Rules for memory suggestions:
               onDelete={() => handleDeleteProject(activeProjectId)}
               onEditAgent={openAgentEditor}
               onCreateAgent={openAgentCreator}
+              memories={memories}
+              onCreateMemory={handleCreateMemory}
+              onDeleteMemory={handleDeleteMemory}
+              onUpdateMemory={async (id, payload) => {
+                try { await api.updateMemory(id, payload); refreshMemories(); } catch {}
+              }}
             />
           )}
 
@@ -2945,6 +2929,7 @@ Rules for memory suggestions:
           getReplies={commentState.getReplies}
           onClickComment={(comment) => commentState.navigateTo(comment.id)}
           onApproveComment={handleApproveComment}
+          onApproveReplyComment={handleApproveReply}
           onDismissComment={handleRejectComment}
           onResolveComment={handleResolveComment}
           onDeleteComment={handleDeleteComment}
@@ -2955,6 +2940,14 @@ Rules for memory suggestions:
           isReviewing={isReviewing}
           isFactChecking={isFactChecking}
           factCheckProgress={factCheckProgress}
+          critiques={critiques}
+          isCritiquing={isCritiquing}
+          activeCritiqueId={activeCritiqueId}
+          critiqueThreadMessages={critiqueThreadMessages}
+          discussingSection={discussingSection}
+          onLaunchCritique={handleRequestCritique}
+          onDiscussSection={handleDiscussSection}
+          onSelectCritique={setActiveCritiqueId}
         />
       </div>
       )}
@@ -2990,7 +2983,6 @@ Rules for memory suggestions:
         defaultAgent={defaultAgent}
         onDefaultAgentChange={setDefaultAgent}
         memories={memories}
-        activeProjectId={activeProjectId}
         onCreateMemory={handleCreateMemory}
         onDeleteMemory={handleDeleteMemory}
         onUpdateMemory={async (id, payload) => {
@@ -3014,25 +3006,6 @@ Rules for memory suggestions:
         />
       )}
 
-      {activeThreadComment && (
-        <CommentThread
-          comment={activeThreadComment.comment}
-          rect={activeThreadComment.rect}
-          onClose={handleCloseThread}
-          onApprove={handleApproveComment}
-          onReject={handleRejectComment}
-          onResolve={handleResolveComment}
-          onDelete={handleDeleteComment}
-          onReply={handleReplyToComment}
-          onAskAI={handleAskAIInThread}
-          isAIThinking={aiThinkingCommentId === activeThreadComment.comment.id}
-          onPrev={navTotal > 1 ? handleNavPrev : undefined}
-          onNext={navTotal > 1 ? handleNavNext : undefined}
-          navLabel={navTotal > 1 && focusedNavIndex >= 0
-            ? `${focusedNavIndex + 1}/${navTotal}`
-            : undefined}
-        />
-      )}
 
       {showAppTour && (
         <SpotlightTour onComplete={() => setShowAppTour(false)} />
