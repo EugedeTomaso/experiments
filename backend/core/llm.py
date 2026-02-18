@@ -221,6 +221,113 @@ def _sync_anthropic_review(api_key: str, base_url: str, model: str, messages: li
     return data["content"][0]["text"].strip()
 
 
+CLAIM_EXTRACTION_PROMPT = (
+    "You are a fact-checker. Extract all verifiable factual claims from the text below.\n\n"
+    "A verifiable claim is a statement that can be checked against external sources — "
+    "dates, statistics, named events, scientific facts, historical assertions, attributions, etc.\n\n"
+    "Do NOT extract opinions, subjective judgments, or hypotheticals.\n\n"
+    "For each claim, return a JSON object with:\n"
+    '- "claim": the factual assertion in a clear, searchable form\n'
+    '- "quoted_text": the exact substring from the document (must match character-for-character)\n\n'
+    "Return ONLY a JSON array. No markdown, no code fences.\n\n"
+    "Example:\n"
+    '[{"claim": "The Eiffel Tower was built in 1889", '
+    '"quoted_text": "built in 1889"}]'
+)
+
+
+def extract_claims_sync(
+    provider: str, api_key: str, model: str, content_md: str
+) -> list:
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    messages = [
+        {"role": "system", "content": CLAIM_EXTRACTION_PROMPT},
+        {"role": "user", "content": content_md[:8000]},
+    ]
+
+    if config["type"] == "anthropic":
+        raw = _sync_anthropic_review(api_key, config["base_url"], model, messages)
+    else:
+        raw = _sync_openai_compatible_review(api_key, config["base_url"], model, messages)
+
+    try:
+        result = json.loads(raw)
+        if isinstance(result, list):
+            return result
+        return []
+    except json.JSONDecodeError:
+        start = raw.find("[")
+        end = raw.rfind("]")
+        if start >= 0 and end > start:
+            try:
+                return json.loads(raw[start:end + 1])
+            except json.JSONDecodeError:
+                pass
+        return []
+
+
+VERDICT_PROMPT = (
+    "You are a fact-checker. Given a claim and search results from the web, "
+    "determine whether the claim is accurate.\n\n"
+    "Respond with a JSON object with exactly these keys:\n"
+    '- "verdict": one of "verified", "dubious", or "false"\n'
+    '  - "verified": the claim is confirmed by reliable sources\n'
+    '  - "dubious": sources are contradictory, insufficient, or the claim is misleading\n'
+    '  - "false": the claim is clearly incorrect according to sources\n'
+    '- "explanation": a brief explanation (1-3 sentences) of why you reached this verdict, citing specific sources\n'
+    '- "suggested_text": if the verdict is "false", provide a corrected version of the quoted text. '
+    'If "verified" or "dubious", set to empty string.\n\n'
+    "Return ONLY the JSON object. No markdown, no code fences."
+)
+
+
+def verify_claim_sync(
+    provider: str, api_key: str, model: str, claim: str, quoted_text: str, sources: list
+) -> dict:
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    sources_text = "\n\n".join(
+        f"Source: {s.get('title', 'Untitled')} ({s.get('url', '')})\n{s.get('text', '')}"
+        for s in sources
+    )
+
+    user_content = (
+        f"Claim: {claim}\n\n"
+        f"Original text: \"{quoted_text}\"\n\n"
+        f"Search results:\n{sources_text}"
+    )
+
+    messages = [
+        {"role": "system", "content": VERDICT_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+    if config["type"] == "anthropic":
+        raw = _sync_anthropic_review(api_key, config["base_url"], model, messages)
+    else:
+        raw = _sync_openai_compatible_review(api_key, config["base_url"], model, messages)
+
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict):
+            return result
+        return {"verdict": "dubious", "explanation": "Could not parse verdict.", "suggested_text": ""}
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                return json.loads(raw[start:end + 1])
+            except json.JSONDecodeError:
+                pass
+        return {"verdict": "dubious", "explanation": "Could not parse verdict.", "suggested_text": ""}
+
+
 def stream_chat(provider: str, api_key: str, payload: dict) -> Iterable[bytes]:
     config = PROVIDERS.get(provider)
     if not config:
