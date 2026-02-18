@@ -19,6 +19,12 @@ from .invitation_views import (
 from .member_views import MemberDetailView, MemberListView
 from .share_views import PublicShareView
 from .link_preview import LinkPreviewView
+from .internal_views import (
+    InternalNodeContentView,
+    InternalNodeDetailView,
+    NodeAccessView,
+    YjsStateView,
+)
 from .publish_views import (
     ConnectionDeleteView,
     ConnectionListView,
@@ -97,4 +103,9 @@ urlpatterns = [
     path("api/publish/", PublishView.as_view(), name="publish"),
     path("api/publish/preview/", PublishPreviewView.as_view(), name="publish-preview"),
     path("api/publish/history/", PublishHistoryView.as_view(), name="publish-history"),
+    # Internal (collab server)
+    path("api/internal/node-access/<int:node_id>/", NodeAccessView.as_view(), name="internal-node-access"),
+    path("api/internal/nodes/<int:node_id>/yjs-state/", YjsStateView.as_view(), name="internal-yjs-state"),
+    path("api/internal/nodes/<int:node_id>/content/", InternalNodeContentView.as_view(), name="internal-node-content"),
+    path("api/internal/nodes/<int:node_id>/", InternalNodeDetailView.as_view(), name="internal-node-detail"),
 ]

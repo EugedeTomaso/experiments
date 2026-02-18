@@ -135,9 +135,26 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
     ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+from datetime import timedelta  # noqa: E402
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
 _csrf_env = [value.strip() for value in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")]
 CSRF_TRUSTED_ORIGINS = [value for value in _csrf_env if value]
 
@@ -145,3 +162,5 @@ CSRF_TRUSTED_ORIGINS = [value for value in _csrf_env if value]
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "dev-internal-key")
