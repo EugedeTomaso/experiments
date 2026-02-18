@@ -8,6 +8,8 @@ import {
   wrapInBlockquoteCommand,
   insertHrCommand,
 } from "@milkdown/kit/preset/commonmark";
+import { insertTableCommand } from "@milkdown/kit/preset/gfm";
+import { insertCalloutCommand } from "../calloutPlugin";
 import { useInstance } from "@milkdown/react";
 import { callCommand } from "@milkdown/kit/utils";
 import { usePluginViewContext } from "@prosemirror-adapter/react";
@@ -71,6 +73,82 @@ const COMMANDS = [
     shortcut: "---",
     icon: "HR",
     run: (ctx) => callCommand(insertHrCommand.key)(ctx),
+  },
+  {
+    key: "table",
+    label: "Table",
+    shortcut: "",
+    icon: "TBL",
+    run: (ctx) => callCommand(insertTableCommand.key, { row: 3, col: 3 })(ctx),
+  },
+  {
+    key: "mermaid",
+    label: "Mermaid diagram",
+    shortcut: "```mermaid",
+    icon: "◇",
+    run: (ctx) => callCommand(createCodeBlockCommand.key, "mermaid")(ctx),
+  },
+  {
+    key: "callout-note",
+    label: "Note",
+    shortcut: "> [!NOTE]",
+    icon: "ℹ",
+    run: (ctx) => callCommand(insertCalloutCommand.key, "note")(ctx),
+  },
+  {
+    key: "callout-tip",
+    label: "Tip",
+    shortcut: "> [!TIP]",
+    icon: "💡",
+    run: (ctx) => callCommand(insertCalloutCommand.key, "tip")(ctx),
+  },
+  {
+    key: "callout-warning",
+    label: "Warning",
+    shortcut: "> [!WARNING]",
+    icon: "⚠",
+    run: (ctx) => callCommand(insertCalloutCommand.key, "warning")(ctx),
+  },
+  {
+    key: "callout-caution",
+    label: "Caution",
+    shortcut: "> [!CAUTION]",
+    icon: "⛔",
+    run: (ctx) => callCommand(insertCalloutCommand.key, "caution")(ctx),
+  },
+  {
+    key: "callout-important",
+    label: "Important",
+    shortcut: "> [!IMPORTANT]",
+    icon: "⭐",
+    run: (ctx) => callCommand(insertCalloutCommand.key, "important")(ctx),
+  },
+  {
+    key: "toggle",
+    label: "Toggle",
+    shortcut: "> [!TOGGLE]",
+    icon: "▶",
+    run: (ctx) => callCommand(insertCalloutCommand.key, "toggle")(ctx),
+  },
+  {
+    key: "review",
+    label: "Review",
+    shortcut: "",
+    icon: "✏️",
+    run: (ctx) => {
+      const view = ctx.get(editorViewCtx);
+      view.dom.dispatchEvent(new CustomEvent("slash-review-request", { bubbles: true }));
+    },
+  },
+  {
+    key: "fact-check",
+    label: "Fact-Check",
+    shortcut: "",
+    icon: "🔍",
+    run: (ctx) => {
+      const view = ctx.get(editorViewCtx);
+      view.dom.dispatchEvent(new CustomEvent("slash-factcheck-request", { bubbles: true }));
+    },
   },
 ];
 

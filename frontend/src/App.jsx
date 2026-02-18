@@ -760,15 +760,22 @@ export default function App() {
       handleFactCheckRef.current?.(from, to);
     };
 
+    const onSlashReview = () => handleRequestReview("all");
+    const onSlashFactCheck = () => handleFactCheckRef.current?.();
+
     el.addEventListener("comment-selection-request", onSelectionRequest);
     el.addEventListener("comment-highlight-click", onHighlightClick);
     el.addEventListener("ai-selection-request", onAiRequest);
     el.addEventListener("fact-check-selection-request", handleFactCheckSelection);
+    el.addEventListener("slash-review-request", onSlashReview);
+    el.addEventListener("slash-factcheck-request", onSlashFactCheck);
     return () => {
       el.removeEventListener("comment-selection-request", onSelectionRequest);
       el.removeEventListener("comment-highlight-click", onHighlightClick);
       el.removeEventListener("ai-selection-request", onAiRequest);
       el.removeEventListener("fact-check-selection-request", handleFactCheckSelection);
+      el.removeEventListener("slash-review-request", onSlashReview);
+      el.removeEventListener("slash-factcheck-request", onSlashFactCheck);
     };
   }, [handleHighlightClick]);
 
