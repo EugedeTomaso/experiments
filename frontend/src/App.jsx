@@ -22,6 +22,7 @@ import { ProjectHome } from "./components/ProjectHome";
 import { AllProjects } from "./components/AllProjects";
 import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
 import { SpotlightTour } from "./components/SpotlightTour";
+import { useComments } from "./hooks/useComments";
 import { createStreamParser } from "./streamParser";
 import { buildSnippet, wordCount } from "./utils";
 import { createCollabSession } from "./collabPlugin";
@@ -187,7 +188,6 @@ export default function App() {
   // --- Editor state ---
   const [draft, setDraft] = useState("");
   const [saveStatus, setSaveStatus] = useState("saved"); // 'saved' | 'saving' | 'unsaved'
-  const [comments, setComments] = useState([]);
   const [versions, setVersions] = useState([]);
   const autoSaveTimerRef = useRef(null);
   const loadedContentRef = useRef("");
@@ -271,7 +271,6 @@ export default function App() {
 
   // --- Inline comment state ---
   const [commentInputState, setCommentInputState] = useState(null);
-  const [activeThreadComment, setActiveThreadComment] = useState(null);
   const editorRef = useRef(null);
   const editorWrapperRef = useRef(null);
 
@@ -283,8 +282,53 @@ export default function App() {
   const [reviewEmptyMsg, setReviewEmptyMsg] = useState(false);
   const [docMenuOpen, setDocMenuOpen] = useState(false);
   const docMenuRef = useRef(null);
-  const [aiThinkingCommentId, setAiThinkingCommentId] = useState(null);
-  const [focusedCommentId, setFocusedCommentId] = useState(null);
+
+  // --- Comment state (centralized hook) ---
+  const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef });
+  const {
+    comments, openComments, activeThread: activeThreadComment,
+    focusedId: focusedCommentId, navIndex: focusedNavIndex, navTotal,
+    aiThinkingId: aiThinkingCommentId,
+    reviewComments, reviewResolved, hasReviewProgress,
+    load: loadComments, clear: clearComments,
+    navigateTo: navigateToComment, navigatePrev: handleNavPrev, navigateNext: handleNavNext,
+    openThread, closeThread: handleCloseThread,
+    create: createComment, approve: handleApproveComment,
+    reject: handleRejectComment, resolve: handleResolveComment,
+    remove: handleDeleteComment, reply: handleReplyToComment,
+    askAI: handleAskAIInThread, addBulk: addBulkComments, addOne: addOneComment,
+    setComments,
+  } = commentState;
+
+  // Sync active highlight class on DOM
+  useEffect(() => {
+    const wrapper = editorWrapperRef.current;
+    if (!wrapper) return;
+    wrapper.querySelectorAll(".comment-highlight--active").forEach((el) => {
+      el.classList.remove("comment-highlight--active");
+    });
+    if (focusedCommentId) {
+      wrapper.querySelectorAll(`[data-comment-id="${focusedCommentId}"]`).forEach((el) => {
+        el.classList.add("comment-highlight--active");
+      });
+    }
+  }, [focusedCommentId]);
+
+  // Keyboard: Cmd+Shift+Arrow to navigate comments
+  useEffect(() => {
+    const handler = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNavNext();
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleNavPrev();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [handleNavNext, handleNavPrev]);
 
   // --- Drag & drop ---
   const [draggingId, setDraggingId] = useState(null);
@@ -511,13 +555,13 @@ export default function App() {
       setDraft(content);
       loadedContentRef.current = content;
       setSaveStatus("saved");
-      api.listComments(node.id).then(setComments).catch(() => setComments([]));
+      loadComments(node.id);
       api.listVersions(node.id).then(setVersions).catch(() => setVersions([]));
     } else {
       setDraft("");
       loadedContentRef.current = "";
       setSaveStatus("saved");
-      setComments([]);
+      clearComments();
       setVersions([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -628,15 +672,14 @@ export default function App() {
   // --- Editor custom event listeners ---
   const handleHighlightClick = useCallback(
     (commentIds, rect) => {
-      // Find the root comment for the clicked highlight
       const rootComment = comments.find(
         (c) => commentIds.includes(c.id) && !c.parent
       );
       if (rootComment) {
-        setActiveThreadComment({ comment: rootComment, rect });
+        openThread(rootComment, rect);
       }
     },
-    [comments]
+    [comments, openThread]
   );
 
   useEffect(() => {
@@ -1020,14 +1063,13 @@ export default function App() {
 
   const handleCreateInlineComment = async (body) => {
     if (!activeNode || !commentInputState) return;
-    const comment = await api.createComment({
+    await createComment({
       node: activeNode.id,
       body,
       quoted_text: commentInputState.text,
       position_from: commentInputState.from,
       position_to: commentInputState.to,
     });
-    setComments((prev) => [...prev, comment]);
     setCommentInputState(null);
   };
 
@@ -1051,7 +1093,7 @@ export default function App() {
         setReviewEmptyMsg(true);
         setTimeout(() => setReviewEmptyMsg(false), 3000);
       } else {
-        setComments((prev) => [...prev, ...newComments]);
+        addBulkComments(newComments);
       }
     } catch (err) {
       console.error("Review failed:", err);
@@ -1107,7 +1149,7 @@ export default function App() {
             if (parsed.type === "claims_extracted") {
               setFactCheckProgress({ total: parsed.count, done: 0 });
             } else if (parsed.type === "fact_check_result" && parsed.comment) {
-              setComments((prev) => [...prev, parsed.comment]);
+              addOneComment(parsed.comment);
               setFactCheckProgress((prev) =>
                 prev ? { ...prev, done: prev.done + 1 } : null
               );
@@ -1127,275 +1169,6 @@ export default function App() {
     }
   };
   handleFactCheckRef.current = handleFactCheck;
-
-  const handleApproveComment = async (commentId) => {
-    const comment = comments.find((c) => c.id === commentId);
-    if (!comment || !comment.suggested_text) return;
-
-    // Apply suggestion to ProseMirror document
-    if (editorRef.current) {
-      editorRef.current.applySuggestion(
-        comment.quoted_text,
-        comment.suggested_text,
-        comment.position_from
-      );
-    }
-
-    try {
-      const updated = await api.approveComment(commentId);
-      setComments((prev) =>
-        prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c))
-      );
-      // After 1.5s, mark as resolved to remove the highlight
-      setTimeout(() => {
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === commentId ? { ...c, status: "resolved" } : c
-          )
-        );
-      }, 1500);
-    } catch (err) {
-      console.error("Approve failed:", err);
-    }
-    setActiveThreadComment(null);
-    setFocusedCommentId(null);
-  };
-
-  const handleRejectComment = async (commentId) => {
-    try {
-      const updated = await api.rejectComment(commentId);
-      setComments((prev) =>
-        prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c))
-      );
-    } catch (err) {
-      console.error("Reject failed:", err);
-    }
-    setActiveThreadComment(null);
-    setFocusedCommentId(null);
-  };
-
-  const handleResolveComment = async (commentId) => {
-    try {
-      const updated = await api.resolveComment(commentId);
-      setComments((prev) =>
-        prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c))
-      );
-    } catch (err) {
-      console.error("Resolve failed:", err);
-    }
-    setActiveThreadComment(null);
-    setFocusedCommentId(null);
-  };
-
-  const handleDeleteComment = async (commentId) => {
-    try {
-      await api.deleteComment(commentId);
-      setComments((prev) => prev.filter((c) => c.id !== commentId));
-    } catch (err) {
-      console.error("Delete failed:", err);
-    }
-    setActiveThreadComment(null);
-    setFocusedCommentId(null);
-  };
-
-  const handleReplyToComment = async (parentId, body) => {
-    if (!activeNode) return;
-    const reply = await api.createComment({
-      node: activeNode.id,
-      parent: parentId,
-      body,
-      author_type: "user",
-    });
-    // Add reply to the parent comment's replies array
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === parentId
-          ? { ...c, replies: [...(c.replies || []), reply] }
-          : c
-      )
-    );
-    // Also update activeThreadComment if it's open
-    setActiveThreadComment((prev) => {
-      if (!prev || prev.comment.id !== parentId) return prev;
-      return {
-        ...prev,
-        comment: {
-          ...prev.comment,
-          replies: [...(prev.comment.replies || []), reply],
-        },
-      };
-    });
-  };
-
-  const handleAskAIInThread = async (commentId) => {
-    if (!activeNode) return;
-    setAiThinkingCommentId(commentId);
-    try {
-      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
-      const provider = providerSettings.provider || "deepseek";
-      const model = providerSettings.model || "deepseek-chat";
-      const rootComment = comments.find((c) => c.id === commentId);
-      const lastUserReply = (rootComment?.replies || [])
-        .filter((r) => r.author_type === "user")
-        .pop();
-      if (!lastUserReply) return;
-
-      const result = await api.requestCommentReply({
-        comment_id: commentId,
-        user_message: lastUserReply.body,
-        provider,
-        model,
-      });
-      // Update root comment and add the AI reply
-      setComments((prev) =>
-        prev.map((c) => {
-          if (c.id === commentId) {
-            return {
-              ...c,
-              ...result.root_comment,
-              replies: [...(c.replies || []), result.reply],
-            };
-          }
-          return c;
-        })
-      );
-      setActiveThreadComment((prev) => {
-        if (!prev || prev.comment.id !== commentId) return prev;
-        return {
-          ...prev,
-          comment: {
-            ...prev.comment,
-            ...result.root_comment,
-            replies: [...(prev.comment.replies || []), result.reply],
-          },
-        };
-      });
-    } catch (err) {
-      console.error("AI reply failed:", err);
-    } finally {
-      setAiThinkingCommentId(null);
-    }
-  };
-
-  // Review progress
-  const reviewComments = comments.filter(
-    (c) => c.author_type === "assistant" && !c.parent
-  );
-  const reviewResolved = reviewComments.filter(
-    (c) => c.status === "approved" || c.status === "rejected" || c.status === "resolved"
-  ).length;
-  const hasReviewProgress = reviewComments.length > 0 && reviewResolved < reviewComments.length;
-
-  // --- Unresolved comments for navigation (sorted by document position) ---
-  // Unresolved comments — used for review bar visibility + counter display
-  const unresolvedComments = useMemo(() => {
-    const open = comments.filter(
-      (c) => !c.parent && c.status !== "resolved" && c.status !== "approved" && c.status !== "rejected" && c.quoted_text
-    );
-    return open.sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity));
-  }, [comments]);
-
-  const focusedNavIndex = useMemo(() => {
-    if (!focusedCommentId) return -1;
-    return unresolvedComments.findIndex((c) => c.id === focusedCommentId);
-  }, [focusedCommentId, unresolvedComments]);
-
-  // DOM-based navigation: reads actual decoration positions so we skip
-  // orphaned comments and follow real document order (not stale DB positions)
-  const getNavigableCommentIds = useCallback(() => {
-    const wrapper = editorWrapperRef.current;
-    if (!wrapper) return [];
-    const elements = wrapper.querySelectorAll("[data-comment-id]");
-    const seen = new Set();
-    const ordered = [];
-    elements.forEach((el) => {
-      const id = el.getAttribute("data-comment-id");
-      if (seen.has(id)) return;
-      seen.add(id);
-      const c = comments.find((c) => String(c.id) === id);
-      if (c && c.status !== "resolved" && c.status !== "approved" && c.status !== "rejected") {
-        ordered.push(Number(id));
-      }
-    });
-    return ordered;
-  }, [comments]);
-
-  // Navigate to a comment: scroll highlight into view + open thread
-  const navigateToComment = useCallback((commentId) => {
-    setFocusedCommentId(commentId);
-    const el = editorWrapperRef.current?.querySelector(
-      `[data-comment-id="${commentId}"]`
-    );
-    if (el) {
-      el.scrollIntoView({ behavior: "instant", block: "center" });
-      const rect = el.getBoundingClientRect();
-      const comment = comments.find((c) => c.id === commentId);
-      if (comment) {
-        setActiveThreadComment({ comment, rect });
-      }
-    }
-  }, [comments]);
-
-  const handleNavPrev = useCallback(() => {
-    const ids = getNavigableCommentIds();
-    if (ids.length === 0) return;
-    const currentIdx = focusedCommentId != null ? ids.indexOf(focusedCommentId) : -1;
-    const prevIdx = currentIdx <= 0 ? ids.length - 1 : currentIdx - 1;
-    navigateToComment(ids[prevIdx]);
-  }, [getNavigableCommentIds, focusedCommentId, navigateToComment]);
-
-  const handleNavNext = useCallback(() => {
-    const ids = getNavigableCommentIds();
-    if (ids.length === 0) return;
-    const currentIdx = focusedCommentId != null ? ids.indexOf(focusedCommentId) : -1;
-    const nextIdx = currentIdx >= ids.length - 1 ? 0 : currentIdx + 1;
-    navigateToComment(ids[nextIdx]);
-  }, [getNavigableCommentIds, focusedCommentId, navigateToComment]);
-
-  // Sync active highlight class on DOM
-  useEffect(() => {
-    const wrapper = editorWrapperRef.current;
-    if (!wrapper) return;
-    // Remove previous active
-    wrapper.querySelectorAll(".comment-highlight--active").forEach((el) => {
-      el.classList.remove("comment-highlight--active");
-    });
-    // Add to current
-    if (focusedCommentId) {
-      wrapper.querySelectorAll(`[data-comment-id="${focusedCommentId}"]`).forEach((el) => {
-        el.classList.add("comment-highlight--active");
-      });
-    }
-  }, [focusedCommentId]);
-
-  // Sync focusedCommentId when thread opens via click
-  useEffect(() => {
-    if (activeThreadComment) {
-      setFocusedCommentId(activeThreadComment.comment.id);
-    }
-  }, [activeThreadComment]);
-
-  // Clear focused when thread closes
-  const handleCloseThread = useCallback(() => {
-    setActiveThreadComment(null);
-    setFocusedCommentId(null);
-  }, []);
-
-  // Keyboard: Cmd+Shift+Arrow to navigate comments
-  useEffect(() => {
-    const handler = (e) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
-      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-        e.preventDefault();
-        handleNavNext();
-      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-        e.preventDefault();
-        handleNavPrev();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [handleNavNext, handleNavPrev]);
 
   const handleAssignAgent = async (agentId) => {
     if (!activeNode) return;
@@ -2835,7 +2608,7 @@ Rules for memory suggestions:
                 </div>
               </div>
 
-              {(unresolvedComments.length > 0 || diffAvailable || reviewEmptyMsg) && (
+              {(openComments.length > 0 || diffAvailable || reviewEmptyMsg) && (
                 <div className="review-bar">
                   {diffAvailable && (
                     <button
@@ -2848,7 +2621,7 @@ Rules for memory suggestions:
                         : "Changes"}
                     </button>
                   )}
-                  {unresolvedComments.length > 0 && (
+                  {openComments.length > 0 && (
                     <>
                       <div className="comment-nav">
                         <button
@@ -2859,7 +2632,7 @@ Rules for memory suggestions:
                           <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 6.5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </button>
                         <span className="comment-nav-count">
-                          {focusedNavIndex >= 0 ? focusedNavIndex + 1 : "–"}/{unresolvedComments.length}
+                          {focusedNavIndex >= 0 ? focusedNavIndex + 1 : "–"}/{navTotal}
                         </span>
                         <button
                           className="comment-nav-btn"
@@ -2916,7 +2689,7 @@ Rules for memory suggestions:
                   docId={activeNode.id}
                   value={activeNode.content_md || ""}
                   onChange={setDraft}
-                  comments={comments}
+                  comments={openComments}
                   editorRef={editorRef}
                   readOnly={currentRole === "viewer"}
                   currentRole={currentRole}
@@ -3121,10 +2894,10 @@ Rules for memory suggestions:
           onReply={handleReplyToComment}
           onAskAI={handleAskAIInThread}
           isAIThinking={aiThinkingCommentId === activeThreadComment.comment.id}
-          onPrev={unresolvedComments.length > 1 ? handleNavPrev : undefined}
-          onNext={unresolvedComments.length > 1 ? handleNavNext : undefined}
-          navLabel={unresolvedComments.length > 1 && focusedNavIndex >= 0
-            ? `${focusedNavIndex + 1}/${unresolvedComments.length}`
+          onPrev={navTotal > 1 ? handleNavPrev : undefined}
+          onNext={navTotal > 1 ? handleNavNext : undefined}
+          navLabel={navTotal > 1 && focusedNavIndex >= 0
+            ? `${focusedNavIndex + 1}/${navTotal}`
             : undefined}
         />
       )}
