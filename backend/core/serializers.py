@@ -4,7 +4,8 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
-    Agent, AgentConfig, Comment, Conversation, Memory, Message, Node,
+    Agent, AgentConfig, Comment, Conversation, Critique, CritiqueMessage,
+    CritiqueThread, Memory, Message, Node,
     PlatformConnection, Project, ProviderKey, PublishRecord, Version, Workspace,
 )
 from .permissions import get_user_role
@@ -336,3 +337,26 @@ class PublishRecordSerializer(serializers.ModelSerializer):
             "published_at",
         ]
         read_only_fields = fields
+
+
+class CritiqueMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CritiqueMessage
+        fields = ["id", "role", "content", "created_at"]
+        read_only_fields = ["created_at"]
+
+
+class CritiqueThreadSerializer(serializers.ModelSerializer):
+    messages = CritiqueMessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CritiqueThread
+        fields = ["id", "critique", "section_id", "messages", "created_at"]
+        read_only_fields = ["created_at"]
+
+
+class CritiqueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Critique
+        fields = ["id", "node", "sections", "overall_score", "summary", "created_at"]
+        read_only_fields = ["created_at"]
