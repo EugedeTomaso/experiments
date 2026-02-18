@@ -25,6 +25,8 @@ import { SpotlightTour } from "./components/SpotlightTour";
 import { createStreamParser } from "./streamParser";
 import { buildSnippet, wordCount } from "./utils";
 import { createCollabSession } from "./collabPlugin";
+import PresenceIndicator from "./components/PresenceIndicator";
+import ConnectionBanner from "./components/ConnectionBanner";
 import "./App.css";
 
 const NEW_DOC_TEMPLATE = `\
@@ -2378,6 +2380,7 @@ Rules for memory suggestions:
               </button>
             ) : null;
           })()}
+          {collabSession && <PresenceIndicator awareness={collabSession.awareness} />}
           <span className="topbar-divider" />
           <div className="user-menu-wrapper" ref={userMenuRef}>
             <button
@@ -2760,6 +2763,13 @@ Rules for memory suggestions:
                     <span className="review-empty-msg">No suggestions</span>
                   )}
                 </div>
+              )}
+
+              {collabSession && (
+                <ConnectionBanner
+                  connectionState={connectionStatus}
+                  onRetry={() => collabSession.provider.connect()}
+                />
               )}
 
               <section
