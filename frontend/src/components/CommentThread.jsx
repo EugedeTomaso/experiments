@@ -37,6 +37,7 @@ function PersonIcon({ size = 10 }) {
 
 export function CommentThread({
   comment,
+  replies: propReplies,
   rect,
   onClose,
   onApprove,
@@ -95,7 +96,7 @@ export function CommentThread({
   const isAI = comment.author_type === "assistant";
   const hasSuggestion = !!comment.suggested_text;
   const isOpen = comment.status === "open";
-  const replies = comment.replies || [];
+  const replies = propReplies || [];
 
   const style = {
     position: "fixed",

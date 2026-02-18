@@ -108,7 +108,18 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
       }
       try {
         const list = await api.listComments(nId);
-        if (seq === loadSeqRef.current) setComments(list);
+        if (seq === loadSeqRef.current) {
+          // Flatten: root comments + their nested replies into one array
+          const flat = [];
+          for (const c of list) {
+            const { replies, ...root } = c;
+            flat.push(root);
+            if (replies && replies.length) {
+              flat.push(...replies);
+            }
+          }
+          setComments(flat);
+        }
       } catch {
         if (seq === loadSeqRef.current) setComments([]);
       }
@@ -140,17 +151,19 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
       const el = findHighlightElement(commentId);
       if (el) {
         el.scrollIntoView({ behavior: "instant", block: "center" });
-        // Wait for scroll to finish before capturing position
-        requestAnimationFrame(() => {
-          const rect = el.getBoundingClientRect();
-          const comment = comments.find((c) => c.id === commentId);
-          if (comment) {
-            setActiveThread({ comment, rect });
-          }
-        });
+        // Flash the highlight to draw attention
+        el.classList.remove("comment-highlight--flash");
+        // Force reflow so re-adding the class restarts the animation
+        void el.offsetWidth;
+        el.classList.add("comment-highlight--flash");
+        el.addEventListener(
+          "animationend",
+          () => el.classList.remove("comment-highlight--flash"),
+          { once: true }
+        );
       }
     },
-    [comments, findHighlightElement]
+    [findHighlightElement]
   );
 
   const navigatePrev = useCallback(() => {
@@ -181,6 +194,10 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
   const closeThread = useCallback(() => {
     setActiveThread(null);
     setFocusedId(null);
+  }, []);
+
+  const focusComment = useCallback((commentId) => {
+    setFocusedId(commentId);
   }, []);
 
   // --- Actions ---
@@ -241,6 +258,50 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
     [comments, editorRef]
   );
 
+  // Accept a suggestion from a reply (alternative offered in the thread)
+  const approveReply = useCallback(
+    async (replyId) => {
+      const reply = comments.find((c) => c.id === replyId);
+      if (!reply || !reply.suggested_text || !reply.parent) return;
+      const rootId = reply.parent;
+      const root = comments.find((c) => c.id === rootId);
+      if (!root) return;
+
+      // Apply the reply's suggestion using root's position
+      if (editorRef.current) {
+        editorRef.current.applySuggestion(
+          root.quoted_text,
+          reply.suggested_text,
+          root.position_from
+        );
+      }
+
+      try {
+        const updated = await api.approveComment(rootId);
+        setComments((prev) =>
+          prev.map((c) => (c.id === rootId ? { ...c, ...updated } : c))
+        );
+        setTimeout(async () => {
+          try {
+            const resolved = await api.resolveComment(rootId);
+            setComments((prev) =>
+              prev.map((c) => (c.id === rootId ? { ...c, ...resolved } : c))
+            );
+          } catch {
+            setComments((prev) =>
+              prev.map((c) => (c.id === rootId ? { ...c, status: "resolved" } : c))
+            );
+          }
+        }, 1500);
+      } catch (err) {
+        console.error("Approve reply failed:", err);
+      }
+      setActiveThread(null);
+      setFocusedId(null);
+    },
+    [comments, editorRef]
+  );
+
   const reject = useCallback(async (commentId) => {
     try {
       const updated = await api.rejectComment(commentId);
@@ -287,23 +348,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
         body,
         author_type: "user",
       });
-      setComments((prev) =>
-        prev.map((c) =>
-          c.id === parentId
-            ? { ...c, replies: [...(c.replies || []), replyComment] }
-            : c
-        )
-      );
-      setActiveThread((prev) => {
-        if (!prev || prev.comment.id !== parentId) return prev;
-        return {
-          ...prev,
-          comment: {
-            ...prev.comment,
-            replies: [...(prev.comment.replies || []), replyComment],
-          },
-        };
-      });
+      setComments((prev) => [...prev, replyComment]);
     },
     [nodeId]
   );
@@ -318,9 +363,9 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
         );
         const provider = providerSettings.provider || "deepseek";
         const model = providerSettings.model || "deepseek-chat";
-        const rootComment = comments.find((c) => c.id === commentId);
-        const lastUserReply = (rootComment?.replies || [])
-          .filter((r) => r.author_type === "user")
+        const lastUserReply = comments
+          .filter((c) => c.parent === commentId && c.author_type === "user")
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
           .pop();
         if (!lastUserReply) return;
 
@@ -330,29 +375,12 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
           provider,
           model,
         });
-        setComments((prev) =>
-          prev.map((c) => {
-            if (c.id === commentId) {
-              return {
-                ...c,
-                ...result.root_comment,
-                replies: [...(c.replies || []), result.reply],
-              };
-            }
-            return c;
-          })
-        );
-        setActiveThread((prev) => {
-          if (!prev || prev.comment.id !== commentId) return prev;
-          return {
-            ...prev,
-            comment: {
-              ...prev.comment,
-              ...result.root_comment,
-              replies: [...(prev.comment.replies || []), result.reply],
-            },
-          };
-        });
+        setComments((prev) => [
+          ...prev.map((c) =>
+            c.id === commentId ? { ...c, ...result.root_comment } : c
+          ),
+          result.reply,
+        ]);
       } catch (err) {
         console.error("AI reply failed:", err);
       } finally {
@@ -415,8 +443,10 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
     navigateNext,
     openThread,
     closeThread,
+    focusComment,
     create,
     approve,
+    approveReply,
     reject,
     resolve,
     remove,
