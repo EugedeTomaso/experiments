@@ -18,7 +18,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
   // --- Derived state ---
 
   // openComments: root comments that are actionable and have inline positions.
-  // This is the ONLY list used for navigation, decorations, and counting.
+  // Used for navigation and counting (excludes approved/rejected/resolved).
   const openComments = useMemo(() => {
     return comments
       .filter(
@@ -30,6 +30,14 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
           c.quoted_text
       )
       .sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity));
+  }, [comments]);
+
+  // decorationComments: includes approved/rejected for CSS fade-out transitions.
+  // Only excludes "resolved" so highlights can animate out before removal.
+  const decorationComments = useMemo(() => {
+    return comments.filter(
+      (c) => !c.parent && c.status !== "resolved" && c.quoted_text
+    );
   }, [comments]);
 
   const navIndex = useMemo(() => {
@@ -334,6 +342,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef }) {
   return {
     comments,
     openComments,
+    decorationComments,
     activeThread,
     focusedId,
     navIndex,

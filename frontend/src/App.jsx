@@ -286,18 +286,17 @@ export default function App() {
   // --- Comment state (centralized hook) ---
   const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef });
   const {
-    comments, openComments, activeThread: activeThreadComment,
+    comments, openComments, decorationComments, activeThread: activeThreadComment,
     focusedId: focusedCommentId, navIndex: focusedNavIndex, navTotal,
     aiThinkingId: aiThinkingCommentId,
     reviewComments, reviewResolved, hasReviewProgress,
     load: loadComments, clear: clearComments,
-    navigateTo: navigateToComment, navigatePrev: handleNavPrev, navigateNext: handleNavNext,
+    navigatePrev: handleNavPrev, navigateNext: handleNavNext,
     openThread, closeThread: handleCloseThread,
     create: createComment, approve: handleApproveComment,
     reject: handleRejectComment, resolve: handleResolveComment,
     remove: handleDeleteComment, reply: handleReplyToComment,
     askAI: handleAskAIInThread, addBulk: addBulkComments, addOne: addOneComment,
-    setComments,
   } = commentState;
 
   // Sync active highlight class on DOM
@@ -2689,7 +2688,7 @@ Rules for memory suggestions:
                   docId={activeNode.id}
                   value={activeNode.content_md || ""}
                   onChange={setDraft}
-                  comments={openComments}
+                  comments={decorationComments}
                   editorRef={editorRef}
                   readOnly={currentRole === "viewer"}
                   currentRole={currentRole}
