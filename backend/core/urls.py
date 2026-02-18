@@ -38,6 +38,8 @@ from .publish_views import (
 from .views import (
     AIAutocompleteView,
     AICommentReplyView,
+    AICritiqueDiscussView,
+    AICritiqueView,
     AIFactCheckView,
     AIReviewView,
     AIRouteAgentView,
@@ -46,6 +48,7 @@ from .views import (
     AgentViewSet,
     CommentViewSet,
     ConversationViewSet,
+    CritiqueViewSet,
     MemoryViewSet,
     MessageViewSet,
     NodeSearchView,
@@ -63,6 +66,7 @@ router.register(r"projects", ProjectViewSet, basename="project")
 router.register(r"nodes", NodeViewSet, basename="node")
 router.register(r"versions", VersionViewSet, basename="version")
 router.register(r"comments", CommentViewSet, basename="comment")
+router.register(r"critiques", CritiqueViewSet, basename="critique")
 router.register(r"agents", AgentViewSet, basename="agent")
 router.register(r"agent-configs", AgentConfigViewSet, basename="agent-config")
 router.register(r"provider-keys", ProviderKeyViewSet, basename="provider-key")
@@ -84,6 +88,8 @@ urlpatterns = [
     path("api/ai/review", AIReviewView.as_view(), name="ai-review"),
     path("api/ai/fact-check", AIFactCheckView.as_view(), name="ai-fact-check"),
     path("api/ai/comment-reply", AICommentReplyView.as_view(), name="ai-comment-reply"),
+    path("api/ai/critique", AICritiqueView.as_view(), name="ai-critique"),
+    path("api/ai/critique-discuss", AICritiqueDiscussView.as_view(), name="ai-critique-discuss"),
     path("api/ai/autocomplete", AIAutocompleteView.as_view(), name="ai-autocomplete"),
     path("api/ai/route-agent", AIRouteAgentView.as_view(), name="ai-route-agent"),
     path("api/nodes/<int:node_id>/summary", NodeSummaryView.as_view(), name="node-summary"),
