@@ -344,15 +344,26 @@ class AIStreamView(APIView):
 
 class AIRouteAgentView(APIView):
     def post(self, request):
-        project_id = request.data.get("project_id")
+        try:
+            project_id = int(request.data.get("project_id"))
+        except (TypeError, ValueError):
+            return Response({"detail": "project_id must be an integer"}, status=400)
         query = request.data.get("query", "").strip()
 
-        if not project_id or not query:
+        if not query:
             return Response(
-                {"detail": "project_id and query are required"}, status=400
+                {"detail": "query is required"}, status=400
             )
 
-        agents = list(Agent.objects.filter(project_id=project_id).order_by("id"))
+        # Verify the user has access to this project
+        project = Project.objects.filter(
+            Q(owner=request.user) | Q(memberships__user=request.user, memberships__accepted=True),
+            id=project_id,
+        ).first()
+        if not project:
+            return Response({"detail": "Project not found"}, status=404)
+
+        agents = list(Agent.objects.filter(project=project).order_by("id"))
 
         # 0 agents → return empty (use default)
         if not agents:
@@ -397,6 +408,8 @@ class AIRouteAgentView(APIView):
             )
             choice = int(result.strip().split()[0])
         except (ValueError, IndexError):
+            choice = 0
+        except Exception:
             choice = 0
 
         if 1 <= choice <= len(agents):
