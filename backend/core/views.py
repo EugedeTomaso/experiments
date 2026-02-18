@@ -831,10 +831,28 @@ class AICommentReplyView(APIView):
         user_message = request.data.get("user_message")
         provider = request.data.get("provider")
         model = request.data.get("model")
+        agent_id = request.data.get("agent_id")
 
-        if not comment_id or not user_message or not provider or not model:
+        if not comment_id or not user_message:
             return Response(
-                {"detail": "comment_id, user_message, provider, and model are required"},
+                {"detail": "comment_id and user_message are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Resolve agent config or use explicit provider/model
+        agent = None
+        if agent_id:
+            from .models import Agent
+            agent = Agent.objects.filter(id=agent_id).first()
+            if not agent:
+                return Response({"detail": "Agent not found"}, status=404)
+            agent_config = agent.config or {}
+            provider = agent_config.get("provider", provider)
+            model = agent_config.get("model", model)
+
+        if not provider or not model:
+            return Response(
+                {"detail": "provider and model are required (or provide agent_id)"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -861,7 +879,11 @@ class AICommentReplyView(APIView):
         # Build context from thread
         replies = list(root_comment.replies.order_by("created_at"))
 
-        system_prompt = (
+        agent_system_prompt = ""
+        if agent and agent.config and agent.config.get("system_prompt"):
+            agent_system_prompt = agent.config["system_prompt"] + "\n\n"
+
+        system_prompt = agent_system_prompt + (
             "You are a writing reviewer. A comment was made about this text:\n\n"
             f'"{root_comment.quoted_text}"\n\n'
             f"Original feedback: {root_comment.body}\n"
@@ -869,10 +891,12 @@ class AICommentReplyView(APIView):
         if root_comment.suggested_text:
             system_prompt += f"Current suggested replacement: {root_comment.suggested_text}\n"
         system_prompt += (
-            "\nThe user has responded in the thread. Provide a brief, helpful response. "
-            "If you want to suggest a new replacement text, include it on its own line "
-            "prefixed with SUGGESTION: (e.g., 'SUGGESTION: the new replacement text'). "
-            "Only include SUGGESTION: if you have a concrete text replacement."
+            "\nThe user has responded in the thread. "
+            "IMPORTANT: Always respond in the same language as the quoted text above.\n\n"
+            "You MUST use this EXACT format — no exceptions:\n\n"
+            "<explanation>One short sentence explaining the change</explanation>\n"
+            "<suggestion>The full replacement text in the same language</suggestion>\n\n"
+            "Both tags are MANDATORY. Pick one best option only."
         )
 
         messages = [
@@ -896,31 +920,53 @@ class AICommentReplyView(APIView):
         except Exception as exc:
             return Response({"detail": str(exc)}, status=500)
 
-        # Check for updated suggestion
+        # Extract suggestion and explanation from AI response
+        import re
         new_suggestion = None
-        lines = ai_response.split("\n")
-        clean_body_lines = []
-        for line in lines:
-            if line.strip().startswith("SUGGESTION:"):
-                new_suggestion = line.strip()[len("SUGGESTION:"):].strip()
+        ai_body = ai_response
+
+        # Try XML tags first: <suggestion>...</suggestion>
+        suggestion_match = re.search(
+            r"<suggestion>(.*?)</suggestion>", ai_response, re.DOTALL
+        )
+        explanation_match = re.search(
+            r"<explanation>(.*?)</explanation>", ai_response, re.DOTALL
+        )
+
+        if suggestion_match:
+            new_suggestion = suggestion_match.group(1).strip()
+            # Use explanation tag content as body, fallback to stripping tags
+            if explanation_match:
+                ai_body = explanation_match.group(1).strip()
             else:
-                clean_body_lines.append(line)
+                ai_body = re.sub(
+                    r"</?(?:suggestion|explanation)>", "", ai_response
+                ).strip()
+        else:
+            # Fallback: SUGGESTION: prefix (case-insensitive)
+            lines = ai_response.split("\n")
+            clean_body_lines = []
+            for line in lines:
+                if re.match(r"^\s*suggestion\s*:", line, re.IGNORECASE):
+                    new_suggestion = re.sub(
+                        r"^\s*suggestion\s*:\s*", "", line, flags=re.IGNORECASE
+                    ).strip()
+                else:
+                    clean_body_lines.append(line)
+            ai_body = "\n".join(clean_body_lines).strip()
 
-        ai_body = "\n".join(clean_body_lines).strip()
-
-        # Create AI reply
+        # Create AI reply — store suggestion on the reply itself so the
+        # frontend can render a diff for each alternative.
         ai_reply = Comment.objects.create(
             node=root_comment.node,
             parent=root_comment,
             body=ai_body,
             author_type=Comment.AuthorType.ASSISTANT,
-            author_label="Assistant",
+            author_label=agent.name if agent else "Assistant",
+            quoted_text=root_comment.quoted_text if new_suggestion else "",
+            suggested_text=new_suggestion or "",
+            agent=agent,
         )
-
-        # Update root comment suggestion if AI provided one
-        if new_suggestion:
-            root_comment.suggested_text = new_suggestion
-            root_comment.save(update_fields=["suggested_text"])
 
         from .serializers import CommentReplySerializer
 

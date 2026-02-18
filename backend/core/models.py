@@ -169,6 +169,9 @@ class Comment(models.Model):
         max_length=20, choices=Verdict.choices, null=True, blank=True
     )
     sources = models.JSONField(null=True, blank=True)
+    agent = models.ForeignKey(
+        "Agent", null=True, blank=True, on_delete=models.SET_NULL, related_name="comments"
+    )
 
 
 class AgentConfig(models.Model):

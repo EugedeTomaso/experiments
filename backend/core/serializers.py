@@ -107,11 +107,15 @@ class VersionSerializer(serializers.ModelSerializer):
 
 
 class CommentReplySerializer(serializers.ModelSerializer):
+    agent_name = serializers.CharField(source="agent.name", read_only=True, default=None)
+    agent_id = serializers.IntegerField(source="agent.id", read_only=True, default=None)
+
     class Meta:
         model = Comment
         fields = [
             "id", "parent", "body", "author_label", "author_type",
-            "created_at",
+            "quoted_text", "suggested_text", "created_at",
+            "agent_name", "agent_id",
         ]
         read_only_fields = ["created_at"]
 
@@ -119,6 +123,8 @@ class CommentReplySerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     replies = serializers.SerializerMethodField()
     reply_count = serializers.IntegerField(read_only=True, default=0)
+    agent_name = serializers.CharField(source="agent.name", read_only=True, default=None)
+    agent_id = serializers.IntegerField(source="agent.id", read_only=True, default=None)
 
     class Meta:
         model = Comment
@@ -140,6 +146,8 @@ class CommentSerializer(serializers.ModelSerializer):
             "sources",
             "replies",
             "reply_count",
+            "agent_name",
+            "agent_id",
         ]
         read_only_fields = ["created_at"]
 
