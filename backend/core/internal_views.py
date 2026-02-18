@@ -43,7 +43,7 @@ class NodeAccessView(InternalAPIMixin, APIView):
 
         try:
             user = User.objects.get(id=int(user_id))
-        except User.DoesNotExist:
+        except (User.DoesNotExist, ValueError):
             return Response({"allowed": False, "role": None})
 
         role = get_user_role(user, node.project)
