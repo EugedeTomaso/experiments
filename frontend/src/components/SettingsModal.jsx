@@ -13,6 +13,7 @@ const SECTIONS = [
   { id: "providers", label: "Provider Keys" },
   { id: "editor", label: "Editor" },
   { id: "ai", label: "AI Defaults" },
+  { id: "memory", label: "Memory" },
 ];
 
 export function SettingsModal({
@@ -25,10 +26,20 @@ export function SettingsModal({
   onAutosaveDelayChange,
   defaultAgent,
   onDefaultAgentChange,
+  memories,
+  activeProjectId,
+  onCreateMemory,
+  onDeleteMemory,
+  onUpdateMemory,
+  collabSession,
 }) {
   const [activeSection, setActiveSection] = useState("providers");
   const [keyForm, setKeyForm] = useState({ provider: "openai", api_key: "" });
   const [keyMessage, setKeyMessage] = useState("");
+  const [memoryScope, setMemoryScope] = useState("user");
+  const [newMemoryText, setNewMemoryText] = useState("");
+  const [editingMemoryId, setEditingMemoryId] = useState(null);
+  const [editingMemoryText, setEditingMemoryText] = useState("");
 
   if (!isOpen) return null;
 
@@ -161,6 +172,28 @@ export function SettingsModal({
                   <span>5s</span>
                 </div>
               </div>
+
+              {collabSession && (
+                <>
+                  <div className="settings-divider" />
+                  <div className="settings-field">
+                    <label className="settings-label settings-toggle-label">
+                      <input
+                        type="checkbox"
+                        checked={localStorage.getItem("marvin:ai-visible") === "true"}
+                        onChange={(e) => {
+                          localStorage.setItem("marvin:ai-visible", e.target.checked);
+                          collabSession.setAiVisible(e.target.checked);
+                        }}
+                      />
+                      Share AI suggestions with collaborators
+                    </label>
+                    <p className="settings-description" style={{ marginTop: 4 }}>
+                      When enabled, AI-generated edits are visible to everyone in the session.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -209,6 +242,115 @@ export function SettingsModal({
                   <span>Precise</span>
                   <span>Creative</span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "memory" && (
+            <div className="settings-section">
+              <p className="settings-description">
+                Memories help the AI remember your preferences across conversations.
+              </p>
+
+              <div className="memory-scope-toggle">
+                <button
+                  className={`memory-scope-btn${memoryScope === "user" ? " active" : ""}`}
+                  onClick={() => setMemoryScope("user")}
+                >
+                  All projects
+                </button>
+                <button
+                  className={`memory-scope-btn${memoryScope === "project" ? " active" : ""}`}
+                  onClick={() => setMemoryScope("project")}
+                  disabled={!activeProjectId}
+                >
+                  This project
+                </button>
+              </div>
+
+              <div className="memory-add-form">
+                <input
+                  type="text"
+                  placeholder="e.g., Never use cliches. Prefer active voice."
+                  value={newMemoryText}
+                  onChange={(e) => setNewMemoryText(e.target.value)}
+                  maxLength={200}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newMemoryText.trim()) {
+                      onCreateMemory(newMemoryText.trim(), memoryScope);
+                      setNewMemoryText("");
+                    }
+                  }}
+                />
+                <button
+                  className="primary"
+                  onClick={() => {
+                    if (!newMemoryText.trim()) return;
+                    onCreateMemory(newMemoryText.trim(), memoryScope);
+                    setNewMemoryText("");
+                  }}
+                  disabled={!newMemoryText.trim()}
+                >
+                  Add
+                </button>
+              </div>
+
+              <div className="settings-memory-list">
+                {(memories || [])
+                  .filter((m) => m.scope === memoryScope)
+                  .map((mem) => (
+                    <div key={mem.id} className="settings-memory-item">
+                      {editingMemoryId === mem.id ? (
+                        <input
+                          className="settings-memory-edit-input"
+                          value={editingMemoryText}
+                          onChange={(e) => setEditingMemoryText(e.target.value)}
+                          maxLength={200}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              onUpdateMemory(mem.id, { content: editingMemoryText });
+                              setEditingMemoryId(null);
+                            }
+                            if (e.key === "Escape") setEditingMemoryId(null);
+                          }}
+                          onBlur={() => {
+                            if (editingMemoryText.trim() && editingMemoryText !== mem.content) {
+                              onUpdateMemory(mem.id, { content: editingMemoryText });
+                            }
+                            setEditingMemoryId(null);
+                          }}
+                        />
+                      ) : (
+                        <span
+                          className="settings-memory-text"
+                          onClick={() => {
+                            setEditingMemoryId(mem.id);
+                            setEditingMemoryText(mem.content);
+                          }}
+                        >
+                          {mem.content}
+                        </span>
+                      )}
+                      {mem.source === "ai_suggested" && (
+                        <span className="settings-memory-source">AI</span>
+                      )}
+                      <button
+                        className="settings-memory-delete"
+                        onClick={() => onDeleteMemory(mem.id)}
+                        aria-label="Delete"
+                      >
+                        <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                          <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                {(memories || []).filter((m) => m.scope === memoryScope).length === 0 && (
+                  <div className="settings-memory-empty">
+                    No {memoryScope === "user" ? "global" : "project"} memories yet.
+                  </div>
+                )}
               </div>
             </div>
           )}

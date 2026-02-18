@@ -91,6 +91,33 @@ export function createCollabSession(nodeId, jwt, userInfo) {
       return () => listeners.delete(fn);
     },
 
+    publishAiSuggestion(userId, oldMarkdown, newMarkdown) {
+      aiSuggestions.set(String(userId), {
+        status: "done",
+        oldMarkdown,
+        newMarkdown,
+        timestamp: Date.now(),
+      });
+    },
+
+    clearAiSuggestion(userId) {
+      aiSuggestions.delete(String(userId));
+    },
+
+    setAiMode(mode) {
+      awareness.setLocalStateField("user", {
+        ...awareness.getLocalState()?.user,
+        aiMode: mode,
+      });
+    },
+
+    setAiVisible(visible) {
+      awareness.setLocalStateField("user", {
+        ...awareness.getLocalState()?.user,
+        aiVisible: visible,
+      });
+    },
+
     destroy() {
       clearTimeout(offlineTimer);
       awareness.destroy();

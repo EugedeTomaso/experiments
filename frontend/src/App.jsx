@@ -27,6 +27,7 @@ import { buildSnippet, wordCount } from "./utils";
 import { createCollabSession } from "./collabPlugin";
 import PresenceIndicator from "./components/PresenceIndicator";
 import ConnectionBanner from "./components/ConnectionBanner";
+import AiSuggestionBanner from "./components/AiSuggestionBanner";
 import "./App.css";
 
 const NEW_DOC_TEMPLATE = `\
@@ -1488,6 +1489,7 @@ export default function App() {
     setIsEditingDocument(false);
     setDiffAvailable(false);
     setDiffVisible(false);
+    if (collabSession) collabSession.setAiMode("streaming");
     if (editorRef.current) {
       try { editorRef.current.clearAiHighlights(); } catch (_) {}
     }
@@ -1761,6 +1763,14 @@ Rules for memory suggestions:
                 } catch (_) {}
               }, 400);
             }
+            // Publish AI suggestion to collaborators if sharing is enabled
+            if (collabSession && localStorage.getItem("marvin:ai-visible") === "true") {
+              collabSession.publishAiSuggestion(
+                user?.id,
+                preEditDraftRef.current || "",
+                finalState.documentContent
+              );
+            }
             // Always persist to the correct node via API, regardless of navigation
             if (targetNodeId) {
               api.updateNode(targetNodeId, { content_md: finalState.documentContent })
@@ -1871,6 +1881,7 @@ Rules for memory suggestions:
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
+      if (collabSession) collabSession.setAiMode("idle");
     }
   };
 
@@ -2772,6 +2783,23 @@ Rules for memory suggestions:
                 />
               )}
 
+              {collabSession && (
+                <AiSuggestionBanner
+                  aiSuggestions={collabSession.aiSuggestions}
+                  currentUserId={user?.id}
+                  onViewDiff={(s) => {
+                    editorRef.current?.compareWithVersion(s.oldMarkdown);
+                  }}
+                  onAccept={(s) => {
+                    editorRef.current?.replaceContentDiff(s.newMarkdown);
+                    collabSession.clearAiSuggestion(s.userId);
+                  }}
+                  onReject={(s) => {
+                    collabSession.clearAiSuggestion(s.userId);
+                  }}
+                />
+              )}
+
               <section
                 className="editor-section"
                 style={{ '--editor-zoom': editorZoom / 100 }}
@@ -2957,6 +2985,7 @@ Rules for memory suggestions:
         onUpdateMemory={async (id, payload) => {
           try { await api.updateMemory(id, payload); refreshMemories(); } catch {}
         }}
+        collabSession={collabSession}
       />
 
       <ShareDialog

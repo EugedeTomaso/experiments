@@ -158,3 +158,122 @@ select {
   pointer-events: auto;
   cursor: default;
 }
+
+/* Presence indicator (topbar stacked avatars) */
+.presence-indicator {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.presence-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  margin-left: -6px;
+  border: 2px solid var(--surface, white);
+  cursor: default;
+}
+
+.presence-avatar:first-child {
+  margin-left: 0;
+}
+
+.presence-overflow {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-inset);
+  margin-left: -6px;
+  border: 2px solid var(--surface, white);
+}
+
+/* Connection banner */
+.connection-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 16px;
+  font-size: 13px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.connection-banner.warning {
+  background: #fef3cd;
+  color: #856404;
+}
+
+.connection-banner.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.connection-retry-btn {
+  padding: 2px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* AI suggestion banners */
+.ai-suggestion-banners {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-suggestion-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 16px;
+  font-size: 13px;
+  background: #e8f0fe;
+  color: #1a56db;
+  position: sticky;
+  top: 0;
+  z-index: 49;
+}
+
+.ai-suggestion-banner button {
+  padding: 2px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Settings toggle label */
+.settings-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
