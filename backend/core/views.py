@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import timedelta
 
@@ -578,6 +579,125 @@ class AIReviewView(APIView):
 
         serializer = CommentSerializer(comments, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AIFactCheckView(APIView):
+    def post(self, request):
+        node_id = request.data.get("node_id")
+        provider = request.data.get("provider")
+        model = request.data.get("model")
+        selection_from = request.data.get("selection_from")
+        selection_to = request.data.get("selection_to")
+
+        if not node_id or not provider or not model:
+            return Response(
+                {"detail": "node_id, provider, and model are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        node = Node.objects.filter(id=node_id, type=Node.NodeType.FILE).first()
+        if not node:
+            return Response({"detail": "File node not found"}, status=404)
+
+        content = node.content_md or ""
+        if not content.strip():
+            return Response({"detail": "No content to fact-check"}, status=400)
+
+        offset = 0
+        if selection_from is not None and selection_to is not None:
+            offset = int(selection_from)
+            content = content[offset:int(selection_to)]
+
+        provider_key = ProviderKey.objects.filter(provider=provider).first()
+        api_key = provider_key.get_api_key() if provider_key else ""
+        if not api_key:
+            api_key = get_hardcoded_provider_key(provider)
+        if not api_key:
+            return Response({"detail": "Provider key missing"}, status=400)
+
+        def generate():
+            from .llm import extract_claims_sync, verify_claim_sync
+            from .exa import search_exa
+            from .serializers import CommentSerializer
+
+            # Step 1: Extract claims
+            try:
+                claims = extract_claims_sync(provider, api_key, model, content)
+            except Exception as exc:
+                yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+                yield "event: done\ndata: [DONE]\n\n"
+                return
+
+            yield f"data: {json.dumps({'type': 'claims_extracted', 'count': len(claims)})}\n\n"
+
+            if not claims:
+                yield "event: done\ndata: [DONE]\n\n"
+                return
+
+            # Step 2: Verify each claim
+            for claim_data in claims:
+                claim_text = claim_data.get("claim", "")
+                quoted_text = claim_data.get("quoted_text", "")
+
+                if not claim_text or not quoted_text:
+                    continue
+
+                # Find position in content
+                pos_from = None
+                pos_to = None
+                idx = content.find(quoted_text)
+                if idx >= 0:
+                    pos_from = idx + offset
+                    pos_to = idx + len(quoted_text) + offset
+
+                # Search Exa
+                try:
+                    exa_results = search_exa(claim_text, num_results=5)
+                except Exception:
+                    exa_results = []
+
+                # Build source list (truncate text for storage)
+                sources = [
+                    {"url": r["url"], "title": r["title"], "snippet": r["text"][:200]}
+                    for r in exa_results
+                ]
+
+                # Verify with LLM
+                try:
+                    verdict_data = verify_claim_sync(
+                        provider, api_key, model, claim_text, quoted_text, exa_results
+                    )
+                except Exception:
+                    verdict_data = {
+                        "verdict": "dubious",
+                        "explanation": "Verification failed.",
+                        "suggested_text": "",
+                    }
+
+                # Create comment
+                comment = Comment.objects.create(
+                    node=node,
+                    body=verdict_data.get("explanation", ""),
+                    author_type=Comment.AuthorType.ASSISTANT,
+                    author_label="Fact-Checker",
+                    status=Comment.Status.OPEN,
+                    quoted_text=quoted_text,
+                    suggested_text=verdict_data.get("suggested_text", ""),
+                    position_from=pos_from,
+                    position_to=pos_to,
+                    comment_type="fact_check",
+                    verdict=verdict_data.get("verdict", "dubious"),
+                    sources=sources,
+                )
+
+                serialized = CommentSerializer(comment).data
+                yield f"data: {json.dumps({'type': 'fact_check_result', 'comment': serialized}, default=str)}\n\n"
+
+            yield "event: done\ndata: [DONE]\n\n"
+
+        response = StreamingHttpResponse(generate(), content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        return response
 
 
 class AICommentReplyView(APIView):

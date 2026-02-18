@@ -37,6 +37,7 @@ from .publish_views import (
 from .views import (
     AIAutocompleteView,
     AICommentReplyView,
+    AIFactCheckView,
     AIReviewView,
     AIStreamView,
     AgentConfigViewSet,
@@ -79,6 +80,7 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/ai/stream", AIStreamView.as_view(), name="ai-stream"),
     path("api/ai/review", AIReviewView.as_view(), name="ai-review"),
+    path("api/ai/fact-check", AIFactCheckView.as_view(), name="ai-fact-check"),
     path("api/ai/comment-reply", AICommentReplyView.as_view(), name="ai-comment-reply"),
     path("api/ai/autocomplete", AIAutocompleteView.as_view(), name="ai-autocomplete"),
     path("api/nodes/<int:node_id>/summary", NodeSummaryView.as_view(), name="node-summary"),
