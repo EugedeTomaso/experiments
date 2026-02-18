@@ -198,6 +198,7 @@ export default function App() {
   // --- Layout state ---
   const [isOutlineOpen, setIsOutlineOpen] = useState(true);
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
+  const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
     const saved = localStorage.getItem("marvin:assistant-width");
     return saved ? Number(saved) : 380;
@@ -1129,6 +1130,8 @@ export default function App() {
     if (!activeNode || isReviewing) return;
     setIsReviewing(true);
     setReviewFocusOpen(false);
+    setAssistantTab("review");
+    if (!isAssistantOpen) setIsAssistantOpen(true);
     try {
       const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
       const provider = providerSettings.provider || "deepseek";
@@ -1157,6 +1160,8 @@ export default function App() {
     if (!activeNode || isFactChecking) return;
     setIsFactChecking(true);
     setFactCheckProgress(null);
+    setAssistantTab("verify");
+    if (!isAssistantOpen) setIsAssistantOpen(true);
 
     try {
       const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
@@ -2905,6 +2910,29 @@ Rules for memory suggestions:
           activeProjectId={activeProjectId}
           agentMode={agentMode}
           onAgentModeChange={setAgentMode}
+          activeTab={assistantTab}
+          onTabChange={setAssistantTab}
+          reviewTabComments={commentState.reviewTabComments}
+          reviewPendingCount={commentState.reviewPendingCount}
+          reviewAcceptedCount={commentState.reviewAcceptedCount}
+          reviewDismissedCount={commentState.reviewDismissedCount}
+          verifyTabComments={commentState.verifyTabComments}
+          verifyPendingCount={commentState.verifyPendingCount}
+          focusedCommentId={focusedCommentId}
+          aiThinkingId={aiThinkingCommentId}
+          getReplies={commentState.getReplies}
+          onClickComment={(comment) => commentState.navigateTo(comment.id)}
+          onApproveComment={handleApproveComment}
+          onDismissComment={handleRejectComment}
+          onResolveComment={handleResolveComment}
+          onDeleteComment={handleDeleteComment}
+          onReplyComment={handleReplyToComment}
+          onAskAIComment={handleAskAIInThread}
+          onLaunchReview={handleRequestReview}
+          onLaunchFactCheck={handleFactCheck}
+          isReviewing={isReviewing}
+          isFactChecking={isFactChecking}
+          factCheckProgress={factCheckProgress}
         />
       </div>
       )}
