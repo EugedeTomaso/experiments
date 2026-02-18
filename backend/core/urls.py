@@ -18,6 +18,7 @@ from .invitation_views import (
 )
 from .member_views import MemberDetailView, MemberListView
 from .share_views import PublicShareView
+from .public_views import public_page
 from .link_preview import LinkPreviewView
 from .internal_views import (
     InternalNodeContentView,
@@ -100,6 +101,9 @@ urlpatterns = [
     path("api/projects/<int:project_id>/members/", MemberListView.as_view(), name="member-list"),
     path("api/projects/<int:project_id>/members/<int:user_id>/", MemberDetailView.as_view(), name="member-detail"),
     path("api/shared/<uuid:token>/", PublicShareView.as_view(), name="public-share"),
+    # Public pages (HTML)
+    path("public/<uuid:token>/", public_page, name="public-page"),
+    path("public/<uuid:token>/<int:node_id>/", public_page, name="public-page-node"),
     # Publish — OAuth
     path("api/publish/connect/<str:platform>/", OAuthInitiateView.as_view(), name="publish-connect"),
     path("api/publish/callback/<str:platform>/", OAuthCallbackView.as_view(), name="publish-callback"),
