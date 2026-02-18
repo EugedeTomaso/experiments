@@ -354,27 +354,32 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
   );
 
   const askAI = useCallback(
-    async (commentId) => {
+    async (commentId, agentId) => {
       if (!nodeId) return;
       setAiThinkingId(commentId);
       try {
-        const providerSettings = JSON.parse(
-          localStorage.getItem("marvin:ai-provider") || "{}"
-        );
-        const provider = providerSettings.provider || "deepseek";
-        const model = providerSettings.model || "deepseek-chat";
         const lastUserReply = comments
           .filter((c) => c.parent === commentId && c.author_type === "user")
           .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
           .pop();
         if (!lastUserReply) return;
 
-        const result = await api.requestCommentReply({
+        const payload = {
           comment_id: commentId,
           user_message: lastUserReply.body,
-          provider,
-          model,
-        });
+        };
+
+        if (agentId) {
+          payload.agent_id = agentId;
+        } else {
+          const providerSettings = JSON.parse(
+            localStorage.getItem("marvin:ai-provider") || "{}"
+          );
+          payload.provider = providerSettings.provider || "deepseek";
+          payload.model = providerSettings.model || "deepseek-chat";
+        }
+
+        const result = await api.requestCommentReply(payload);
         setComments((prev) => [
           ...prev.map((c) =>
             c.id === commentId ? { ...c, ...result.root_comment } : c
