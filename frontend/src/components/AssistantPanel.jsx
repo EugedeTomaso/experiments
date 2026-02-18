@@ -4,6 +4,7 @@ import { timeAgo } from "../utils";
 import { MentionPicker } from "./MentionPicker";
 import { ReviewTab } from "./ReviewTab";
 import { VerifyTab } from "./VerifyTab";
+import CritiqueTab from "./CritiqueTab";
 
 function truncate(str, max) {
   if (str.length <= max) return str;
@@ -153,6 +154,15 @@ export function AssistantPanel({
   isReviewing,
   isFactChecking,
   factCheckProgress,
+  // Critique tab data
+  critiques,
+  isCritiquing,
+  activeCritiqueId,
+  critiqueThreadMessages,
+  discussingSection,
+  onLaunchCritique,
+  onDiscussSection,
+  onSelectCritique,
 }) {
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
@@ -160,6 +170,7 @@ export function AssistantPanel({
   const historyDropdownRef = useRef(null);
   const [isAgentDropdownOpen, setIsAgentDropdownOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [reviewSubTab, setReviewSubTab] = useState("suggestions");
 
   // @ mention state
   const [isMentionOpen, setIsMentionOpen] = useState(false);
@@ -925,26 +936,53 @@ export function AssistantPanel({
       {/* Review tab content */}
       {activeTab === "review" && (
         <div className="agent-pane-body">
-          <ReviewTab
-            comments={reviewTabComments}
-            pendingCount={reviewPendingCount}
-            acceptedCount={reviewAcceptedCount}
-            dismissedCount={reviewDismissedCount}
-            focusedCommentId={focusedCommentId}
-            aiThinkingId={aiThinkingId}
-            getReplies={getReplies}
-            onClickComment={onClickComment}
-            onApprove={onApproveComment}
-            onApproveReply={onApproveReplyComment}
-            onDismiss={onDismissComment}
-            onResolve={onResolveComment}
-            onDelete={onDeleteComment}
-            onReply={onReplyComment}
-            onAskAI={onAskAIComment}
-            onLaunchReview={onLaunchReview}
-            isReviewing={isReviewing}
-            agents={agents}
-          />
+          <div className="review-sub-toggle">
+            <button
+              className={`review-sub-btn${reviewSubTab === "suggestions" ? " review-sub-btn--active" : ""}`}
+              onClick={() => setReviewSubTab("suggestions")}
+            >
+              Suggestions
+            </button>
+            <button
+              className={`review-sub-btn${reviewSubTab === "critique" ? " review-sub-btn--active" : ""}`}
+              onClick={() => setReviewSubTab("critique")}
+            >
+              Critique
+            </button>
+          </div>
+          {reviewSubTab === "suggestions" ? (
+            <ReviewTab
+              comments={reviewTabComments}
+              pendingCount={reviewPendingCount}
+              acceptedCount={reviewAcceptedCount}
+              dismissedCount={reviewDismissedCount}
+              focusedCommentId={focusedCommentId}
+              aiThinkingId={aiThinkingId}
+              getReplies={getReplies}
+              onClickComment={onClickComment}
+              onApprove={onApproveComment}
+              onApproveReply={onApproveReplyComment}
+              onDismiss={onDismissComment}
+              onResolve={onResolveComment}
+              onDelete={onDeleteComment}
+              onReply={onReplyComment}
+              onAskAI={onAskAIComment}
+              onLaunchReview={onLaunchReview}
+              isReviewing={isReviewing}
+              agents={agents}
+            />
+          ) : (
+            <CritiqueTab
+              critiques={critiques}
+              isCritiquing={isCritiquing}
+              threadMessages={critiqueThreadMessages}
+              discussingSection={discussingSection}
+              onLaunchCritique={onLaunchCritique}
+              onDiscussSection={onDiscussSection}
+              onSelectCritique={onSelectCritique}
+              activeCritiqueId={activeCritiqueId}
+            />
+          )}
         </div>
       )}
 
