@@ -9,16 +9,27 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .llm import generate_review_sync, generate_summary_sync, route_agent_sync, stream_chat
+from .llm import (
+    generate_critique_sync,
+    generate_review_sync,
+    generate_summary_sync,
+    route_agent_sync,
+    stream_chat,
+    PROVIDERS,
+    _sync_anthropic_review,
+    _sync_openai_compatible_review,
+)
 from django.db.models import Count, Q
 from .permissions import get_user_role
 
-from .models import Agent, AgentConfig, Comment, Conversation, Memory, Message, Node, Project, ProviderKey, Version, Workspace
+from .models import Agent, AgentConfig, Comment, Conversation, Critique, CritiqueMessage, CritiqueThread, Memory, Message, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
     AgentConfigSerializer,
     AgentSerializer,
     CommentSerializer,
     ConversationSerializer,
+    CritiqueMessageSerializer,
+    CritiqueSerializer,
     MemorySerializer,
     MessageSerializer,
     NodeSerializer,
@@ -704,6 +715,137 @@ class AIReviewView(APIView):
 
         serializer = CommentSerializer(comments, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CritiqueViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CritiqueSerializer
+
+    def get_queryset(self):
+        qs = Critique.objects.all()
+        node_id = self.request.query_params.get("node_id")
+        if node_id:
+            qs = qs.filter(node_id=node_id)
+        return qs.order_by("-created_at")
+
+
+class AICritiqueView(APIView):
+    def post(self, request):
+        node_id = request.data.get("node_id")
+        provider = request.data.get("provider", "deepseek")
+        model = request.data.get("model", "deepseek-chat")
+
+        if not node_id:
+            return Response({"error": "node_id is required"}, status=400)
+
+        try:
+            node = Node.objects.get(id=node_id)
+        except Node.DoesNotExist:
+            return Response({"error": "Node not found"}, status=404)
+
+        content = node.content_md or ""
+        if not content.strip():
+            return Response({"error": "Document is empty"}, status=400)
+
+        try:
+            pk = ProviderKey.objects.get(provider=provider)
+            api_key = pk.get_api_key()
+        except ProviderKey.DoesNotExist:
+            return Response({"error": f"No API key for {provider}"}, status=400)
+
+        try:
+            result = generate_critique_sync(provider, api_key, model, content)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+        for i, section in enumerate(result.get("sections", [])):
+            section["id"] = f"sec_{i + 1}"
+
+        critique = Critique.objects.create(
+            node=node,
+            sections=result.get("sections", []),
+            overall_score=result.get("overall_score", 0),
+            summary=result.get("summary", ""),
+        )
+
+        return Response(CritiqueSerializer(critique).data, status=201)
+
+
+class AICritiqueDiscussView(APIView):
+    def post(self, request):
+        critique_id = request.data.get("critique_id")
+        section_id = request.data.get("section_id")
+        message = request.data.get("message", "").strip()
+
+        if not all([critique_id, section_id, message]):
+            return Response({"error": "critique_id, section_id, and message are required"}, status=400)
+
+        try:
+            critique = Critique.objects.get(id=critique_id)
+        except Critique.DoesNotExist:
+            return Response({"error": "Critique not found"}, status=404)
+
+        section = None
+        for s in critique.sections:
+            if s.get("id") == section_id:
+                section = s
+                break
+        if not section:
+            return Response({"error": "Section not found"}, status=404)
+
+        thread, _ = CritiqueThread.objects.get_or_create(
+            critique=critique, section_id=section_id
+        )
+
+        CritiqueMessage.objects.create(thread=thread, role="user", content=message)
+
+        history = list(thread.messages.order_by("created_at").values("role", "content"))
+
+        provider = request.data.get("provider", "deepseek")
+        model = request.data.get("model", "deepseek-chat")
+
+        try:
+            pk = ProviderKey.objects.get(provider=provider)
+            api_key = pk.get_api_key()
+        except ProviderKey.DoesNotExist:
+            return Response({"error": f"No API key for {provider}"}, status=400)
+
+        system_content = (
+            f"You are a professional writing critic discussing your evaluation of a document.\n\n"
+            f"Your critique of the section \"{section['title']}\" (score: {section['score']}/10):\n"
+            f"{section['body']}\n\n"
+            f"The user wants to discuss this section further. Be specific and helpful. "
+            f"Reference the document content when relevant."
+        )
+
+        doc_content = critique.node.content_md or ""
+
+        llm_messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": f"Document being discussed:\n\n{doc_content[:8000]}"},
+        ]
+        for msg in history:
+            llm_messages.append({"role": msg["role"], "content": msg["content"]})
+
+        config = PROVIDERS.get(provider)
+        if not config:
+            return Response({"error": f"Unsupported provider: {provider}"}, status=400)
+
+        try:
+            if config["type"] == "anthropic":
+                full_text = _sync_anthropic_review(api_key, config["base_url"], model, llm_messages)
+            else:
+                full_text = _sync_openai_compatible_review(api_key, config["base_url"], model, llm_messages)
+
+            assistant_msg = CritiqueMessage.objects.create(
+                thread=thread, role="assistant", content=full_text
+            )
+
+            return Response({
+                "message": CritiqueMessageSerializer(assistant_msg).data,
+                "thread_id": thread.id,
+            }, status=200)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
 
 
 class AIFactCheckView(APIView):
