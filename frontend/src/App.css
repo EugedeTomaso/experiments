@@ -3201,96 +3201,73 @@
    Memory Strip (Assistant Panel)
    =========================== */
 
-.memory-strip {
+/* Memory popover in composer */
+.agent-composer-footer-left {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  margin: 0 -16px;
-  background: var(--surface-inset);
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 11px;
-  color: var(--text-4);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease);
+  gap: 8px;
 }
-.memory-strip:hover {
-  background: var(--canvas);
+.memory-popover-wrapper {
+  position: relative;
 }
-.memory-strip svg {
-  color: var(--text-4);
-  flex-shrink: 0;
-}
-.memory-strip-manage {
-  margin-left: auto;
-  border: none;
-  background: none;
-  color: var(--text-4);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 0;
-}
-.memory-strip-manage:hover {
-  color: var(--text-1);
-}
-
-.memory-strip-expanded {
-  border-bottom: 1px solid var(--border-subtle);
-  margin: 0 -16px;
-  max-height: 280px;
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-.memory-strip-expanded-header {
+.memory-popover-trigger {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-3);
-  letter-spacing: 0.04em;
-}
-.memory-strip-expanded-header svg {
-  color: var(--text-4);
-}
-.memory-strip-collapse {
-  margin-left: auto;
+  gap: 3px;
   border: none;
   background: none;
   color: var(--text-4);
   cursor: pointer;
-  padding: 2px;
+  padding: 2px 4px;
   border-radius: var(--radius-sm);
+  font-size: 10px;
+  transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 }
-.memory-strip-collapse:hover {
-  color: var(--text-1);
-  background: rgba(0,0,0,0.03);
+.memory-popover-trigger:hover,
+.memory-popover-trigger.active {
+  color: var(--text-2);
+  background: rgba(0,0,0,0.04);
 }
-
-.memory-group-label {
+.memory-popover-count {
+  font-size: 10px;
+  font-weight: 500;
+  color: inherit;
+}
+.memory-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 50;
+  animation: memory-toast-in 150ms var(--ease);
+}
+.memory-popover-group-label {
   font-size: 10px;
   font-weight: 500;
   color: var(--text-4);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 8px 16px 2px;
+  padding: 8px 12px 2px;
 }
-
-.memory-item {
+.memory-popover-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 16px;
+  padding: 4px 12px;
 }
-.memory-item-text {
+.memory-popover-item-text {
   flex: 1;
   font-size: 12px;
   color: var(--text-2);
   line-height: 1.4;
 }
-.memory-item-delete {
+.memory-popover-item-delete {
   opacity: 0;
   border: none;
   background: none;
@@ -3300,19 +3277,25 @@
   flex-shrink: 0;
   transition: opacity var(--duration-fast) var(--ease);
 }
-.memory-item:hover .memory-item-delete {
+.memory-popover-item:hover .memory-popover-item-delete {
   opacity: 1;
 }
-.memory-item-delete:hover {
+.memory-popover-item-delete:hover {
   color: var(--error);
 }
-
-.memory-add-row {
+.memory-popover-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--text-4);
+  text-align: center;
+}
+.memory-popover-add {
   display: flex;
   gap: 4px;
-  padding: 6px 16px 10px;
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--border-subtle);
 }
-.memory-add-input {
+.memory-popover-add-input {
   flex: 1;
   border: 1px solid var(--control-border);
   background: var(--control-bg);
@@ -3321,15 +3304,15 @@
   font-size: 12px;
   color: var(--text-1);
 }
-.memory-add-input:focus {
+.memory-popover-add-input:focus {
   border-color: var(--accent);
   box-shadow: var(--control-focus);
   outline: none;
 }
-.memory-add-input::placeholder {
+.memory-popover-add-input::placeholder {
   color: var(--text-4);
 }
-.memory-scope-select {
+.memory-popover-scope {
   border: 1px solid var(--control-border);
   background: var(--control-bg);
   border-radius: var(--radius-sm);
@@ -3409,30 +3392,6 @@
 }
 
 /* Memory in Settings Modal */
-.memory-scope-toggle {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-.memory-scope-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-3);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease);
-}
-.memory-scope-btn.active {
-  background: var(--surface-inset);
-  color: var(--text-1);
-  border-color: var(--border-strong);
-}
-.memory-scope-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
 .memory-add-form {
   display: flex;
   gap: 8px;
@@ -4572,6 +4531,122 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-4);
+}
+
+/* Project Memory Section */
+.project-home-memory-hint {
+  font-size: 13px;
+  color: var(--text-3);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.project-home-memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.project-home-memory-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease);
+}
+.project-home-memory-item:hover {
+  background: var(--surface-inset);
+}
+.project-home-memory-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.project-home-memory-text:hover {
+  color: var(--text-1);
+}
+.project-home-memory-edit-input {
+  flex: 1;
+  border: 1px solid var(--accent);
+  background: var(--control-bg);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--text-1);
+  box-shadow: var(--control-focus);
+  outline: none;
+}
+.project-home-memory-source {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-4);
+  background: var(--surface-inset);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.03em;
+}
+.project-home-memory-delete {
+  opacity: 0;
+  border: none;
+  background: none;
+  color: var(--text-4);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+.project-home-memory-item:hover .project-home-memory-delete {
+  opacity: 1;
+}
+.project-home-memory-delete:hover {
+  color: var(--error);
+}
+.project-home-memory-empty {
+  font-size: 13px;
+  color: var(--text-4);
+  padding: 8px 0;
+}
+.project-home-memory-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+.project-home-memory-add input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  font-size: 13px;
+  color: var(--text-1);
+}
+.project-home-memory-add input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--control-focus);
+  outline: none;
+}
+.project-home-memory-add input::placeholder {
+  color: var(--text-4);
+}
+.project-home-memory-add-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+}
+.project-home-memory-add-btn:hover:not(:disabled) {
+  background: var(--surface-inset);
+  color: var(--text-1);
+}
+.project-home-memory-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Project Agents Section */
@@ -8913,6 +8988,60 @@ button.ghost:focus-visible {
 .share-copy-btn:hover,
 .share-regen-btn:hover {
   background: var(--surface-inset);
+}
+
+.share-public-url {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0 0.75rem;
+}
+
+.share-public-url-text {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  background: var(--surface-inset);
+  padding: 0.375rem 0.625rem;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-publish-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.share-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.share-radio input[type="radio"] {
+  accent-color: var(--text-1);
+}
+
+.share-update-btn {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  color: var(--text-2);
+  background: var(--surface-inset);
+  border: none;
+  border-radius: 6px;
+  padding: 0.375rem 0.75rem;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+.share-update-btn:hover {
+  background: var(--border-subtle);
 }
 
 /* --- Ghost Textarea --- */

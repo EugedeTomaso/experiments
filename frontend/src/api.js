@@ -388,4 +388,16 @@ export const api = {
   regenerateShareToken(projectId) {
     return request(`/api/projects/${projectId}/regenerate-share-token/`, { method: "POST" });
   },
+
+  publishSnapshot(projectId) {
+    return request(`/api/projects/${projectId}/publish-snapshot/`, {
+      method: "POST",
+    });
+  },
+
+  unpublishSnapshot(projectId) {
+    return request(`/api/projects/${projectId}/unpublish-snapshot/`, {
+      method: "POST",
+    });
+  },
 };
