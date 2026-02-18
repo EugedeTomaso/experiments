@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { api, getAuthHeader } from "./api";
+import { useAuth } from "./AuthContext";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { TreeItem } from "./components/TreeItem";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
@@ -8,66 +9,54 @@ import { FolderView } from "./components/FolderView";
 import { NodePreviewTooltip } from "./components/NodePreviewTooltip";
 import { SearchResultItem } from "./components/SearchResultItem";
 import { VersionsMenu } from "./components/VersionsMenu";
+import { ExportMenu } from "./components/ExportMenu";
+import { PublishDialog } from "./components/PublishDialog";
 import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
 import { CommentInput } from "./components/CommentInput";
-import { CommentPopover } from "./components/CommentPopover";
+import { CommentThread } from "./components/CommentThread";
 import { SettingsModal } from "./components/SettingsModal";
+import { ShareDialog } from "./components/ShareDialog";
+import { InvitationBanner } from "./components/InvitationBanner";
 import { ProjectWizard } from "./components/ProjectWizard";
+import { ProjectHome } from "./components/ProjectHome";
+import { AllProjects } from "./components/AllProjects";
+import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
+import { SpotlightTour } from "./components/SpotlightTour";
 import { createStreamParser } from "./streamParser";
 import { buildSnippet, wordCount } from "./utils";
+import { createCollabSession } from "./collabPlugin";
 import "./App.css";
 
 const NEW_DOC_TEMPLATE = `\
-Welcome to your new document. This guide will help you get started — feel free to delete it when you're ready to write.
+Start writing, or press **/** for commands.
+`;
 
-## Formatting text
+const SAMPLE_DRAFT = `\
+Most people think writing is about the first draft — the blank page, the blinking cursor, the mythical flow state where words pour out like water. It's a romantic image, and it's mostly wrong.
 
-Select any text to reveal the formatting toolbar. You can apply:
+The real work happens after. Revision is where writing becomes *writing*: where scattered thoughts find their shape, where vague gestures become precise observations, where the thing you meant to say finally appears on the page.
 
-- **Bold** for emphasis on key ideas
-- *Italic* for titles, subtle stress, or foreign words
-- ~~Strikethrough~~ to mark edits or crossed-out thoughts
-- \`Inline code\` for technical terms, variables, or commands
+## Why first drafts are supposed to be bad
 
-You can also combine them: ***bold and italic***, or **\`bold code\`**.
+A first draft is a conversation with yourself. You're thinking out loud, figuring out what you actually believe. Expecting that conversation to also be polished prose is like expecting your grocery list to be a poem.
 
-## Using the slash menu
+The best writers know this instinctively. Hemingway called first drafts something unprintable. Anne Lamott calls them "shitty first drafts." The point isn't that good writers produce bad work — it's that they don't confuse the beginning of the process with the end of it.
 
-Type **/** at the beginning of a new line to open the command menu. From there you can insert:
+## The revision loop
 
-- Headings (H1, H2, H3) to structure your document
-- Bullet lists and numbered lists
-- Blockquotes for callouts or citations
-- Code blocks for multi-line snippets
-- Horizontal dividers to separate sections
+Good revision isn't about fixing typos or swapping adjectives. It's about re-seeing the work with fresh eyes. Some questions worth asking:
 
-> This is a blockquote. Use it to highlight a quote, a key takeaway, or an important note.
+- Does the opening earn the reader's attention, or does it just assume it?
+- Is every paragraph pulling its weight, or are some just filling space?
+- Where did you write what was easy instead of what was true?
 
-## Working with AI
+The hardest part is being honest with yourself. It's tempting to tinker around the edges — swap a word here, move a comma there — instead of confronting the deeper structural problems that require actual rewriting.
 
-Open the **Assistant** panel using the button in the top-right corner. The AI can help you at any stage of writing. Here are some things you can ask:
+## A practice, not a talent
 
-- "Help me outline an article about remote work best practices"
-- "Rewrite the second paragraph in a more conversational tone"
-- "What are the main arguments in my document so far?"
-- "Suggest a better title for this piece"
-- "Translate the last section to Spanish"
-- "Shorten this to fit in a tweet"
+Revision is a skill that improves with repetition. The gap between good writing and great writing is often just the willingness to go through the text one more time, and then one more time after that.
 
-The assistant reads your document, so you can reference specific sections or ask it to work with what you've already written.
-
-## Keyboard shortcuts
-
-A few shortcuts to speed up your workflow:
-
-- **Ctrl+B** / **⌘B** — Bold
-- **Ctrl+I** / **⌘I** — Italic
-- **Ctrl+Z** / **⌘Z** — Undo
-- **Ctrl+Shift+Z** / **⌘⇧Z** — Redo
-
----
-
-*Delete this guide and start writing. Your changes save automatically.*
+Write your messy first draft. Then come back tomorrow and make it better.
 `;
 
 const INITIAL_DEFAULT_AGENT = {
@@ -78,6 +67,79 @@ const INITIAL_DEFAULT_AGENT = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Marvin. Based on the project type and description, generate 2-3 assistants tailored to this project.
+
+Each assistant should serve a different purpose (e.g., creative collaborator, editor/critic, research/planning).
+
+Output ONLY valid JSON — an array of 2-3 objects, no markdown fences, no explanation:
+
+[
+  {
+    "name": "Short memorable name (1-3 words)",
+    "system_prompt": "Detailed instructions for this assistant's role, tone, and how it helps with this project.",
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "temperature": 0.7
+  }
+]
+
+Rules:
+- 2-3 assistants with distinct roles relevant to the project type
+- System prompts should reference the specific project context
+- Creative projects: include a creative collaborator + an editor/critic
+- Non-fiction: include a research assistant + a writing coach/editor
+- Temperature: 0.8-1.0 for creative, 0.3-0.5 for editors, 0.5-0.7 for research/planning
+- Use "deepseek" as provider and "deepseek-chat" as model for all`;
+
+const FALLBACK_ASSISTANTS = {
+  novel: [
+    { name: "Story Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.9, system_prompt: "You are a creative writing partner for a novel. Help brainstorm plot ideas, develop characters, suggest dialogue, and work through narrative challenges. Be encouraging and imaginative. Preserve the author's voice." }},
+    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a sharp developmental and line editor. Identify weak prose, pacing issues, plot holes, and inconsistencies. Be direct and constructive. Suggest specific rewrites. Focus on tightening language and strengthening narrative structure." }},
+  ],
+  "short-story": [
+    { name: "Story Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.9, system_prompt: "You are a creative collaborator for short fiction. Help develop the central idea, suggest structural approaches, and refine the narrative arc. Short stories demand economy — every sentence should earn its place." }},
+    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a meticulous editor for short fiction. Focus on economy of language, cutting unnecessary words, and ensuring every scene advances the story. Be direct and specific." }},
+  ],
+  screenplay: [
+    { name: "Story Room", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.9, system_prompt: "You are a writers' room collaborator for screenwriting. Help develop scenes, punch up dialogue, suggest visual storytelling opportunities, and workshop story beats. Think cinematically." }},
+    { name: "Script Doctor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.4, system_prompt: "You are a script doctor. Analyze screenplay structure, pacing, dialogue naturalness, and character consistency. Identify scenes that drag and suggest cuts or restructuring." }},
+  ],
+  "tv-series": [
+    { name: "Writers Room", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.9, system_prompt: "You are a TV writers' room partner. Help develop episode arcs, series mythology, character development across episodes, and episodic structure. Think about serialized storytelling and audience engagement." }},
+    { name: "Show Runner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.4, system_prompt: "You are a show runner reviewing scripts. Ensure consistency across episodes, check character voice continuity, flag timeline issues, and maintain the series bible." }},
+  ],
+  youtube: [
+    { name: "Content Strategist", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a YouTube content strategist. Help craft compelling hooks, structure videos for retention, suggest thumbnail and title ideas, and optimize for audience engagement." }},
+    { name: "Script Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.4, system_prompt: "You are a video script editor. Tighten language for spoken delivery, cut filler, improve transitions, and ensure the script sounds natural when read aloud." }},
+  ],
+  article: [
+    { name: "Research Assistant", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.5, system_prompt: "You are a research assistant for editorial writing. Help gather background information, suggest angles, identify counterarguments, and provide context. Be thorough and cite your reasoning." }},
+    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are an editorial editor. Review for clarity, logical flow, argument strength, and prose quality. Suggest structural improvements and tighten language." }},
+  ],
+  academic: [
+    { name: "Research Advisor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.4, system_prompt: "You are an academic research advisor. Help develop arguments, suggest methodological approaches, identify gaps in reasoning, and strengthen scholarly rigor." }},
+    { name: "Academic Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.2, system_prompt: "You are an academic editor. Review for clarity, logical consistency, proper citation practices, and adherence to academic writing standards. Flag unsupported claims." }},
+  ],
+  product: [
+    { name: "Product Strategist", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.6, system_prompt: "You are a product strategist. Help refine problem statements, develop user stories, prioritize features, and think through edge cases. Challenge assumptions." }},
+    { name: "Writer", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.5, system_prompt: "You are a product writing specialist. Help craft clear, concise product documentation, specifications, and briefs. Ensure requirements are unambiguous." }},
+  ],
+  freeform: [
+    { name: "Writing Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a versatile writing partner. Help brainstorm, draft, and refine content. Adapt to the user's project needs and writing style." }},
+    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a thorough editor. Review writing for clarity, consistency, and quality. Provide specific, actionable feedback." }},
+  ],
+  custom: [
+    { name: "Writing Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a versatile writing partner. Help brainstorm, draft, and refine content. Adapt to the user's project needs and writing style." }},
+    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a thorough editor. Review writing for clarity, consistency, and quality. Provide specific, actionable feedback." }},
+  ],
+};
+
+const TYPE_LABELS = {
+  novel: "Novel", "short-story": "Short Story", screenplay: "Screenplay",
+  "tv-series": "TV Series", youtube: "YouTube / Video", "article": "Article / Essay",
+  academic: "Academic", product: "Product / Work", freeform: "Freeform", custom: "Custom",
+};
 
 const normalizeId = (value) =>
   value === null || value === undefined ? null : String(value);
@@ -110,6 +172,9 @@ function buildTree(nodes) {
 }
 
 export default function App() {
+  const { user, logout } = useAuth();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
   // --- Project & Node state ---
   const [projects, setProjects] = useState([]);
   const [activeProjectId, setActiveProjectId] = useState(null);
@@ -129,10 +194,14 @@ export default function App() {
 
   // --- Layout state ---
   const [isOutlineOpen, setIsOutlineOpen] = useState(true);
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(true);
   const [assistantWidth, setAssistantWidth] = useState(() => {
     const saved = localStorage.getItem("marvin:assistant-width");
     return saved ? Number(saved) : 380;
+  });
+  const [editorZoom, setEditorZoom] = useState(() => {
+    const saved = localStorage.getItem("marvin:editor-zoom");
+    return saved ? Number(saved) : 100;
   });
 
   // --- Chat state ---
@@ -143,6 +212,8 @@ export default function App() {
   const [isEditingDocument, setIsEditingDocument] = useState(false);
   const [diffVisible, setDiffVisible] = useState(false);
   const [diffAvailable, setDiffAvailable] = useState(false);
+  const [diffStats, setDiffStats] = useState(null);
+  const [compareVersionId, setCompareVersionId] = useState(null);
 
   // --- Conversation state ---
   const [conversations, setConversations] = useState([]);
@@ -151,19 +222,31 @@ export default function App() {
   // --- AI context from editor selection ---
   const [pendingContext, setPendingContext] = useState(null);
 
+  // --- @ mention context ---
+  const [mentionedFileIds, setMentionedFileIds] = useState([]);
+
   // --- Agent state ---
   const [agents, setAgents] = useState([]);
   const [nodeAgentConfigs, setNodeAgentConfigs] = useState([]);
   const [resolvedAgent, setResolvedAgent] = useState(null);
   const [nodeDirectConfig, setNodeDirectConfig] = useState(null);
   const [isAgentCreatorOpen, setIsAgentCreatorOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState(null); // null = create, object = edit
 
   // --- Wizard state ---
   const [isWizardOpen, setIsWizardOpen] = useState(false);
 
+  // --- Walkthrough state ---
+  const [walkthroughDismissed, setWalkthroughDismissed] = useState(false);
+  const [showAppTour, setShowAppTour] = useState(false);
+
   // --- Settings state ---
   const [providerKeys, setProviderKeys] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [publishState, setPublishState] = useState(null); // { platform, connection }
+  const [collabSession, setCollabSession] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [autosaveDelay, setAutosaveDelay] = useState(() => {
     const saved = localStorage.getItem("marvin:autosave-delay");
     return saved ? Number(saved) : 1500;
@@ -177,11 +260,26 @@ export default function App() {
     }
   });
 
+  // --- Memory state ---
+  const [memories, setMemories] = useState([]);
+  const [resolvedMemories, setResolvedMemories] = useState(null);
+  const [pendingMemorySuggestion, setPendingMemorySuggestion] = useState(null);
+  const [memoryToast, setMemoryToast] = useState(null);
+
   // --- Inline comment state ---
   const [commentInputState, setCommentInputState] = useState(null);
-  const [popoverState, setPopoverState] = useState(null);
+  const [activeThreadComment, setActiveThreadComment] = useState(null);
   const editorRef = useRef(null);
   const editorWrapperRef = useRef(null);
+
+  // --- Review mode ---
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewFocusOpen, setReviewFocusOpen] = useState(false);
+  const [reviewEmptyMsg, setReviewEmptyMsg] = useState(false);
+  const [docMenuOpen, setDocMenuOpen] = useState(false);
+  const docMenuRef = useRef(null);
+  const [aiThinkingCommentId, setAiThinkingCommentId] = useState(null);
+  const [focusedCommentId, setFocusedCommentId] = useState(null);
 
   // --- Drag & drop ---
   const [draggingId, setDraggingId] = useState(null);
@@ -225,6 +323,13 @@ export default function App() {
     () => nodes.find((n) => String(n.id) === String(activeNodeId)),
     [nodes, activeNodeId]
   );
+
+  const currentRole = useMemo(() => {
+    const p = projects.find((p) => p.id === activeProjectId);
+    return p?.current_user_role || null;
+  }, [projects, activeProjectId]);
+
+  const canEdit = currentRole && currentRole !== "viewer" && currentRole !== "commenter";
 
   const tree = useMemo(() => buildTree(nodes), [nodes]);
 
@@ -308,6 +413,10 @@ export default function App() {
   }, [outlineWidth]);
 
   useEffect(() => {
+    localStorage.setItem("marvin:editor-zoom", String(editorZoom));
+  }, [editorZoom]);
+
+  useEffect(() => {
     if (!activeProjectId) return;
     api.listNodes(activeProjectId).then((data) => {
       setNodes(data);
@@ -324,6 +433,13 @@ export default function App() {
   useEffect(() => {
     if (!activeProjectId) { setAgents([]); return; }
     api.listAgents(activeProjectId).then(setAgents).catch(() => setAgents([]));
+  }, [activeProjectId]);
+
+  // Fetch memories when project changes
+  useEffect(() => {
+    if (!activeProjectId) { setMemories([]); setResolvedMemories(null); return; }
+    api.listMemories({ project: activeProjectId }).then(setMemories).catch(() => setMemories([]));
+    api.resolveMemories({ project: activeProjectId }).then(setResolvedMemories).catch(() => setResolvedMemories(null));
   }, [activeProjectId]);
 
   useEffect(() => {
@@ -402,9 +518,39 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNodeId]);
 
+  // Collab session lifecycle
+  useEffect(() => {
+    const node = nodes.find((n) => String(n.id) === String(activeNodeId));
+    if (!activeNodeId || !node || node.type !== "file") return;
+
+    const jwt = localStorage.getItem("marvin:access_token");
+    if (!jwt) return;
+
+    const session = createCollabSession(activeNodeId, jwt, {
+      name: user?.username || "Anonymous",
+      id: user?.id || 0,
+    });
+
+    const unsubscribe = session.onConnectionChange((state) => {
+      setConnectionStatus(state);
+    });
+
+    setCollabSession(session);
+    setConnectionStatus(session.connectionState);
+
+    return () => {
+      unsubscribe();
+      session.destroy();
+      setCollabSession(null);
+      setConnectionStatus("disconnected");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNodeId]);
+
   // Auto-save with debounce
   useEffect(() => {
     if (!activeNodeId) return;
+    if (collabSession) return; // Collab server handles persistence
     if (draft === loadedContentRef.current) {
       setSaveStatus("saved");
       pendingSaveRef.current = null;
@@ -432,7 +578,7 @@ export default function App() {
     }, autosaveDelay);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [draft, autosaveDelay]);
+  }, [draft, autosaveDelay, collabSession]);
 
   // Clear diff toggle when user edits and plugin clears its data
   useEffect(() => {
@@ -440,6 +586,8 @@ export default function App() {
       if (!editorRef.current.hasDiffData()) {
         setDiffAvailable(false);
         setDiffVisible(false);
+        setDiffStats(null);
+        setCompareVersionId(null);
       }
     }
   }, [draft, diffAvailable]);
@@ -450,6 +598,7 @@ export default function App() {
     setStreamingContent("");
     setChatInput("");
     setActiveConversationId(null);
+    setMentionedFileIds([]);
     if (activeNodeId) {
       api.listConversations(activeNodeId).then(setConversations).catch(() => setConversations([]));
     } else {
@@ -474,9 +623,12 @@ export default function App() {
   // --- Editor custom event listeners ---
   const handleHighlightClick = useCallback(
     (commentIds, rect) => {
-      const matching = comments.filter((c) => commentIds.includes(c.id));
-      if (matching.length) {
-        setPopoverState({ comments: matching, rect });
+      // Find the root comment for the clicked highlight
+      const rootComment = comments.find(
+        (c) => commentIds.includes(c.id) && !c.parent
+      );
+      if (rootComment) {
+        setActiveThreadComment({ comment: rootComment, rect });
       }
     },
     [comments]
@@ -532,6 +684,37 @@ export default function App() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // --- Cmd+=/- and Cmd+0: editor zoom ---
+  useEffect(() => {
+    const handler = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        setEditorZoom((z) => Math.min(z + 10, 150));
+      } else if (e.key === "-") {
+        e.preventDefault();
+        setEditorZoom((z) => Math.max(z - 10, 75));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setEditorZoom(100);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // --- Cmd+B: toggle outline sidebar ---
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        setIsOutlineOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   // --- Helpers ---
   const getNextOrder = (parentId) => {
     const targetParent = normalizeId(parentId);
@@ -554,9 +737,134 @@ export default function App() {
     setIsWizardOpen(true);
   };
 
-  const handleWizardComplete = async ({ name, structure }) => {
+  const handleQuickCreate = async ({ name, type }) => {
+    const project = await api.createProject({
+      name: name.trim() || "Untitled",
+      project_type: type || "",
+      project_extension: "",
+    });
+    setProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+    setNodes([]);
+    setActiveNodeId(null);
+
+    // Generate assistants in background (fire-and-forget)
+    generateAndCreateAssistants(project.id, { type, extension: "", description: "", structureSummary: "" });
+  };
+
+  const handleDeleteProject = async (projectId) => {
+    await api.deleteProject(projectId);
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    if (projectId === activeProjectId) {
+      const remaining = projects.filter((p) => p.id !== projectId);
+      if (remaining.length > 0) {
+        setActiveProjectId(remaining[0].id);
+      } else {
+        setActiveProjectId(null);
+        setNodes([]);
+        setActiveNodeId(null);
+      }
+    }
+  };
+
+  const handleRenameProject = async (projectId, newName) => {
+    const updated = await api.updateProject(projectId, { name: newName });
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const generateAndCreateAssistants = async (projectId, { type, extension, description, structureSummary }) => {
+    const createFallbacks = async () => {
+      const fallbacks = FALLBACK_ASSISTANTS[type] || FALLBACK_ASSISTANTS.freeform;
+      for (const { name, config } of fallbacks) {
+        try {
+          const agent = await api.createAgent({ project: projectId, name, config });
+          setAgents((prev) => [...prev, agent]);
+        } catch (_) {}
+      }
+    };
+
+    try {
+      const typeLabel = TYPE_LABELS[type] || type;
+      const userMessage = [
+        `Project type: ${typeLabel}`,
+        extension ? `Scope: ${extension}` : null,
+        description ? `Description: ${description}` : null,
+        structureSummary ? `Structure: ${structureSummary}` : null,
+      ].filter(Boolean).join("\n");
+
+      const response = await fetch(`${API_BASE}/api/ai/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          provider: "deepseek",
+          model: "deepseek-chat",
+          temperature: 0.5,
+          messages: [
+            { role: "system", content: ASSISTANTS_PROMPT },
+            { role: "user", content: userMessage },
+          ],
+        }),
+      });
+
+      if (!response.ok || !response.body) throw new Error("Generation failed");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullOutput = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const event of events) {
+          const dataLines = event.split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim());
+          if (!dataLines.length) continue;
+          const data = dataLines.join("\n");
+          if (data === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.delta) fullOutput += parsed.delta;
+          } catch (_) {}
+        }
+      }
+
+      const cleaned = fullOutput.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const assistants = JSON.parse(cleaned);
+
+      if (!Array.isArray(assistants) || assistants.length === 0) throw new Error("Invalid response");
+
+      for (const a of assistants) {
+        try {
+          const agent = await api.createAgent({
+            project: projectId,
+            name: a.name || "Assistant",
+            config: {
+              provider: a.provider || "deepseek",
+              model: a.model || "deepseek-chat",
+              temperature: a.temperature ?? 0.7,
+              system_prompt: a.system_prompt || "",
+            },
+          });
+          setAgents((prev) => [...prev, agent]);
+        } catch (_) {}
+      }
+    } catch (_) {
+      await createFallbacks();
+    }
+  };
+
+  const handleWizardComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
     setIsWizardOpen(false);
-    const project = await api.createProject({ name });
+    const project = await api.createProject({
+      name,
+      project_type: type || "",
+      project_extension: extension || "",
+    });
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
 
@@ -570,7 +878,7 @@ export default function App() {
           type: item.type,
           title: item.title,
           order: order++,
-          content_md: "",
+          content_md: item.content_md || "",
         });
         if (item.children?.length) {
           await createNodesRecursive(item.children, node.id);
@@ -589,6 +897,66 @@ export default function App() {
     setExpandedFolders(folderIds);
     const firstFile = allNodes.find((n) => n.type === "file");
     if (firstFile) setActiveNodeId(String(firstFile.id));
+
+    // Generate assistants in background (fire-and-forget)
+    generateAndCreateAssistants(project.id, { type, extension, description, structureSummary });
+  };
+
+  // --- Walkthrough handlers ---
+  const showWalkthrough = !walkthroughDismissed && projects.length === 0 && !isWizardOpen;
+
+  const handleWalkthroughComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
+    localStorage.setItem("marvin:walkthrough-seen", "true");
+    setWalkthroughDismissed(true);
+
+    const project = await api.createProject({
+      name,
+      project_type: type || "",
+      project_extension: extension || "",
+    });
+    setProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+
+    let order = 0;
+    let firstFileSeeded = false;
+    const createNodesRecursive = async (items, parentId) => {
+      for (const item of items) {
+        const isFirstFile = item.type === "file" && !firstFileSeeded;
+        if (isFirstFile) firstFileSeeded = true;
+        const node = await api.createNode({
+          project: project.id,
+          parent: parentId,
+          type: item.type,
+          title: item.title,
+          order: order++,
+          content_md: isFirstFile ? SAMPLE_DRAFT : (item.content_md || ""),
+        });
+        if (item.children?.length) {
+          await createNodesRecursive(item.children, node.id);
+        }
+      }
+    };
+
+    if (structure?.length) {
+      await createNodesRecursive(structure, null);
+    }
+
+    const allNodes = await api.listNodes(project.id);
+    setNodes(allNodes);
+    const folderIds = new Set(allNodes.filter((n) => n.type === "folder").map((n) => String(n.id)));
+    setExpandedFolders(folderIds);
+    const firstFile = allNodes.find((n) => n.type === "file");
+    if (firstFile) setActiveNodeId(String(firstFile.id));
+
+    generateAndCreateAssistants(project.id, { type, extension, description, structureSummary });
+
+    // Trigger the spotlight app tour after the UI settles
+    setShowAppTour(true);
+  };
+
+  const handleWalkthroughSkip = () => {
+    localStorage.setItem("marvin:walkthrough-seen", "true");
+    setWalkthroughDismissed(true);
   };
 
   const handleCreateNode = async (type) => {
@@ -651,29 +1019,340 @@ export default function App() {
     setCommentInputState(null);
   };
 
-  const handleAssignAgent = async (agentId) => {
-    if (!activeNode) return;
-    if (agentId) {
-      if (nodeDirectConfig) {
-        await api.updateAgentConfig(nodeDirectConfig.id, { agent: agentId, config: {} });
+  // --- Review mode handlers ---
+
+  const handleRequestReview = async (focus = "all") => {
+    if (!activeNode || isReviewing) return;
+    setIsReviewing(true);
+    setReviewFocusOpen(false);
+    try {
+      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const provider = providerSettings.provider || "deepseek";
+      const model = providerSettings.model || "deepseek-chat";
+      const newComments = await api.requestReview({
+        node_id: activeNode.id,
+        provider,
+        model,
+        focus,
+      });
+      if (newComments.length === 0) {
+        setReviewEmptyMsg(true);
+        setTimeout(() => setReviewEmptyMsg(false), 3000);
       } else {
-        await api.createAgentConfig({
-          scope_type: activeNode.type,
-          node: activeNode.id,
-          project: null,
-          agent: agentId,
-          config: {},
-        });
+        setComments((prev) => [...prev, ...newComments]);
       }
-    } else {
-      if (nodeDirectConfig) {
-        await api.deleteAgentConfig(nodeDirectConfig.id);
+    } catch (err) {
+      console.error("Review failed:", err);
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
+  const handleApproveComment = async (commentId) => {
+    const comment = comments.find((c) => c.id === commentId);
+    if (!comment || !comment.suggested_text) return;
+
+    // Apply suggestion to ProseMirror document
+    if (editorRef.current) {
+      editorRef.current.applySuggestion(
+        comment.quoted_text,
+        comment.suggested_text,
+        comment.position_from
+      );
+    }
+
+    try {
+      const updated = await api.approveComment(commentId);
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c))
+      );
+      // After 1.5s, mark as resolved to remove the highlight
+      setTimeout(() => {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId ? { ...c, status: "resolved" } : c
+          )
+        );
+      }, 1500);
+    } catch (err) {
+      console.error("Approve failed:", err);
+    }
+    setActiveThreadComment(null);
+    setFocusedCommentId(null);
+  };
+
+  const handleRejectComment = async (commentId) => {
+    try {
+      const updated = await api.rejectComment(commentId);
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c))
+      );
+    } catch (err) {
+      console.error("Reject failed:", err);
+    }
+    setActiveThreadComment(null);
+    setFocusedCommentId(null);
+  };
+
+  const handleResolveComment = async (commentId) => {
+    try {
+      const updated = await api.resolveComment(commentId);
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c))
+      );
+    } catch (err) {
+      console.error("Resolve failed:", err);
+    }
+    setActiveThreadComment(null);
+    setFocusedCommentId(null);
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await api.deleteComment(commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+    setActiveThreadComment(null);
+    setFocusedCommentId(null);
+  };
+
+  const handleReplyToComment = async (parentId, body) => {
+    if (!activeNode) return;
+    const reply = await api.createComment({
+      node: activeNode.id,
+      parent: parentId,
+      body,
+      author_type: "user",
+    });
+    // Add reply to the parent comment's replies array
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === parentId
+          ? { ...c, replies: [...(c.replies || []), reply] }
+          : c
+      )
+    );
+    // Also update activeThreadComment if it's open
+    setActiveThreadComment((prev) => {
+      if (!prev || prev.comment.id !== parentId) return prev;
+      return {
+        ...prev,
+        comment: {
+          ...prev.comment,
+          replies: [...(prev.comment.replies || []), reply],
+        },
+      };
+    });
+  };
+
+  const handleAskAIInThread = async (commentId) => {
+    if (!activeNode) return;
+    setAiThinkingCommentId(commentId);
+    try {
+      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const provider = providerSettings.provider || "deepseek";
+      const model = providerSettings.model || "deepseek-chat";
+      const rootComment = comments.find((c) => c.id === commentId);
+      const lastUserReply = (rootComment?.replies || [])
+        .filter((r) => r.author_type === "user")
+        .pop();
+      if (!lastUserReply) return;
+
+      const result = await api.requestCommentReply({
+        comment_id: commentId,
+        user_message: lastUserReply.body,
+        provider,
+        model,
+      });
+      // Update root comment and add the AI reply
+      setComments((prev) =>
+        prev.map((c) => {
+          if (c.id === commentId) {
+            return {
+              ...c,
+              ...result.root_comment,
+              replies: [...(c.replies || []), result.reply],
+            };
+          }
+          return c;
+        })
+      );
+      setActiveThreadComment((prev) => {
+        if (!prev || prev.comment.id !== commentId) return prev;
+        return {
+          ...prev,
+          comment: {
+            ...prev.comment,
+            ...result.root_comment,
+            replies: [...(prev.comment.replies || []), result.reply],
+          },
+        };
+      });
+    } catch (err) {
+      console.error("AI reply failed:", err);
+    } finally {
+      setAiThinkingCommentId(null);
+    }
+  };
+
+  // Review progress
+  const reviewComments = comments.filter(
+    (c) => c.author_type === "assistant" && !c.parent
+  );
+  const reviewResolved = reviewComments.filter(
+    (c) => c.status === "approved" || c.status === "rejected" || c.status === "resolved"
+  ).length;
+  const hasReviewProgress = reviewComments.length > 0 && reviewResolved < reviewComments.length;
+
+  // --- Unresolved comments for navigation (sorted by document position) ---
+  // Unresolved comments — used for review bar visibility + counter display
+  const unresolvedComments = useMemo(() => {
+    const open = comments.filter(
+      (c) => !c.parent && c.status !== "resolved" && c.status !== "approved" && c.status !== "rejected" && c.quoted_text
+    );
+    return open.sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity));
+  }, [comments]);
+
+  const focusedNavIndex = useMemo(() => {
+    if (!focusedCommentId) return -1;
+    return unresolvedComments.findIndex((c) => c.id === focusedCommentId);
+  }, [focusedCommentId, unresolvedComments]);
+
+  // DOM-based navigation: reads actual decoration positions so we skip
+  // orphaned comments and follow real document order (not stale DB positions)
+  const getNavigableCommentIds = useCallback(() => {
+    const wrapper = editorWrapperRef.current;
+    if (!wrapper) return [];
+    const elements = wrapper.querySelectorAll("[data-comment-id]");
+    const seen = new Set();
+    const ordered = [];
+    elements.forEach((el) => {
+      const id = el.getAttribute("data-comment-id");
+      if (seen.has(id)) return;
+      seen.add(id);
+      const c = comments.find((c) => String(c.id) === id);
+      if (c && c.status !== "resolved" && c.status !== "approved" && c.status !== "rejected") {
+        ordered.push(Number(id));
+      }
+    });
+    return ordered;
+  }, [comments]);
+
+  // Navigate to a comment: scroll highlight into view + open thread
+  const navigateToComment = useCallback((commentId) => {
+    setFocusedCommentId(commentId);
+    const el = editorWrapperRef.current?.querySelector(
+      `[data-comment-id="${commentId}"]`
+    );
+    if (el) {
+      el.scrollIntoView({ behavior: "instant", block: "center" });
+      const rect = el.getBoundingClientRect();
+      const comment = comments.find((c) => c.id === commentId);
+      if (comment) {
+        setActiveThreadComment({ comment, rect });
       }
     }
-    const configs = await api.listAgentConfigs({ node: activeNode.id });
-    setNodeDirectConfig(configs.length ? configs[0] : null);
-    const resolved = await api.resolveAgentConfig({ node: activeNode.id });
-    setResolvedAgent(resolved);
+  }, [comments]);
+
+  const handleNavPrev = useCallback(() => {
+    const ids = getNavigableCommentIds();
+    if (ids.length === 0) return;
+    const currentIdx = focusedCommentId != null ? ids.indexOf(focusedCommentId) : -1;
+    const prevIdx = currentIdx <= 0 ? ids.length - 1 : currentIdx - 1;
+    navigateToComment(ids[prevIdx]);
+  }, [getNavigableCommentIds, focusedCommentId, navigateToComment]);
+
+  const handleNavNext = useCallback(() => {
+    const ids = getNavigableCommentIds();
+    if (ids.length === 0) return;
+    const currentIdx = focusedCommentId != null ? ids.indexOf(focusedCommentId) : -1;
+    const nextIdx = currentIdx >= ids.length - 1 ? 0 : currentIdx + 1;
+    navigateToComment(ids[nextIdx]);
+  }, [getNavigableCommentIds, focusedCommentId, navigateToComment]);
+
+  // Sync active highlight class on DOM
+  useEffect(() => {
+    const wrapper = editorWrapperRef.current;
+    if (!wrapper) return;
+    // Remove previous active
+    wrapper.querySelectorAll(".comment-highlight--active").forEach((el) => {
+      el.classList.remove("comment-highlight--active");
+    });
+    // Add to current
+    if (focusedCommentId) {
+      wrapper.querySelectorAll(`[data-comment-id="${focusedCommentId}"]`).forEach((el) => {
+        el.classList.add("comment-highlight--active");
+      });
+    }
+  }, [focusedCommentId]);
+
+  // Sync focusedCommentId when thread opens via click
+  useEffect(() => {
+    if (activeThreadComment) {
+      setFocusedCommentId(activeThreadComment.comment.id);
+    }
+  }, [activeThreadComment]);
+
+  // Clear focused when thread closes
+  const handleCloseThread = useCallback(() => {
+    setActiveThreadComment(null);
+    setFocusedCommentId(null);
+  }, []);
+
+  // Keyboard: Cmd+Shift+Arrow to navigate comments
+  useEffect(() => {
+    const handler = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNavNext();
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleNavPrev();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [handleNavNext, handleNavPrev]);
+
+  const handleAssignAgent = async (agentId) => {
+    if (!activeNode) return;
+    try {
+      if (agentId) {
+        if (nodeDirectConfig) {
+          await api.updateAgentConfig(nodeDirectConfig.id, { agent: agentId, config: {} });
+        } else {
+          await api.createAgentConfig({
+            scope_type: activeNode.type,
+            node: activeNode.id,
+            project: null,
+            agent: agentId,
+            config: {},
+          });
+        }
+      } else {
+        if (nodeDirectConfig) {
+          await api.deleteAgentConfig(nodeDirectConfig.id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to assign agent:", err);
+    }
+    // Always refresh state so the UI stays in sync
+    try {
+      const configs = await api.listAgentConfigs({ node: activeNode.id });
+      setNodeDirectConfig(configs.length ? configs[0] : null);
+    } catch (_) {
+      setNodeDirectConfig(null);
+    }
+    try {
+      const resolved = await api.resolveAgentConfig({ node: activeNode.id });
+      setResolvedAgent(resolved);
+    } catch (_) {
+      setResolvedAgent(null);
+    }
     api.listAgentConfigs({}).then((all) => {
       const projectNodeIds = new Set(nodes.map((n) => String(n.id)));
       setNodeAgentConfigs(all.filter((c) => c.node && projectNodeIds.has(String(c.node))));
@@ -688,6 +1367,26 @@ export default function App() {
       config,
     });
     setAgents((prev) => [...prev, agent]);
+  };
+
+  const handleUpdateAgent = async (agentId, { name, config }) => {
+    const updated = await api.updateAgent(agentId, { name, config });
+    setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  };
+
+  const handleDeleteAgent = async (agentId) => {
+    await api.deleteAgent(agentId);
+    setAgents((prev) => prev.filter((a) => a.id !== agentId));
+  };
+
+  const openAgentEditor = (agent) => {
+    setEditingAgent(agent);
+    setIsAgentCreatorOpen(true);
+  };
+
+  const openAgentCreator = () => {
+    setEditingAgent(null);
+    setIsAgentCreatorOpen(true);
   };
 
   const handleSelectConversation = async (convId) => {
@@ -725,20 +1424,63 @@ export default function App() {
     );
   };
 
+  const refreshMemories = useCallback(() => {
+    if (!activeProjectId) return;
+    api.listMemories({ project: activeProjectId }).then(setMemories).catch(() => {});
+    api.resolveMemories({ project: activeProjectId }).then(setResolvedMemories).catch(() => {});
+  }, [activeProjectId]);
+
+  const handleCreateMemory = useCallback(async (content, scope, source = "manual") => {
+    const payload = { content: content.slice(0, 200), scope, source };
+    if (scope === "project" && activeProjectId) payload.project = activeProjectId;
+    try {
+      await api.createMemory(payload);
+      refreshMemories();
+      return true;
+    } catch { return false; }
+  }, [activeProjectId, refreshMemories]);
+
+  const handleDeleteMemory = useCallback(async (id) => {
+    try {
+      await api.deleteMemory(id);
+      refreshMemories();
+    } catch {}
+  }, [refreshMemories]);
+
   const handleSendMessageDirect = async (overrideMsg) => {
     const rawMsg = overrideMsg || chatInput;
     if (!rawMsg.trim() || isStreaming || !activeProjectId) return;
+
+    // Detect "remember:" prefix — save as memory, don't send to AI
+    const rememberMatch = rawMsg.trim().match(/^(?:remember(?:\s+that)?|recordá|acordate(?:\s+que)?)\s*[:]\s*(.+)/i);
+    if (rememberMatch) {
+      const memContent = rememberMatch[1].trim();
+      const ok = await handleCreateMemory(memContent, "project", "manual");
+      setChatInput("");
+      if (ok) {
+        setMemoryToast(memContent);
+        setTimeout(() => setMemoryToast(null), 4000);
+      }
+      return;
+    }
 
     abortRef.current = new AbortController();
     const userMsg = rawMsg.trim();
     // Build the API message with optional context
     const context = pendingContext;
+    const capturedMentionedIds = [...mentionedFileIds];
     const apiUserMsg = context
       ? `[Re: "${context.text}"]\n\n${userMsg}`
       : userMsg;
-    setChatMessages((prev) => [...prev, { role: "user", content: userMsg, context: context || undefined }]);
+    setChatMessages((prev) => [...prev, {
+      role: "user",
+      content: userMsg,
+      context: context || undefined,
+      mentionedFiles: capturedMentionedIds.length > 0 ? capturedMentionedIds : undefined,
+    }]);
     setChatInput("");
     setPendingContext(null);
+    setMentionedFileIds([]);
     setIsStreaming(true);
     setStreamingContent("");
     setIsEditingDocument(false);
@@ -776,15 +1518,70 @@ export default function App() {
     }
 
     try {
-      const resolved = await api.resolveAgentConfig(
-        activeNode ? { node: activeNode.id } : { project: activeProjectId }
-      );
+      let resolved;
+      try {
+        resolved = await api.resolveAgentConfig(
+          activeNode ? { node: activeNode.id } : { project: activeProjectId }
+        );
+      } catch (_) {
+        // Fall back to project-level resolution if node-level fails
+        if (activeNode && activeProjectId) {
+          try {
+            resolved = await api.resolveAgentConfig({ project: activeProjectId });
+          } catch (_) {}
+        }
+      }
       const config = { ...defaultAgent, ...(resolved?.config || {}) };
 
       const apiMessages = [];
       let systemContent = config.system_prompt || "";
+
+      // Project context — name, type, brief
+      const activeProject = projects.find((p) => p.id === activeProjectId);
+      if (activeProject) {
+        let projectSection = `\n\n## Project\n- Name: ${activeProject.name}`;
+        if (activeProject.project_type) {
+          const typeLabel = activeProject.project_extension
+            ? `${activeProject.project_type} (${activeProject.project_extension})`
+            : activeProject.project_type;
+          projectSection += `\n- Type: ${typeLabel}`;
+        }
+        systemContent += projectSection;
+        if (activeProject.brief) {
+          systemContent += `\n\n## Project Brief\n${activeProject.brief}`;
+        }
+      }
+
+      // Memory injection — user + project preferences
+      if (resolvedMemories) {
+        const budget = 1500;
+        let remaining = budget;
+        const addSection = (label, items) => {
+          if (!items || items.length === 0) return "";
+          const header = `\n\n## ${label}\nThese are standing instructions from the user. Always follow these:\n`;
+          if (remaining - header.length <= 0) return "";
+          remaining -= header.length;
+          let section = header;
+          for (const item of items) {
+            const line = `- ${item.content}\n`;
+            if (remaining - line.length < 0) break;
+            section += line;
+            remaining -= line.length;
+          }
+          return section;
+        };
+        systemContent += addSection("User Preferences", resolvedMemories.user_memories);
+        systemContent += addSection("Project Preferences", resolvedMemories.project_memories);
+      }
+
       if (activeNode?.type === "file") {
-        systemContent += `\n\nThe user is working on a document titled "${activeNode.title}". Current content:\n\n${draft}`;
+        const parentFolderForLabel = activeNode.parent
+          ? nodesById.get(String(activeNode.parent))
+          : null;
+        const locationLabel = parentFolderForLabel
+          ? `a document titled "${activeNode.title}" inside the folder "${parentFolderForLabel.title}"`
+          : `a document titled "${activeNode.title}"`;
+        systemContent += `\n\nThe user is working on ${locationLabel}. Current content:\n\n${draft}`;
         systemContent += `\n\nWhen the user asks you to write, edit, rewrite, expand, or modify the document content, you MUST respond using this exact format:
 
 <document>
@@ -800,7 +1597,70 @@ IMPORTANT RULES:
 - The <message> block should be a short, conversational follow-up (1-2 sentences)
 - If the user is NOT asking you to edit the document (e.g., they ask a question, want feedback, or want a summary), respond normally WITHOUT any <document> or <message> tags
 - Never put document content outside of <document> tags when editing
-- Never omit the <message> tag when you include a <document> tag`;
+- Never omit the <message> tag when you include a <document> tag
+- Do NOT repeat the document or file title in your response text — the user already sees it in the UI
+
+## Available Markdown Formats
+The editor supports these advanced formats. Use them when they improve readability:
+- **Tables**: standard GFM tables for structured data, comparisons, specs
+- **Callout blocks**: \`> [!NOTE]\`, \`> [!TIP]\`, \`> [!WARNING]\`, \`> [!CAUTION]\`, \`> [!IMPORTANT]\` — for highlighting key info
+- **Mermaid diagrams**: \\\`\\\`\\\`mermaid code blocks for flowcharts, sequence diagrams, gantt charts
+- **Toggle sections**: \`> [!TOGGLE] Summary text\` for collapsible content
+- **Highlight**: \`<mark>text</mark>\` for emphasizing key terms
+- **Task lists**: \`- [ ]\` / \`- [x]\` for checklists
+- Standard: bold, italic, strikethrough, code, blockquotes, lists, headings, HR
+
+Use tables for any structured data. Use callouts for warnings, tips, and important notes.
+Use mermaid when the user discusses processes, flows, or architectures.`;
+
+        // Context file resolution: project pins + folder pins (or auto-sibling fallback)
+        const projectPins = (activeProject?.context_nodes || [])
+          .map((id) => nodesById.get(String(id)))
+          .filter((n) => n && n.type === "file" && String(n.id) !== String(activeNode.id));
+
+        const parentFolder = activeNode.parent
+          ? nodesById.get(String(activeNode.parent))
+          : null;
+        const folderPinIds = parentFolder?.context_nodes;
+        let folderContextFiles;
+        if (folderPinIds && folderPinIds.length > 0) {
+          folderContextFiles = folderPinIds
+            .map((id) => nodesById.get(String(id)))
+            .filter((n) => n && n.type === "file" && String(n.id) !== String(activeNode.id));
+        } else if (activeProject?.auto_context !== false) {
+          folderContextFiles = nodes.filter(
+            (n) =>
+              n.type === "file" &&
+              n.parent === activeNode.parent &&
+              String(n.id) !== String(activeNode.id)
+          );
+        } else {
+          folderContextFiles = [];
+        }
+
+        // Combine + deduplicate
+        const seenIds = new Set();
+        const allContextFiles = [];
+        for (const file of [...projectPins, ...folderContextFiles]) {
+          if (!seenIds.has(String(file.id))) {
+            seenIds.add(String(file.id));
+            allContextFiles.push(file);
+          }
+        }
+
+        if (allContextFiles.length > 0) {
+          const useFullContent = allContextFiles.length <= 5;
+          const contextSection = allContextFiles
+            .slice(0, 30)
+            .map((file) => {
+              if (useFullContent) {
+                return `### ${file.title}\n${file.content_md || "(empty)"}`;
+              }
+              return `- **${file.title}**: ${file.summary || "(no summary yet)"}`;
+            })
+            .join("\n\n");
+          systemContent += `\n\n## Context documents\n${contextSection}`;
+        }
       } else if (activeNode?.type === "folder" && folderSummary) {
         const summaryLines = [
           `The user is viewing a folder titled "${activeNode.title}".`,
@@ -813,8 +1673,36 @@ IMPORTANT RULES:
             summaryLines.push(`- ${file.title}: ${file.snippet || "Empty"}`);
           });
         }
+        summaryLines.push("Do NOT repeat the folder or file title in your response — the user already sees it in the UI.");
         systemContent += "\n\n" + summaryLines.join("\n");
       }
+      // @ mentioned files — inject their full content
+      if (capturedMentionedIds.length > 0) {
+        const mentionedSection = capturedMentionedIds
+          .map((id) => nodesById.get(String(id)))
+          .filter((n) => n && n.type === "file")
+          .map((file) => `### ${file.title}\n${file.content_md || "(empty)"}`)
+          .join("\n\n");
+        if (mentionedSection) {
+          systemContent += `\n\n## Referenced files\n${mentionedSection}`;
+        }
+      }
+
+      // Memory suggestion instruction
+      systemContent += `\n\nIf the user expresses a persistent writing preference (signaled by words like "always", "never", "from now on", "I prefer", "remember that"), naturally acknowledge it in your response and suggest saving it. Use this format at the END of your response:
+
+<memory_suggestion>
+content: [Concise imperative rule, under 200 chars]
+scope: [user or project]
+</memory_suggestion>
+
+Rules for memory suggestions:
+- Only suggest for clearly persistent preferences, not one-time instructions
+- "user" scope for universal style preferences; "project" scope for project-specific rules
+- Maximum one suggestion per response
+- Never duplicate existing preferences listed above
+- Always include your regular response before the memory suggestion tag`;
+
       if (systemContent.trim()) {
         apiMessages.push({ role: "system", content: systemContent.trim() });
       }
@@ -829,7 +1717,7 @@ IMPORTANT RULES:
 
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         signal: abortRef.current?.signal,
         body: JSON.stringify({
           provider: config.provider,
@@ -863,8 +1751,11 @@ IMPORTANT RULES:
               setTimeout(() => {
                 try {
                   targetEditor.showDiffHighlights();
+                  const stats = targetEditor.getDiffStats();
+                  setDiffStats(stats);
                   setDiffVisible(true);
                   setDiffAvailable(true);
+                  setCompareVersionId(null);
                 } catch (_) {}
               }, 400);
             }
@@ -888,6 +1779,11 @@ IMPORTANT RULES:
         // Persist assistant message
         if (convId && assistantContent) {
           api.createMessage({ conversation: convId, role: "assistant", content: assistantContent }).catch(() => {});
+        }
+        // Check for memory suggestion in AI response
+        const finalParserState = parser.getState();
+        if (finalParserState.memorySuggestion) {
+          setPendingMemorySuggestion(finalParserState.memorySuggestion);
         }
         setStreamingContent("");
         setIsStreaming(false);
@@ -958,9 +1854,14 @@ IMPORTANT RULES:
         setStreamingContent("");
         setIsEditingDocument(false);
       } else {
+        let errorText = error.message;
+        try {
+          const parsed = JSON.parse(errorText);
+          errorText = parsed.detail || parsed.error || errorText;
+        } catch (_) {}
         setChatMessages((prev) => [
           ...prev,
-          { role: "assistant", content: "Error: " + error.message },
+          { role: "assistant", content: "Error: " + errorText },
         ]);
         setStreamingContent("");
         setIsEditingDocument(false);
@@ -983,6 +1884,8 @@ IMPORTANT RULES:
       editorRef.current.clearAiHighlights();
       setDiffVisible(false);
       setDiffAvailable(false);
+      setDiffStats(null);
+      setCompareVersionId(null);
       // Persist undo
       if (activeNodeId) {
         api.updateNode(activeNodeId, { content_md: preEditDraftRef.current }).catch(() => {});
@@ -991,8 +1894,24 @@ IMPORTANT RULES:
     }
   };
 
+  const handleAcceptEdit = () => {
+    if (editorRef.current) {
+      editorRef.current.clearAiHighlights();
+    }
+    setDiffVisible(false);
+    setDiffAvailable(false);
+    setDiffStats(null);
+    setCompareVersionId(null);
+    preEditDraftRef.current = null;
+  };
+
 
   const handleSuggestionAction = (prompt) => {
+    if (prompt === "Review selection" && pendingContext) {
+      // Route to review endpoint scoped to selection
+      handleRequestReview("all");
+      return;
+    }
     handleSendMessageDirect(prompt);
   };
 
@@ -1021,7 +1940,7 @@ IMPORTANT RULES:
     try {
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           provider: defaultAgent.provider,
           model: defaultAgent.model,
@@ -1101,7 +2020,29 @@ IMPORTANT RULES:
     }
   };
 
-  const handleRestoreVersion = (version) => setDraft(version.content_md || "");
+  const handleRestoreVersion = (version) => {
+    setDraft(version.content_md || "");
+    setCompareVersionId(null);
+  };
+
+  const handleCompareVersion = useCallback((version) => {
+    if (!editorRef.current) return;
+    if (compareVersionId === version.id) {
+      // Toggle off
+      editorRef.current.clearAiHighlights();
+      setDiffVisible(false);
+      setDiffAvailable(false);
+      setDiffStats(null);
+      setCompareVersionId(null);
+      return;
+    }
+    editorRef.current.compareWithVersion(version.content_md || "");
+    const stats = editorRef.current.getDiffStats();
+    setDiffStats(stats);
+    setDiffVisible(true);
+    setDiffAvailable(true);
+    setCompareVersionId(version.id);
+  }, [compareVersionId]);
 
   const handleToggleDiff = useCallback(() => {
     if (!editorRef.current) return;
@@ -1110,6 +2051,8 @@ IMPORTANT RULES:
       setDiffVisible(false);
     } else {
       editorRef.current.showDiffHighlights();
+      const stats = editorRef.current.getDiffStats();
+      setDiffStats(stats);
       setDiffVisible(true);
     }
   }, [diffVisible]);
@@ -1235,6 +2178,16 @@ IMPORTANT RULES:
     return () => document.removeEventListener("mousedown", handler);
   }, [createMenuOpen]);
 
+  // Click-outside for doc overflow menu
+  useEffect(() => {
+    if (!docMenuOpen) return;
+    const handler = (e) => {
+      if (docMenuRef.current && !docMenuRef.current.contains(e.target)) setDocMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [docMenuOpen]);
+
   // --- Sidebar resize ---
   const handleOutlineDividerMouseDown = (e) => {
     e.preventDefault();
@@ -1344,18 +2297,43 @@ IMPORTANT RULES:
   };
   const handleDragEnd = () => { setDraggingId(null); setDropTargetId(null); setDropPosition(null); };
 
+  // --- User menu click-outside ---
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isUserMenuOpen]);
+
+  const userInitials = useMemo(() => {
+    if (!user?.name) return "?";
+    return user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  }, [user?.name]);
+
   // --- Render ---
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-left">
-          <span className="brand-name">Marvin</span>
+          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Marvin</button>
           <span className="topbar-divider" />
           <ProjectSwitcher
             projects={projects}
             activeProjectId={activeProjectId}
+            nodes={nodes}
             onSelect={setActiveProjectId}
             onCreate={handleCreateProject}
+            onQuickCreate={handleQuickCreate}
+            onDelete={handleDeleteProject}
+            onRename={handleRenameProject}
+            onOpenSettings={(projectId) => {
+              setActiveProjectId(projectId);
+              setActiveNodeId(null);
+            }}
           />
         </div>
         <div className="topbar-actions">
@@ -1365,43 +2343,92 @@ IMPORTANT RULES:
             aria-label="Toggle outline"
             title="Outline"
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path
-                d="M4 6h16M4 12h10M4 18h14"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18" />
             </svg>
           </button>
-          <button
-            className={`topbar-icon-btn ${isAssistantOpen ? "active" : ""}`}
-            onClick={() => setIsAssistantOpen((prev) => !prev)}
-            aria-label="Toggle assistant"
-            title="Assistant"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path
-                d="M9.937 4.562 11.5 1l1.563 3.562L16.625 6.5l-3.562 1.063L11.5 11.125 9.937 7.563 6.375 6.5Zm7.063 5.938L18.25 8l1.25 2.5L22 11.75l-2.5 1.25L18.25 15.5 17 13l-2.5-1.25ZM9.937 14.438 11.5 11l1.563 3.438L16.625 16l-3.562 1.563L11.5 21l-1.563-3.437L6.375 16Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-          <button
-            className={`topbar-icon-btn ${isSettingsOpen ? "active" : ""}`}
-            onClick={() => setIsSettingsOpen((prev) => !prev)}
-            aria-label="Settings"
-            title="Settings"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path
-                d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53a7.76 7.76 0 0 0 .07-1 7.76 7.76 0 0 0-.07-.97l2.11-1.63a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.15 7.15 0 0 0-1.65-.96l-.37-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65a7.68 7.68 0 0 0-1.65.96l-2.49-1a.49.49 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64L4.57 11a8.3 8.3 0 0 0-.07.97 8.3 8.3 0 0 0 .07 1l-2.11 1.63a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1a7.15 7.15 0 0 0 1.65.96l.37 2.65a.5.5 0 0 0 .5.47h4a.5.5 0 0 0 .49-.42l.38-2.65a7.68 7.68 0 0 0 1.65-.96l2.49 1a.49.49 0 0 0 .61-.22l2-3.46a.49.49 0 0 0-.12-.64Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
+          {currentRole !== "viewer" && (
+            <button
+              className={`topbar-icon-btn ${isAssistantOpen ? "active" : ""}`}
+              onClick={() => setIsAssistantOpen((prev) => !prev)}
+              aria-label="Toggle assistant"
+              title="Assistant"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 3l1.5 3.4L17 8l-3.5 1.6L12 13l-1.5-3.4L7 8l3.5-1.6Z" />
+                <path d="M19 10l.75 1.7 1.75.8-1.75.8L19 15l-.75-1.7-1.75-.8 1.75-.8Z" />
+                <path d="M9 17l.6 1.3 1.4.7-1.4.6L9 21l-.6-1.4-1.4-.6 1.4-.7Z" />
+              </svg>
+            </button>
+          )}
+          {activeProjectId && (() => {
+            const p = projects.find((pr) => pr.id === activeProjectId);
+            return (p?.current_user_role === "owner" || p?.current_user_role === "admin") ? (
+              <button
+                className="topbar-icon-btn"
+                onClick={() => setIsShareOpen(true)}
+                title="Share"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              </button>
+            ) : null;
+          })()}
+          <span className="topbar-divider" />
+          <div className="user-menu-wrapper" ref={userMenuRef}>
+            <button
+              className={`topbar-avatar${isUserMenuOpen ? " active" : ""}`}
+              onClick={() => setIsUserMenuOpen((prev) => !prev)}
+              aria-label="User menu"
+              title={user?.name || "Account"}
+            >
+              {userInitials}
+            </button>
+            {isUserMenuOpen && (
+              <div className="user-menu">
+                <div className="user-menu-header">
+                  <span className="user-menu-name">{user?.name}</span>
+                  <span className="user-menu-email">{user?.email}</span>
+                </div>
+                <div className="user-menu-divider" />
+                <button
+                  className="user-menu-item"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsSettingsOpen(true);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  Settings
+                </button>
+                <button
+                  className="user-menu-item user-menu-item--danger"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    logout();
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
+
+      <InvitationBanner onAccepted={() => api.listProjects().then(setProjects)} />
 
       {isWizardOpen ? (
         <ProjectWizard
@@ -1410,12 +2437,27 @@ IMPORTANT RULES:
           defaultAgent={defaultAgent}
           apiBase={API_BASE}
         />
+      ) : showWalkthrough ? (
+        <WelcomeWalkthrough
+          onComplete={handleWalkthroughComplete}
+          onSkip={handleWalkthroughSkip}
+          defaultAgent={defaultAgent}
+          apiBase={API_BASE}
+        />
       ) : (
       <div className="app">
         <aside
-          className={`outline-rail ${isOutlineOpen ? "" : "collapsed"}`}
-          style={isOutlineOpen ? { width: `${outlineWidth}px` } : undefined}
+          className={`outline-rail ${isOutlineOpen && activeProjectId ? "" : "collapsed"}`}
+          style={isOutlineOpen && activeProjectId ? { width: `${outlineWidth}px` } : undefined}
         >
+          {activeProjectId && (
+            <button className="rail-project-header" onClick={() => setActiveNodeId(null)} title="Go to project overview">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path d="M2.5 6.5L8 2l5.5 4.5V13a1 1 0 0 1-1 1h-3V10H6.5v4h-3a1 1 0 0 1-1-1V6.5Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
+              </svg>
+              <span className="rail-project-name">Overview</span>
+            </button>
+          )}
           <div className="rail-header">
             <div className="rail-search-wrapper">
               <svg className="rail-search-icon" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
@@ -1627,25 +2669,102 @@ IMPORTANT RULES:
                 </h1>
                 <div className="document-meta">
                   <span className="word-count">{wordCount} words</span>
-                  <VersionsMenu versions={versions} onRestore={handleRestoreVersion} />
+                  <span className="save-status">
+                    {saveStatus === "saving" && "Saving…"}
+                    {saveStatus === "saved" && "Saved"}
+                  </span>
+                  <div className="doc-actions">
+                    <VersionsMenu versions={versions} onRestore={handleRestoreVersion} onCompare={handleCompareVersion} activeCompareId={compareVersionId} />
+                    <ExportMenu
+                      node={activeNode}
+                      project={projects.find(p => p.id === activeProjectId)}
+                      nodes={nodes}
+                      onPublish={(platform, connection) => setPublishState({ platform, connection })}
+                    />
+                    <div className="doc-more" ref={docMenuRef}>
+                      <button
+                        className="doc-more-btn"
+                        onClick={() => setDocMenuOpen((v) => !v)}
+                        title="More actions"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/></svg>
+                      </button>
+                      {docMenuOpen && (
+                        <div className="doc-more-dropdown">
+                          {["all", "grammar", "clarity", "style"].map((f) => (
+                            <button
+                              key={f}
+                              className="doc-more-item"
+                              onClick={() => { handleRequestReview(f); setDocMenuOpen(false); }}
+                              disabled={isReviewing || !draft.trim()}
+                            >
+                              {isReviewing && f === "all" ? (
+                                <>
+                                  <svg width="12" height="12" viewBox="0 0 16 16" style={{ animation: "spin 0.8s linear infinite" }}>
+                                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
+                                  </svg>
+                                  Reviewing…
+                                </>
+                              ) : `Review ${f}`}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {(unresolvedComments.length > 0 || diffAvailable || reviewEmptyMsg) && (
+                <div className="review-bar">
                   {diffAvailable && (
                     <button
                       className={`diff-toggle-btn${diffVisible ? " active" : ""}`}
                       onClick={handleToggleDiff}
                       title={diffVisible ? "Hide changes" : "Show changes"}
                     >
-                      Changes
+                      {diffStats && (diffStats.modified + diffStats.added + diffStats.deleted) > 0
+                        ? `${diffStats.modified + diffStats.added + diffStats.deleted} changes`
+                        : "Changes"}
                     </button>
                   )}
-                  <span className="save-status">
-                    {saveStatus === "saving" && "Saving…"}
-                    {saveStatus === "saved" && "Saved"}
-                  </span>
+                  {unresolvedComments.length > 0 && (
+                    <>
+                      <div className="comment-nav">
+                        <button
+                          className="comment-nav-btn"
+                          onClick={handleNavPrev}
+                          title="Previous comment (⌘⇧↑)"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 6.5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </button>
+                        <span className="comment-nav-count">
+                          {focusedNavIndex >= 0 ? focusedNavIndex + 1 : "–"}/{unresolvedComments.length}
+                        </span>
+                        <button
+                          className="comment-nav-btn"
+                          onClick={handleNavNext}
+                          title="Next comment (⌘⇧↓)"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </button>
+                      </div>
+                      {hasReviewProgress && (
+                        <span className="review-progress">
+                          {reviewResolved}/{reviewComments.length} resolved
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {reviewEmptyMsg && (
+                    <span className="review-empty-msg">No suggestions</span>
+                  )}
                 </div>
-              </div>
+              )}
 
               <section
                 className="editor-section"
+                style={{ '--editor-zoom': editorZoom / 100 }}
                 onClick={() => editorRef.current?.focus()}
               >
                 <MarkdownEditor
@@ -1655,8 +2774,35 @@ IMPORTANT RULES:
                   onChange={setDraft}
                   comments={comments}
                   editorRef={editorRef}
+                  readOnly={currentRole === "viewer"}
+                  currentRole={currentRole}
+                  collabSession={collabSession}
                 />
               </section>
+
+              <div className="editor-status-bar">
+                <span className="zoom-control">
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setEditorZoom((z) => Math.max(z - 10, 75))}
+                    disabled={editorZoom <= 75}
+                    aria-label="Zoom out"
+                    title="Zoom out (⌘−)"
+                  >A−</button>
+                  <button
+                    className="zoom-level"
+                    onClick={() => setEditorZoom(100)}
+                    title="Reset zoom (⌘0)"
+                  >{editorZoom}%</button>
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setEditorZoom((z) => Math.min(z + 10, 150))}
+                    disabled={editorZoom >= 150}
+                    aria-label="Zoom in"
+                    title="Zoom in (⌘+)"
+                  >A+</button>
+                </span>
+              </div>
             </div>
           )}
 
@@ -1666,26 +2812,49 @@ IMPORTANT RULES:
               folderSummary={folderSummary}
               childrenMap={childrenMap}
               nodesById={nodesById}
+              allNodes={nodes}
               onSelectNode={handleSelectNode}
               onCreateNode={handleCreateNode}
               onRenameNode={handleRenameNode}
+              canEdit={canEdit}
+              onUpdateNode={(nodeId, updates) => {
+                api.updateNode(nodeId, updates).then((updated) => {
+                  setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
+                }).catch(() => {});
+              }}
             />
           )}
 
-          {!activeNode && (
-            <div className="empty-state">
-              <div className="empty-state-text">Select a document to start writing.</div>
-            </div>
+          {!activeNode && activeProjectId && (
+            <ProjectHome
+              project={projects.find((p) => p.id === activeProjectId)}
+              nodes={nodes}
+              agents={agents}
+              onUpdate={(updates) => {
+                api.updateProject(activeProjectId, updates).then((updated) => {
+                  setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+                }).catch(() => {});
+              }}
+              onDelete={() => handleDeleteProject(activeProjectId)}
+              onEditAgent={openAgentEditor}
+              onCreateAgent={openAgentCreator}
+            />
+          )}
+
+          {!activeNode && !activeProjectId && (
+            <AllProjects
+              projects={projects}
+              onSelect={setActiveProjectId}
+              onCreate={() => setIsWizardOpen(true)}
+            />
           )}
         </main>
 
-        {isAssistantOpen && (
-          <div
-            className="pane-divider"
-            onMouseDown={handleDividerMouseDown}
-            onDoubleClick={() => setAssistantWidth(380)}
-          />
-        )}
+        <div
+          className={`pane-divider${!isAssistantOpen ? ' hidden' : ''}`}
+          onMouseDown={handleDividerMouseDown}
+          onDoubleClick={() => setAssistantWidth(380)}
+        />
 
         <AssistantPanel
           isOpen={isAssistantOpen}
@@ -1700,7 +2869,8 @@ IMPORTANT RULES:
           resolvedAgent={resolvedAgent}
           nodeDirectConfig={nodeDirectConfig}
           onAgentChange={handleAssignAgent}
-          onCreateAgent={() => setIsAgentCreatorOpen(true)}
+          onCreateAgent={openAgentCreator}
+          onEditAgent={openAgentEditor}
           onSuggestionAction={handleSuggestionAction}
           canSummarize={activeNode?.type === "file" && !!draft.trim()}
           isEditingDocument={isEditingDocument}
@@ -1717,18 +2887,48 @@ IMPORTANT RULES:
           onStop={handleStopStreaming}
           diffVisible={diffVisible}
           diffAvailable={diffAvailable}
+          diffStats={diffStats}
           onToggleDiff={handleToggleDiff}
           onUndoEdit={handleUndoEdit}
+          onAcceptEdit={handleAcceptEdit}
+          nodes={nodes}
+          mentionedFileIds={mentionedFileIds}
+          onMentionedFilesChange={setMentionedFileIds}
+          memories={memories}
+          onCreateMemory={handleCreateMemory}
+          onDeleteMemory={handleDeleteMemory}
+          pendingMemorySuggestion={pendingMemorySuggestion}
+          onAcceptMemorySuggestion={async (suggestion) => {
+            await handleCreateMemory(suggestion.content, suggestion.scope, "ai_suggested");
+            setPendingMemorySuggestion(null);
+          }}
+          onDismissMemorySuggestion={() => setPendingMemorySuggestion(null)}
+          memoryToast={memoryToast}
+          onDismissMemoryToast={() => setMemoryToast(null)}
+          activeProjectId={activeProjectId}
         />
       </div>
       )}
 
       <AgentCreatorSlideOver
         isOpen={isAgentCreatorOpen}
-        onClose={() => setIsAgentCreatorOpen(false)}
+        onClose={() => { setIsAgentCreatorOpen(false); setEditingAgent(null); }}
         onCreate={handleCreateAgentFromCreator}
+        onUpdate={handleUpdateAgent}
+        onDelete={handleDeleteAgent}
         apiBase={API_BASE}
+        agent={editingAgent}
       />
+
+      {publishState && (
+        <PublishDialog
+          platform={publishState.platform}
+          connection={publishState.connection}
+          node={activeNode}
+          project={projects.find(p => p.id === activeProjectId)}
+          onClose={() => setPublishState(null)}
+        />
+      )}
 
       <SettingsModal
         isOpen={isSettingsOpen}
@@ -1740,6 +2940,20 @@ IMPORTANT RULES:
         onAutosaveDelayChange={setAutosaveDelay}
         defaultAgent={defaultAgent}
         onDefaultAgentChange={setDefaultAgent}
+        memories={memories}
+        activeProjectId={activeProjectId}
+        onCreateMemory={handleCreateMemory}
+        onDeleteMemory={handleDeleteMemory}
+        onUpdateMemory={async (id, payload) => {
+          try { await api.updateMemory(id, payload); refreshMemories(); } catch {}
+        }}
+      />
+
+      <ShareDialog
+        project={projects.find((p) => p.id === activeProjectId)}
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        onProjectUpdate={() => api.listProjects().then(setProjects)}
       />
 
       {commentInputState && (
@@ -1750,12 +2964,28 @@ IMPORTANT RULES:
         />
       )}
 
-      {popoverState && (
-        <CommentPopover
-          comments={popoverState.comments}
-          rect={popoverState.rect}
-          onClose={() => setPopoverState(null)}
+      {activeThreadComment && (
+        <CommentThread
+          comment={activeThreadComment.comment}
+          rect={activeThreadComment.rect}
+          onClose={handleCloseThread}
+          onApprove={handleApproveComment}
+          onReject={handleRejectComment}
+          onResolve={handleResolveComment}
+          onDelete={handleDeleteComment}
+          onReply={handleReplyToComment}
+          onAskAI={handleAskAIInThread}
+          isAIThinking={aiThinkingCommentId === activeThreadComment.comment.id}
+          onPrev={unresolvedComments.length > 1 ? handleNavPrev : undefined}
+          onNext={unresolvedComments.length > 1 ? handleNavNext : undefined}
+          navLabel={unresolvedComments.length > 1 && focusedNavIndex >= 0
+            ? `${focusedNavIndex + 1}/${unresolvedComments.length}`
+            : undefined}
         />
+      )}
+
+      {showAppTour && (
+        <SpotlightTour onComplete={() => setShowAppTour(false)} />
       )}
     </div>
   );

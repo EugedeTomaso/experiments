@@ -1,31 +1,40 @@
 import React, { useEffect, useRef } from "react";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from "@milkdown/core";
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx, editorViewOptionsCtx, parserCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import { nord } from "@milkdown/theme-nord";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
+import { history } from "@milkdown/plugin-history";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import { replaceAll } from "@milkdown/utils";
+import { $prose } from "@milkdown/kit/utils";
 import { diffReplaceAll } from "./diffUpdate";
 import { aiTextPlugin, aiTextPluginKey } from "./aiTextAppearPlugin";
 import { ProsemirrorAdapterProvider, usePluginViewFactory } from "@prosemirror-adapter/react";
 import { slash, SlashView } from "./components/SlashMenu";
 import { selectionTooltip, SelectionToolbarView } from "./components/SelectionToolbar";
 import { commentDecoPlugin, commentDecoPluginKey } from "./commentDecorationPlugin";
+import { applySuggestion } from "./commentPositions";
+import { linkPreviewPlugin } from "./linkPreviewPlugin";
+import { highlightPlugin, configHighlightStringify } from "./highlightPlugin";
+import { calloutPlugin, configCalloutStringify } from "./calloutPlugin";
+import { mermaidPlugin } from "./mermaidPlugin";
 import "@milkdown/theme-nord/style.css";
 
-function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef }) {
+function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef, readOnly = false, currentRole, collabSession }) {
   const pluginViewFactory = usePluginViewFactory();
   const [loading, get] = useInstance();
   const shellRef = useRef(null);
 
   useEditor(
-    (root) =>
-      Editor.make()
+    (root) => {
+      const editor = Editor.make()
         .config((ctx) => {
           ctx.set(rootCtx, root);
-          ctx.set(defaultValueCtx, value || "");
+          if (!collabSession) {
+            ctx.set(defaultValueCtx, value || "");
+          }
           ctx.set(slash.key, {
             view: pluginViewFactory({
               component: SlashView,
@@ -36,21 +45,46 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef 
               component: SelectionToolbarView,
             }),
           });
+          if (readOnly) {
+            ctx.update(editorViewOptionsCtx, (prev) => ({
+              ...prev,
+              editable: () => false,
+            }));
+          }
         })
         .config(nord)
+        .config(configHighlightStringify)
+        .config(configCalloutStringify)
         .use(commonmark)
         .use(gfm)
+        .use(highlightPlugin)
+        .use(calloutPlugin);
+
+      if (collabSession) {
+        for (const plugin of collabSession.prosemirrorPlugins) {
+          editor.use($prose(() => plugin));
+        }
+      } else {
+        editor.use(history);
+      }
+
+      editor
         .use(listener)
         .use(slash)
         .use(selectionTooltip)
         .use(commentDecoPlugin)
         .use(aiTextPlugin)
+        .use(linkPreviewPlugin)
+        .use(mermaidPlugin)
         .config((ctx) => {
           ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
             onChange?.(markdown);
           });
-        }),
-    [docId]
+        });
+
+      return editor;
+    },
+    [docId, !!collabSession]
   );
 
   // Sync comments into the decoration plugin
@@ -125,11 +159,47 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef 
           return false;
         }
       },
+      getDiffStats() {
+        try {
+          let stats = null;
+          get().action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const pluginState = aiTextPluginKey.getState(view.state);
+            stats = pluginState?.stats || null;
+          });
+          return stats;
+        } catch {
+          return null;
+        }
+      },
+      applySuggestion(quotedText, suggestedText, hintFrom) {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          return applySuggestion(view, quotedText, suggestedText, hintFrom);
+        });
+      },
+      compareWithVersion(markdown) {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const parser = ctx.get(parserCtx);
+          const oldDoc = parser(markdown);
+          if (!oldDoc) return;
+          // Set the parsed version as the comparison baseline
+          const tr = view.state.tr.setMeta(aiTextPluginKey, { action: "set-compare-doc", doc: oldDoc });
+          view.dispatch(tr);
+          // Show the diff
+          const tr2 = view.state.tr.setMeta(aiTextPluginKey, "show-diff");
+          view.dispatch(tr2);
+        });
+      },
     };
   }, [loading, get, editorRef]);
 
   return (
-    <div className="editor-shell" ref={shellRef}>
+    <div
+      className={`editor-shell${readOnly ? " editor-readonly" : ""}${currentRole === "commenter" ? " editor-commenter" : ""}`}
+      ref={shellRef}
+    >
       <Milkdown />
     </div>
   );
