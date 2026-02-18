@@ -326,6 +326,14 @@ export const api = {
     return request(`/api/link-preview/?url=${encodeURIComponent(url)}`);
   },
 
+  // AI Autocomplete
+  autocomplete(text, context = "") {
+    return request("/api/ai/autocomplete", {
+      method: "POST",
+      body: JSON.stringify({ text, context }),
+    });
+  },
+
   // Sharing — Invitations
   inviteToProject(projectId, { email, role }) {
     return request(`/api/projects/${projectId}/invite/`, {
