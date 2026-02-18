@@ -1674,6 +1674,10 @@
   color: var(--text-1);
 }
 
+.editor-shell .ProseMirror > h1:first-child {
+  display: none;
+}
+
 .editor-shell .ProseMirror h1 {
   font-size: 1.75em;
   font-weight: 700;
@@ -1835,6 +1839,7 @@
   border: 1px solid var(--border);
   padding: 8px 12px;
   text-align: left;
+  background: var(--surface);
 }
 
 .editor-shell .ProseMirror th {
@@ -5778,6 +5783,37 @@ button.ghost:focus-visible {
   opacity: 0.4;
 }
 
+/* Fact-check verdict highlights */
+.comment-highlight--verified {
+  background: rgba(5, 150, 105, 0.08);
+  border-bottom-color: rgba(5, 150, 105, 0.4);
+  border-bottom-style: solid;
+}
+
+.comment-highlight--verified:hover {
+  background: rgba(5, 150, 105, 0.14);
+}
+
+.comment-highlight--dubious {
+  background: rgba(217, 119, 6, 0.08);
+  border-bottom-color: rgba(217, 119, 6, 0.4);
+  border-bottom-style: dashed;
+}
+
+.comment-highlight--dubious:hover {
+  background: rgba(217, 119, 6, 0.14);
+}
+
+.comment-highlight--false {
+  background: rgba(220, 38, 38, 0.08);
+  border-bottom-color: rgba(220, 38, 38, 0.4);
+  border-bottom-style: solid;
+}
+
+.comment-highlight--false:hover {
+  background: rgba(220, 38, 38, 0.14);
+}
+
 /* ===========================
    Comment Thread
    =========================== */
@@ -6110,6 +6146,63 @@ button.ghost:focus-visible {
 .comment-thread-composer-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Fact-check verdict badge */
+.comment-thread-verdict {
+  margin: 0 12px 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-block;
+}
+
+.comment-thread-verdict--verified {
+  background: rgba(5, 150, 105, 0.1);
+  color: #059669;
+}
+
+.comment-thread-verdict--dubious {
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
+}
+
+.comment-thread-verdict--false {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+/* Fact-check sources */
+.comment-thread-sources {
+  margin: 4px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comment-thread-sources-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-4);
+  margin-bottom: 2px;
+}
+
+.comment-thread-source-link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-thread-source-link:hover {
+  text-decoration: underline;
 }
 
 /* ===========================

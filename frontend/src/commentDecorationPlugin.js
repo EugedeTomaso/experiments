@@ -6,15 +6,35 @@ import { resolveCommentPositions } from "./commentPositions";
 export const commentDecoPluginKey = new PluginKey("comment-decorations");
 
 function buildDecorations(doc, comments) {
-  const resolved = resolveCommentPositions(doc, comments);
+  // Only decorate root comments (no parent) that are open or recently actioned
+  const rootComments = comments.filter(
+    (c) => !c.parent && c.status !== "resolved"
+  );
+  const resolved = resolveCommentPositions(doc, rootComments);
   const decos = [];
 
   for (const { comment, from, to, status } of resolved) {
     if (status === "anchored" && from != null && to != null && from < to) {
+      const classes = ["comment-highlight"];
+      if (comment.author_type === "assistant") {
+        classes.push("comment-highlight--ai");
+      }
+      if (comment.suggested_text) {
+        classes.push("comment-highlight--suggestion");
+      }
+      if (comment.status === "approved") {
+        classes.push("comment-highlight--approved");
+      } else if (comment.status === "rejected") {
+        classes.push("comment-highlight--rejected");
+      }
+      if (comment.comment_type === "fact_check" && comment.verdict) {
+        classes.push(`comment-highlight--${comment.verdict}`);
+      }
+
       try {
         decos.push(
           Decoration.inline(from, to, {
-            class: "comment-highlight",
+            class: classes.join(" "),
             "data-comment-id": String(comment.id),
           }, {
             commentId: comment.id,
