@@ -2062,7 +2062,8 @@
   transition: max-height 0.2s, opacity 0.15s, padding 0.2s, margin 0.2s;
 }
 
-.editor-shell .ProseMirror .mermaid-source:focus-within {
+.editor-shell .ProseMirror .mermaid-source:focus-within,
+.editor-shell .ProseMirror .mermaid-source.mermaid-editing {
   max-height: 400px;
   overflow: auto;
   padding: 16px !important;
@@ -6800,6 +6801,380 @@ button.ghost:focus-visible {
   width: 100%;
   min-height: 120px;
   resize: vertical;
+}
+
+/* ── Review Panel: Tab bar ──────────────────── */
+.agent-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
+.agent-tab {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 12px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-tab:hover { color: var(--text-2); }
+
+.agent-tab--active {
+  color: var(--text-1);
+  border-bottom-color: var(--text-1);
+}
+
+.agent-tab-badge {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  border-radius: 99px;
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ── Review Panel: Cards ────────────────────── */
+.review-tab { display: flex; flex-direction: column; gap: 2px; }
+.review-tab-list { display: flex; flex-direction: column; gap: 2px; }
+
+.review-card {
+  background: var(--surface-inset);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 0.3s, background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.review-card:hover { background: color-mix(in srgb, var(--surface-inset) 80%, var(--text-4) 20%); }
+.review-card--active { border-left-color: var(--accent); }
+
+.review-card--approved {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 1s ease;
+}
+
+.review-card--rejected {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.review-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.review-card-icon { display: flex; color: var(--text-3); }
+.review-card-author { font-weight: 500; color: var(--text-2); }
+.review-card-time { margin-left: auto; }
+
+.review-card-quote {
+  font-size: 12px;
+  color: var(--text-3);
+  font-style: italic;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-card-body {
+  font-size: 13px;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+
+.review-card-diff {
+  font-size: 12px;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 8px;
+  line-height: 1.5;
+}
+
+.review-card-diff-del {
+  color: var(--red, #c0392b);
+  text-decoration: line-through;
+  display: block;
+}
+
+.review-card-diff-ins {
+  color: var(--green, #27ae60);
+  text-decoration: none;
+  display: block;
+}
+
+.review-card-actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.review-card-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.review-card-btn--accept { color: var(--accent); }
+.review-card-btn--accept:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.review-card-btn--dismiss { color: var(--text-3); }
+.review-card-btn--dismiss:hover { background: var(--surface-inset); }
+.review-card-btn--delete { color: var(--red, #c0392b); }
+.review-card-btn--delete:hover { background: color-mix(in srgb, var(--red, #c0392b) 10%, transparent); }
+.review-card-btn--reply { color: var(--text-3); }
+.review-card-btn--reply:hover { background: var(--surface-inset); }
+
+/* ── Review Panel: Verdict badges ───────────── */
+.review-card-verdict {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-self: flex-start;
+}
+
+.review-card-verdict--verified { background: #e8f5e9; color: #2e7d32; }
+.review-card-verdict--dubious  { background: #fff8e1; color: #f57f17; }
+.review-card-verdict--false    { background: #fce4ec; color: #c62828; }
+
+/* ── Review Panel: Reply thread ─────────────── */
+.review-card-thread {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-card-reply {
+  font-size: 12px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-card-reply-author {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.review-card-reply-body { color: var(--text-1); }
+
+.review-card-reply--user .review-card-reply-body {
+  background: var(--surface);
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.review-card-thinking-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-4);
+  border-top-color: var(--text-2);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+.review-card-ask-ai {
+  all: unset;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.review-card-ask-ai:hover { text-decoration: underline; }
+
+.review-card-reply-composer {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.review-card-reply-composer textarea {
+  all: unset;
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  background: var(--surface);
+  border-radius: 8px;
+  resize: none;
+  min-height: 20px;
+  max-height: 80px;
+}
+
+.review-card-reply-send {
+  all: unset;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 6px 8px;
+}
+
+.review-card-reply-send:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Review Panel: Sources ──────────────────── */
+.review-card-sources { font-size: 12px; }
+
+.review-card-sources-toggle {
+  all: unset;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.review-card-sources-toggle:hover { color: var(--text-2); }
+
+.review-card-sources-list {
+  list-style: none;
+  padding: 4px 0 0 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-card-sources-list a {
+  color: var(--accent);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.review-card-sources-list a:hover { text-decoration: underline; }
+
+.review-card-source-snippet {
+  display: block;
+  font-size: 10px;
+  color: var(--text-4);
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
+/* ── Review Panel: Tab states ───────────────── */
+.review-tab-empty,
+.review-tab-complete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.review-tab-empty-heading,
+.review-tab-complete-heading {
+  font-size: 14px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.review-tab-empty-desc {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.review-tab-complete-stats {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.review-tab-empty-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.review-tab-launch-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.review-tab-launch-btn:hover {
+  background: var(--surface-inset);
+  border-color: var(--text-4);
+}
+
+/* ── Review Panel: Loading ──────────────────── */
+.review-tab-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.review-tab-loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-4);
+  border-top-color: var(--text-2);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.review-tab-progress-bar {
+  width: 100%;
+  max-width: 200px;
+  height: 3px;
+  background: var(--surface-inset);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.review-tab-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 
 /* ===========================
