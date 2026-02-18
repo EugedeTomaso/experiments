@@ -38,6 +38,8 @@ class Project(models.Model):
         max_length=20, choices=Visibility.choices, default=Visibility.PRIVATE
     )
     share_token = models.UUIDField(null=True, blank=True, unique=True)
+    published_snapshot = models.JSONField(null=True, blank=True, default=None)
+    published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
