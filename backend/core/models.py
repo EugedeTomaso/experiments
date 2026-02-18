@@ -259,6 +259,7 @@ class ProviderKey(models.Model):
         DEEPSEEK = "deepseek", "DeepSeek"
         CEREBRAS = "cerebras", "Cerebras"
         GROQ = "groq", "Groq"
+        EXA = "exa", "Exa"
 
     provider = models.CharField(
         max_length=50, choices=Provider.choices, unique=True
