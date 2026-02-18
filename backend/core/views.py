@@ -249,7 +249,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
 
     def get_queryset(self):
-        queryset = Message.objects.all().order_by("created_at")
+        queryset = Message.objects.select_related("routed_agent").order_by("created_at")
         conversation_id = self.request.query_params.get("conversation")
         if conversation_id:
             queryset = queryset.filter(conversation_id=conversation_id)
