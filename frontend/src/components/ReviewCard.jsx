@@ -8,6 +8,7 @@ export function ReviewCard({
   isAiThinking,
   onClick,
   onApprove,
+  onApproveReply,
   onDismiss,
   onResolve,
   onDelete,
@@ -17,12 +18,19 @@ export function ReviewCard({
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const replyInputRef = useRef(null);
+  const cardRef = useRef(null);
 
   useEffect(() => {
     if (isThreadOpen && replyInputRef.current) {
       replyInputRef.current.focus();
     }
   }, [isThreadOpen]);
+
+  useEffect(() => {
+    if (isActive && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [isActive]);
 
   const isAI = comment.author_type === "assistant";
   const hasSuggestion = !!comment.suggested_text;
@@ -50,6 +58,7 @@ export function ReviewCard({
 
   return (
     <div
+      ref={cardRef}
       className={`review-card${isActive ? " review-card--active" : ""}${isApproved ? " review-card--approved" : ""}${isRejected ? " review-card--rejected" : ""}`}
       onClick={onClick}
     >
@@ -77,6 +86,19 @@ export function ReviewCard({
       )}
 
       <div className="review-card-body">{comment.body}</div>
+
+      {/* Reply count indicator — always visible when there are replies */}
+      {replies.length > 0 && (
+        <button
+          className="review-card-reply-count"
+          onClick={(e) => { e.stopPropagation(); setIsThreadOpen(!isThreadOpen); }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ transform: isThreadOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+        </button>
+      )}
 
       {hasSuggestion && (
         <div className="review-card-diff">
@@ -117,7 +139,23 @@ export function ReviewCard({
           {replies.map((r) => (
             <div key={r.id} className={`review-card-reply review-card-reply--${r.author_type}`}>
               <span className="review-card-reply-author">{r.author_label || (r.author_type === "assistant" ? "Assistant" : "You")}</span>
-              <span className="review-card-reply-body">{r.body}</span>
+              {r.body && <span className="review-card-reply-body">{r.body}</span>}
+              {r.suggested_text && (
+                <>
+                  <div className="review-card-diff">
+                    <del className="review-card-diff-del">{r.quoted_text || comment.quoted_text}</del>
+                    <ins className="review-card-diff-ins">{r.suggested_text}</ins>
+                  </div>
+                  {isOpen && (
+                    <button
+                      className="review-card-btn review-card-btn--accept"
+                      onClick={() => onApproveReply(r.id)}
+                    >
+                      Accept
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           ))}
           {isAiThinking && (

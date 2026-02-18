@@ -2641,6 +2641,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding-top: 8px;
 }
 
 /* Empty state */
@@ -5866,6 +5867,16 @@ button.ghost:focus-visible {
   border-bottom-width: 2px;
 }
 
+@keyframes comment-highlight-flash {
+  0%   { background: rgba(250, 200, 50, 0.38); }
+  60%  { background: rgba(250, 200, 50, 0.12); }
+  100% { background: rgba(37, 99, 235, 0.18); }
+}
+
+.comment-highlight--flash {
+  animation: comment-highlight-flash 1.2s ease-out;
+}
+
 .comment-highlight--ai {
   border-bottom-style: dashed;
 }
@@ -6949,23 +6960,24 @@ button.ghost:focus-visible {
 }
 
 /* ── Review Panel: Cards ────────────────────── */
-.review-tab { display: flex; flex-direction: column; gap: 2px; }
-.review-tab-list { display: flex; flex-direction: column; gap: 2px; }
+.review-tab { display: flex; flex-direction: column; gap: 8px; }
+.review-tab-list { display: flex; flex-direction: column; gap: 8px; }
 
 .review-card {
-  background: var(--surface-inset);
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: opacity 0.3s, background 0.15s;
-  border-left: 3px solid transparent;
+  transition: opacity 0.3s, border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.review-card:hover { background: color-mix(in srgb, var(--surface-inset) 80%, var(--text-4) 20%); }
-.review-card--active { border-left-color: var(--accent); }
+.review-card:hover { border-color: var(--text-4); }
+.review-card--active { box-shadow: inset 3px 0 0 var(--accent), 0 1px 2px rgba(0, 0, 0, 0.04); }
 
 .review-card--approved {
   opacity: 0.4;
@@ -7009,7 +7021,7 @@ button.ghost:focus-visible {
 
 .review-card-diff {
   font-size: 12px;
-  background: var(--surface);
+  background: var(--surface-inset);
   border-radius: 6px;
   padding: 8px;
   line-height: 1.5;
@@ -7051,6 +7063,21 @@ button.ghost:focus-visible {
 .review-card-btn--delete:hover { background: color-mix(in srgb, var(--red, #c0392b) 10%, transparent); }
 .review-card-btn--reply { color: var(--text-3); }
 .review-card-btn--reply:hover { background: var(--surface-inset); }
+
+.review-card-reply-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+}
+.review-card-reply-count:hover {
+  color: var(--text-2);
+}
 
 /* ── Review Panel: Verdict badges ───────────── */
 .review-card-verdict {
