@@ -6926,67 +6926,6 @@ button.ghost:focus-visible {
 
 /* Type selection (Step 1) */
 
-.wizard-type-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.wizard-type-option {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  cursor: pointer;
-  text-align: left;
-  font-family: inherit;
-  transition: border-color var(--duration-fast) var(--ease),
-              background var(--duration-fast) var(--ease);
-}
-
-.wizard-type-option:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-inset);
-}
-
-.wizard-type-option:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: var(--control-focus);
-}
-
-.wizard-type-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-1);
-}
-
-.wizard-type-desc {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.wizard-type-separator {
-  height: 1px;
-  background: var(--border);
-  margin: 8px 0;
-}
-
-.wizard-type-custom {
-  border-style: dashed;
-}
-
-.wizard-type-custom:hover {
-  border-style: dashed;
-}
-
-.wizard-type-custom:focus-visible {
-  border-style: dashed;
-}
-
 /* Template divider + pills (Step 1) */
 
 .wizard-template-divider {
@@ -7096,6 +7035,11 @@ button.ghost:focus-visible {
   outline: none;
   border-color: var(--accent);
   box-shadow: var(--control-focus);
+}
+
+.wizard-extension-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .wizard-extension-label {
@@ -7383,7 +7327,6 @@ button.ghost:focus-visible {
     font-size: 20px;
   }
 
-  .wizard-type-option,
   .wizard-extension-option {
     padding: 12px 16px;
   }
@@ -8496,7 +8439,11 @@ button.ghost:focus-visible {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  padding: 12px;
+  padding: 12px 16px;
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;

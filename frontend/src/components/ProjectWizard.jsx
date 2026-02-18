@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { getAuthHeader } from "../api";
+import { api, getAuthHeader } from "../api";
 import { GhostTextarea } from "./GhostTextarea";
 
 // Template prefills — clicking a template pre-fills the description textarea
@@ -761,19 +761,12 @@ Rules:
 
   const fetchNameSuggestion = async () => {
     try {
-      const response = await fetch(`${apiBase}/api/ai/autocomplete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
-          text: `Suggest a short, creative working title for this writing project: ${description.slice(0, 500)}`,
-          context: "project_name",
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.completion) {
-          setNameSuggestion(data.completion.replace(/^["']|["']$/g, "").trim());
-        }
+      const data = await api.autocomplete(
+        `Suggest a short, creative working title for this writing project: ${description.slice(0, 500)}`,
+        "project_name"
+      );
+      if (data?.completion) {
+        setNameSuggestion(data.completion.replace(/^["']|["']$/g, "").trim());
       }
     } catch {
       // Silently ignore — structure generation also provides a name
