@@ -6,11 +6,8 @@ import { resolveCommentPositions } from "./commentPositions";
 export const commentDecoPluginKey = new PluginKey("comment-decorations");
 
 function buildDecorations(doc, comments) {
-  // Only decorate root comments (no parent) that are open or recently actioned
-  const rootComments = comments.filter(
-    (c) => !c.parent && c.status !== "resolved"
-  );
-  const resolved = resolveCommentPositions(doc, rootComments);
+  // Render all comments passed in — filtering is done by the caller
+  const resolved = resolveCommentPositions(doc, comments);
   const decos = [];
 
   for (const { comment, from, to, status } of resolved) {
