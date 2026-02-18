@@ -278,6 +278,8 @@ export default function App() {
   // --- Review mode ---
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewFocusOpen, setReviewFocusOpen] = useState(false);
+  const [isFactChecking, setIsFactChecking] = useState(false);
+  const [factCheckProgress, setFactCheckProgress] = useState(null);
   const [reviewEmptyMsg, setReviewEmptyMsg] = useState(false);
   const [docMenuOpen, setDocMenuOpen] = useState(false);
   const docMenuRef = useRef(null);
@@ -659,13 +661,20 @@ export default function App() {
       setIsAssistantOpen(true);
     };
 
+    const handleFactCheckSelection = (e) => {
+      const { from, to } = e.detail;
+      handleFactCheck(from, to);
+    };
+
     el.addEventListener("comment-selection-request", onSelectionRequest);
     el.addEventListener("comment-highlight-click", onHighlightClick);
     el.addEventListener("ai-selection-request", onAiRequest);
+    el.addEventListener("fact-check-selection-request", handleFactCheckSelection);
     return () => {
       el.removeEventListener("comment-selection-request", onSelectionRequest);
       el.removeEventListener("comment-highlight-click", onHighlightClick);
       el.removeEventListener("ai-selection-request", onAiRequest);
+      el.removeEventListener("fact-check-selection-request", handleFactCheckSelection);
     };
   }, [handleHighlightClick]);
 
@@ -1048,6 +1057,66 @@ export default function App() {
       console.error("Review failed:", err);
     } finally {
       setIsReviewing(false);
+    }
+  };
+
+  const handleFactCheck = async (selectionFrom = null, selectionTo = null) => {
+    if (!activeNode || isFactChecking) return;
+    setIsFactChecking(true);
+    setFactCheckProgress(null);
+
+    try {
+      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const provider = providerSettings.provider || "deepseek";
+      const model = providerSettings.model || "deepseek-chat";
+
+      const response = await api.factCheck({
+        node_id: activeNode.id,
+        provider,
+        model,
+        selection_from: selectionFrom,
+        selection_to: selectionTo,
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "claims_extracted") {
+              setFactCheckProgress({ total: parsed.count, done: 0 });
+            } else if (parsed.type === "fact_check_result" && parsed.comment) {
+              setComments((prev) => [...prev, parsed.comment]);
+              setFactCheckProgress((prev) =>
+                prev ? { ...prev, done: prev.done + 1 } : null
+              );
+            } else if (parsed.type === "error") {
+              console.error("Fact-check error:", parsed.detail);
+            }
+          } catch (_) {
+            // skip unparseable lines
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Fact-check failed:", err);
+    } finally {
+      setIsFactChecking(false);
+      setFactCheckProgress(null);
     }
   };
 
@@ -2695,6 +2764,31 @@ Rules for memory suggestions:
                       nodes={nodes}
                       onPublish={(platform, connection) => setPublishState({ platform, connection })}
                     />
+                    <button
+                      className="review-btn"
+                      onClick={() => handleFactCheck()}
+                      disabled={isFactChecking || !draft.trim()}
+                      title="Fact-check document"
+                      style={{ marginRight: 4 }}
+                    >
+                      {isFactChecking ? (
+                        <>
+                          <svg width="12" height="12" viewBox="0 0 16 16" style={{ animation: "spin 0.8s linear infinite" }}>
+                            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
+                          </svg>
+                          {factCheckProgress
+                            ? `${factCheckProgress.done}/${factCheckProgress.total}`
+                            : "Extracting…"}
+                        </>
+                      ) : (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M13.5 4.5L6.5 11.5L2.5 7.5" />
+                          </svg>
+                          Fact-Check
+                        </>
+                      )}
+                    </button>
                     <div className="doc-more" ref={docMenuRef}>
                       <button
                         className="doc-more-btn"
