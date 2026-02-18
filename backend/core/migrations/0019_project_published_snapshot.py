@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("core", "0011_comment_review_fields"),
+        ("core", "0018_conversation_agent_mode_message_routed_agent"),
     ]
 
     operations = [
