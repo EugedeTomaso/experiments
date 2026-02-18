@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import { getYjsState, saveYjsState, saveNodeContent, getNodeContent } from "./auth.js";
+import { markdownToYXmlFragment, yXmlFragmentToMarkdown } from "./schema.js";
 
 const BINARY_DEBOUNCE_MS = 5_000; // 5s for binary state
 const MARKDOWN_DEBOUNCE_MS = 30_000; // 30s for markdown conversion
@@ -29,9 +30,13 @@ export function createPersistence(nodeId, ydoc) {
     clearTimeout(markdownTimer);
     markdownTimer = setTimeout(async () => {
       if (destroyed) return;
-      // TODO: Task 5 will add schema.js for Yjs -> ProseMirror -> Markdown conversion
-      // For now, skip markdown persistence (binary state is sufficient for MVP)
-      console.log(`[persistence node:${nodeId}] markdown save placeholder`);
+      const markdown = await yXmlFragmentToMarkdown(ydoc, "prosemirror");
+      await saveNodeContent(nodeId, markdown).catch((err) => {
+        console.error(
+          `[persistence node:${nodeId}] markdown save failed:`,
+          err.message
+        );
+      });
     }, MARKDOWN_DEBOUNCE_MS);
   }
 
@@ -54,12 +59,9 @@ export function createPersistence(nodeId, ydoc) {
       // Fall back to markdown
       const nodeData = await getNodeContent(nodeId);
       if (nodeData && nodeData.content_md) {
-        // TODO: Task 5 will add markdown -> Yjs conversion via schema.js
-        // For now, store raw markdown in a Y.Text as placeholder
-        const ytext = ydoc.getText("raw-markdown");
-        ytext.insert(0, nodeData.content_md);
+        await markdownToYXmlFragment(ydoc, "prosemirror", nodeData.content_md);
         console.log(
-          `[persistence node:${nodeId}] loaded from markdown (placeholder)`
+          `[persistence node:${nodeId}] loaded from markdown → Yjs`
         );
       }
     },
@@ -74,7 +76,13 @@ export function createPersistence(nodeId, ydoc) {
           err.message
         );
       });
-      // TODO: flush markdown too once schema.js is ready
+      const markdown = await yXmlFragmentToMarkdown(ydoc, "prosemirror");
+      await saveNodeContent(nodeId, markdown).catch((err) => {
+        console.error(
+          `[persistence node:${nodeId}] flush markdown failed:`,
+          err.message
+        );
+      });
     },
 
     destroy() {
