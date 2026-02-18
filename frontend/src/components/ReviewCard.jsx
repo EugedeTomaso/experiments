@@ -52,11 +52,16 @@ export function ReviewCard({
     const text = replyText.trim();
     if (!text) return;
 
-    // Detect @AgentName in the reply
-    const mentionMatch = text.match(/@(\S+)/);
-    const mentionedAgent = mentionMatch
-      ? (agents || []).find((a) => a.name.toLowerCase() === mentionMatch[1].toLowerCase())
-      : null;
+    // Detect @AgentName — match against known agents (supports names with spaces)
+    let mentionedAgent = null;
+    if (agents && agents.length) {
+      for (const a of agents) {
+        if (text.includes(`@${a.name}`)) {
+          mentionedAgent = a;
+          break;
+        }
+      }
+    }
 
     onReply(comment.id, text);
     setReplyText("");
@@ -64,7 +69,7 @@ export function ReviewCard({
 
     // Auto-invoke agent if mentioned
     if (mentionedAgent) {
-      onAskAI(comment.id, mentionedAgent.id);
+      onAskAI(comment.id, mentionedAgent.id, text);
     }
   };
 

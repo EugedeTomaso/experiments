@@ -13,6 +13,8 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
   const [comments, setComments] = useState([]);
   const [activeThread, setActiveThread] = useState(null); // { comment, rect } | null
   const [focusedId, setFocusedId] = useState(null);
+  const [flashId, setFlashId] = useState(null);
+  const flashTimerRef = useRef(null);
   const [aiThinkingId, setAiThinkingId] = useState(null);
 
   // --- Derived state ---
@@ -148,20 +150,18 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
   const navigateTo = useCallback(
     (commentId) => {
       setFocusedId(commentId);
-      const el = findHighlightElement(commentId);
-      if (el) {
-        el.scrollIntoView({ behavior: "instant", block: "center" });
-        // Flash the highlight to draw attention
-        el.classList.remove("comment-highlight--flash");
-        // Force reflow so re-adding the class restarts the animation
-        void el.offsetWidth;
-        el.classList.add("comment-highlight--flash");
-        el.addEventListener(
-          "animationend",
-          () => el.classList.remove("comment-highlight--flash"),
-          { once: true }
-        );
-      }
+      // Trigger flash animation via decoration plugin
+      setFlashId(commentId);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = setTimeout(() => setFlashId(null), 1400);
+      // Scroll to the highlight element
+      // Use a short delay to let the decoration render with --active class
+      requestAnimationFrame(() => {
+        const el = findHighlightElement(commentId);
+        if (el) {
+          el.scrollIntoView({ behavior: "instant", block: "center" });
+        }
+      });
     },
     [findHighlightElement]
   );
@@ -354,19 +354,23 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
   );
 
   const askAI = useCallback(
-    async (commentId, agentId) => {
+    async (commentId, agentId, userMessage) => {
       if (!nodeId) return;
       setAiThinkingId(commentId);
       try {
-        const lastUserReply = comments
-          .filter((c) => c.parent === commentId && c.author_type === "user")
-          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-          .pop();
-        if (!lastUserReply) return;
+        let message = userMessage;
+        if (!message) {
+          const lastUserReply = comments
+            .filter((c) => c.parent === commentId && c.author_type === "user")
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            .pop();
+          if (!lastUserReply) return;
+          message = lastUserReply.body;
+        }
 
         const payload = {
           comment_id: commentId,
-          user_message: lastUserReply.body,
+          user_message: message,
         };
 
         if (agentId) {
@@ -377,6 +381,11 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
           );
           payload.provider = providerSettings.provider || "deepseek";
           payload.model = providerSettings.model || "deepseek-chat";
+        }
+
+        // When called from @mention, frontend already created the user reply
+        if (userMessage) {
+          payload.skip_user_reply = true;
         }
 
         const result = await api.requestCommentReply(payload);
@@ -435,6 +444,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
     reviewDismissedCount,
     activeThread,
     focusedId,
+    flashId,
     navIndex,
     navTotal,
     aiThinkingId,

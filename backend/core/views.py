@@ -152,7 +152,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        queryset = Comment.objects.annotate(
+        queryset = Comment.objects.select_related("agent").annotate(
             reply_count=Count("replies")
         ).order_by("created_at")
         node_id = self.request.query_params.get("node")
@@ -1009,14 +1009,17 @@ class AICommentReplyView(APIView):
         if not api_key:
             return Response({"detail": "Provider key missing"}, status=400)
 
-        # Create user reply
-        user_reply = Comment.objects.create(
-            node=root_comment.node,
-            parent=root_comment,
-            body=user_message,
-            author_type=Comment.AuthorType.USER,
-            author_label="",
-        )
+        # Create user reply (skip if frontend already created it via @mention flow)
+        skip_user_reply = request.data.get("skip_user_reply", False)
+
+        if not skip_user_reply:
+            user_reply = Comment.objects.create(
+                node=root_comment.node,
+                parent=root_comment,
+                body=user_message,
+                author_type=Comment.AuthorType.USER,
+                author_label="",
+            )
 
         # Build context from thread
         replies = list(root_comment.replies.order_by("created_at"))
