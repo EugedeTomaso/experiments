@@ -759,6 +759,27 @@ Rules:
     }
   };
 
+  const fetchNameSuggestion = async () => {
+    try {
+      const response = await fetch(`${apiBase}/api/ai/autocomplete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          text: `Suggest a short, creative working title for this writing project: ${description.slice(0, 500)}`,
+          context: "project_name",
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.completion) {
+          setNameSuggestion(data.completion.replace(/^["']|["']$/g, "").trim());
+        }
+      }
+    } catch {
+      // Silently ignore — structure generation also provides a name
+    }
+  };
+
   const enterNameScreen = () => {
     // Start structure generation in background
     structurePromiseRef.current = generateStructure().catch(() => ({
@@ -766,10 +787,13 @@ Rules:
       structure: [{ type: "file", title: "Notes" }, { type: "file", title: "Draft" }],
     }));
 
-    // Set name suggestion from structure result
+    // Fetch a name suggestion via autocomplete (faster path)
+    fetchNameSuggestion();
+
+    // Set name suggestion from structure result only if autocomplete hasn't already set one
     structurePromiseRef.current.then((result) => {
       if (result.name && !projectName) {
-        setNameSuggestion(result.name);
+        setNameSuggestion((prev) => prev || result.name);
       }
     });
 
