@@ -36,6 +36,30 @@ def generate_summary_sync(provider: str, api_key: str, model: str, title: str, c
         return _sync_openai_compatible(api_key, config["base_url"], model, messages)
 
 
+ROUTE_AGENT_SYSTEM_PROMPT = (
+    "You are a routing assistant. Given a user's message and a list of available AI assistants, "
+    "pick the one that best fits. Respond with ONLY the number (e.g. '1'). "
+    "If none is clearly the best fit, respond with '0'."
+)
+
+
+def route_agent_sync(provider: str, api_key: str, model: str, query: str, agents_desc: str) -> str:
+    """Pick the best agent for a query. Returns the raw LLM response (a number string)."""
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    messages = [
+        {"role": "system", "content": ROUTE_AGENT_SYSTEM_PROMPT},
+        {"role": "user", "content": f"Available assistants:\n{agents_desc}\n\nUser message: \"{query}\""},
+    ]
+
+    if config["type"] == "anthropic":
+        return _sync_anthropic(api_key, config["base_url"], model, messages)
+    else:
+        return _sync_openai_compatible(api_key, config["base_url"], model, messages)
+
+
 AUTOCOMPLETE_SYSTEM_PROMPT = (
     "Complete the user's sentence about their writing project. "
     "Output ONLY the completion text — no quotes, no explanation, no markdown. "

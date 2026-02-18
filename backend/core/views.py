@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .llm import generate_review_sync, generate_summary_sync, stream_chat
+from .llm import generate_review_sync, generate_summary_sync, route_agent_sync, stream_chat
 from django.db.models import Count, Q
 from .permissions import get_user_role
 
@@ -340,6 +340,75 @@ class AIStreamView(APIView):
         response = StreamingHttpResponse(generator, content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         return response
+
+
+class AIRouteAgentView(APIView):
+    def post(self, request):
+        project_id = request.data.get("project_id")
+        query = request.data.get("query", "").strip()
+
+        if not project_id or not query:
+            return Response(
+                {"detail": "project_id and query are required"}, status=400
+            )
+
+        agents = list(Agent.objects.filter(project_id=project_id).order_by("id"))
+
+        # 0 agents → return empty (use default)
+        if not agents:
+            return Response({"agent_id": None, "agent_name": None, "config": {}})
+
+        # 1 agent → return it directly, skip LLM call
+        if len(agents) == 1:
+            agent = agents[0]
+            return Response({
+                "agent_id": agent.id,
+                "agent_name": agent.name,
+                "config": agent.config,
+            })
+
+        # 2+ agents → route via LLM
+        agents_desc_lines = []
+        for i, agent in enumerate(agents, 1):
+            prompt_preview = (agent.config.get("system_prompt") or "")[:200]
+            agents_desc_lines.append(f'{i}. "{agent.name}" — {prompt_preview}')
+        agents_desc = "\n".join(agents_desc_lines)
+
+        # Use the first agent's provider/model for routing
+        router_provider = agents[0].config.get("provider", "deepseek")
+        router_model = agents[0].config.get("model", "deepseek-chat")
+
+        provider_key = ProviderKey.objects.filter(provider=router_provider).first()
+        api_key = provider_key.get_api_key() if provider_key else ""
+        if not api_key:
+            api_key = get_hardcoded_provider_key(router_provider)
+        if not api_key:
+            # Can't route without API key — return first agent as fallback
+            agent = agents[0]
+            return Response({
+                "agent_id": agent.id,
+                "agent_name": agent.name,
+                "config": agent.config,
+            })
+
+        try:
+            result = route_agent_sync(
+                router_provider, api_key, router_model, query, agents_desc
+            )
+            choice = int(result.strip().split()[0])
+        except (ValueError, IndexError):
+            choice = 0
+
+        if 1 <= choice <= len(agents):
+            agent = agents[choice - 1]
+        else:
+            return Response({"agent_id": None, "agent_name": None, "config": {}})
+
+        return Response({
+            "agent_id": agent.id,
+            "agent_name": agent.name,
+            "config": agent.config,
+        })
 
 
 class AIAutocompleteView(APIView):
