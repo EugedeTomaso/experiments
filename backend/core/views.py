@@ -61,6 +61,49 @@ class ProjectViewSet(viewsets.ModelViewSet):
             instance.share_token = uuid.uuid4()
             instance.save(update_fields=["share_token"])
 
+    @action(detail=True, methods=["post"], url_path="publish-snapshot")
+    def publish_snapshot(self, request, pk=None):
+        """Freeze current content as the published snapshot."""
+        project = self.get_object()
+        role = get_user_role(request.user, project)
+        if role not in ("owner", "admin", "editor"):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        nodes = Node.objects.filter(project=project).order_by("order", "created_at")
+        snapshot = []
+        for node in nodes:
+            snapshot.append({
+                "id": node.id,
+                "title": node.title,
+                "type": node.type,
+                "parent_id": node.parent_id,
+                "order": node.order,
+                "content_md": node.content_md,
+            })
+            # Also create a Version record for each file node
+            if node.type == Node.NodeType.FILE and node.content_md:
+                Version.objects.create(node=node, content_md=node.content_md)
+
+        project.published_snapshot = snapshot
+        project.published_at = timezone.now()
+        project.save(update_fields=["published_snapshot", "published_at"])
+
+        return Response(ProjectSerializer(project, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="unpublish-snapshot")
+    def unpublish_snapshot(self, request, pk=None):
+        """Switch back to live content mode."""
+        project = self.get_object()
+        role = get_user_role(request.user, project)
+        if role not in ("owner", "admin", "editor"):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        project.published_snapshot = None
+        project.published_at = None
+        project.save(update_fields=["published_snapshot", "published_at"])
+
+        return Response(ProjectSerializer(project, context={"request": request}).data)
+
 
 class NodeViewSet(viewsets.ModelViewSet):
     serializer_class = NodeSerializer

@@ -27,10 +27,11 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "project_type", "project_extension", "brief",
             "auto_context", "context_nodes", "workspace", "owner",
-            "visibility", "share_token", "created_at", "updated_at",
+            "visibility", "share_token", "published_snapshot", "published_at",
+            "created_at", "updated_at",
             "current_user_role",
         ]
-        read_only_fields = ["workspace", "owner", "share_token", "created_at", "updated_at"]
+        read_only_fields = ["workspace", "owner", "share_token", "published_snapshot", "published_at", "created_at", "updated_at"]
 
     def get_current_user_role(self, obj):
         request = self.context.get("request")
