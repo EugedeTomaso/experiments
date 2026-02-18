@@ -1,6 +1,9 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { timeAgo } from "../utils";
+import { MentionPicker } from "./MentionPicker";
+import { ReviewTab } from "./ReviewTab";
+import { VerifyTab } from "./VerifyTab";
 
 function truncate(str, max) {
   if (str.length <= max) return str;
@@ -8,11 +11,29 @@ function truncate(str, max) {
   return str.slice(0, cut > 0 ? cut : max) + "\u2026";
 }
 
+const FileIcon = () => (
+  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+    <path
+      d="M4.5 1.5h4.586a1 1 0 0 1 .707.293l2.914 2.914a1 1 0 0 1 .293.707V13.5a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+    />
+    <path
+      d="M9 1.5v3a1 1 0 0 0 1 1h3"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+    />
+  </svg>
+);
+
 const SUGGESTIONS_WITH_CONTEXT = [
   "Rewrite this",
   "Explain this",
   "Make this clearer",
   "Expand on this",
+  "Review selection",
 ];
 
 const SUGGESTIONS_WITH_CONTENT = [
@@ -71,6 +92,7 @@ export function AssistantPanel({
   nodeDirectConfig,
   onAgentChange,
   onCreateAgent,
+  onEditAgent,
   onSuggestionAction,
   canSummarize,
   isEditingDocument,
@@ -87,8 +109,47 @@ export function AssistantPanel({
   onStop,
   diffVisible,
   diffAvailable,
+  diffStats,
   onToggleDiff,
   onUndoEdit,
+  onAcceptEdit,
+  nodes,
+  mentionedFileIds,
+  onMentionedFilesChange,
+  memories,
+  onCreateMemory,
+  onDeleteMemory,
+  pendingMemorySuggestion,
+  onAcceptMemorySuggestion,
+  onDismissMemorySuggestion,
+  memoryToast,
+  onDismissMemoryToast,
+  activeProjectId,
+  // Tab system
+  activeTab,
+  onTabChange,
+  // Review/Verify tab data
+  reviewTabComments,
+  reviewPendingCount,
+  reviewAcceptedCount,
+  reviewDismissedCount,
+  verifyTabComments,
+  verifyPendingCount,
+  focusedCommentId,
+  aiThinkingId,
+  getReplies,
+  onClickComment,
+  onApproveComment,
+  onDismissComment,
+  onResolveComment,
+  onDeleteComment,
+  onReplyComment,
+  onAskAIComment,
+  onLaunchReview,
+  onLaunchFactCheck,
+  isReviewing,
+  isFactChecking,
+  factCheckProgress,
 }) {
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
@@ -96,6 +157,46 @@ export function AssistantPanel({
   const historyDropdownRef = useRef(null);
   const [isAgentDropdownOpen, setIsAgentDropdownOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // @ mention state
+  const [isMentionOpen, setIsMentionOpen] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [confirmingUndo, setConfirmingUndo] = useState(false);
+  const [isMemoryExpanded, setIsMemoryExpanded] = useState(false);
+  const [newMemoryText, setNewMemoryText] = useState("");
+  const [newMemoryScope, setNewMemoryScope] = useState("project");
+
+  const userMemories = useMemo(
+    () => (memories || []).filter((m) => m.scope === "user"),
+    [memories]
+  );
+  const projectMemories = useMemo(
+    () => (memories || []).filter((m) => m.scope === "project"),
+    [memories]
+  );
+  const memoryCount = (memories || []).length;
+
+  const nodesById = useMemo(
+    () => new Map((nodes || []).map((n) => [String(n.id), n])),
+    [nodes]
+  );
+
+  const excludeIds = useMemo(
+    () => new Set((mentionedFileIds || []).map(String)),
+    [mentionedFileIds]
+  );
+
+  const filteredMentionNodes = useMemo(() => {
+    if (!nodes) return [];
+    const lowerFilter = mentionFilter.toLowerCase();
+    return nodes.filter(
+      (n) =>
+        n.type === "file" &&
+        !excludeIds.has(String(n.id)) &&
+        (!lowerFilter || n.title.toLowerCase().includes(lowerFilter))
+    );
+  }, [nodes, excludeIds, mentionFilter]);
 
   // Close agent dropdown on outside click
   useEffect(() => {
@@ -128,12 +229,12 @@ export function AssistantPanel({
     }
   }, [messages, streamingContent, isEditingDocument]);
 
-  // Focus input on open
+  // Focus input on open or when context is set (e.g. "Ask AI" button)
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [isOpen, pendingContext]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -144,7 +245,61 @@ export function AssistantPanel({
     }
   }, [currentInput]);
 
+  const handleInputChange = (value) => {
+    onInputChange(value);
+
+    // Detect @ mention trigger — look for @ followed by optional filter text
+    const match = value.match(/@([^\s@]*)$/);
+    if (match) {
+      setIsMentionOpen(true);
+      setMentionFilter(match[1]);
+      setMentionIndex(0);
+    } else {
+      setIsMentionOpen(false);
+      setMentionFilter("");
+    }
+  };
+
+  const handleMentionSelect = (node) => {
+    if (!node) return;
+    onMentionedFilesChange([...(mentionedFileIds || []), node.id]);
+    // Remove the @filter text from input
+    const newValue = currentInput.replace(/@[^\s@]*$/, "");
+    onInputChange(newValue);
+    setIsMentionOpen(false);
+    setMentionFilter("");
+    inputRef.current?.focus();
+  };
+
+  const handleMentionRemove = (nodeId) => {
+    onMentionedFilesChange((mentionedFileIds || []).filter((id) => String(id) !== String(nodeId)));
+  };
+
   const handleKeyDown = (e) => {
+    // Intercept keyboard when mention picker is open
+    if (isMentionOpen && filteredMentionNodes.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % filteredMentionNodes.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + filteredMentionNodes.length) % filteredMentionNodes.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        handleMentionSelect(filteredMentionNodes[mentionIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsMentionOpen(false);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSend();
@@ -170,8 +325,6 @@ export function AssistantPanel({
     onDeleteConversation(convId);
   };
 
-  if (!isOpen) return null;
-
   const agentName = nodeDirectConfig?.agent
     ? agents.find((a) => a.id === nodeDirectConfig.agent)?.name || "Assistant"
     : resolvedAgent?.inherited && resolvedAgent?.agent_name
@@ -181,7 +334,7 @@ export function AssistantPanel({
   const hasMessages = messages.length > 0 || isStreaming;
 
   return (
-    <aside className="agent-pane" style={width ? { width } : undefined}>
+    <aside className={`agent-pane${!isOpen ? ' collapsed' : ''}`} style={isOpen && width ? { width } : undefined}>
       {/* Header */}
       <div className="agent-pane-header">
         <div className="agent-pane-header-left">
@@ -249,16 +402,16 @@ export function AssistantPanel({
         <div className="agent-pane-header-right">
           <div className="assistant-agent-wrapper" ref={agentDropdownRef}>
             <button
-              className="agent-header-btn"
+              className="agent-selector-pill"
               onClick={() => setIsAgentDropdownOpen((prev) => !prev)}
-              aria-label="Agent settings"
-              title="Agent settings"
+              aria-label="Select agent"
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                <path
-                  d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53a7.76 7.76 0 0 0 .07-1 7.76 7.76 0 0 0-.07-.97l2.11-1.63a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.15 7.15 0 0 0-1.65-.96l-.37-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65a7.68 7.68 0 0 0-1.65.96l-2.49-1a.49.49 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64L4.57 11a8.3 8.3 0 0 0-.07.97 8.3 8.3 0 0 0 .07 1l-2.11 1.63a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1a7.15 7.15 0 0 0 1.65.96l.37 2.65a.5.5 0 0 0 .5.47h4a.5.5 0 0 0 .49-.42l.38-2.65a7.68 7.68 0 0 0 1.65-.96l2.49 1a.49.49 0 0 0 .61-.22l2-3.46a.49.49 0 0 0-.12-.64Z"
-                  fill="currentColor"
-                />
+              <span className="agent-selector-pill-name">{agentName}</span>
+              {resolvedAgent?.inherited && !nodeDirectConfig?.agent && (
+                <span className="agent-selector-pill-inherited">project</span>
+              )}
+              <svg className="agent-selector-pill-chevron" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             {isAgentDropdownOpen && (
@@ -268,25 +421,66 @@ export function AssistantPanel({
                   className={`assistant-agent-option${!nodeDirectConfig?.agent ? " active" : ""}`}
                   onClick={() => { onAgentChange(null); setIsAgentDropdownOpen(false); }}
                 >
-                  {resolvedAgent?.inherited && resolvedAgent?.agent_name
-                    ? resolvedAgent.agent_name
-                    : "Default"}
+                  <span className="assistant-agent-option-info">
+                    <span className="assistant-agent-option-name">
+                      {resolvedAgent?.inherited && resolvedAgent?.agent_name
+                        ? resolvedAgent.agent_name
+                        : "Default"}
+                    </span>
+                    {resolvedAgent?.inherited && (
+                      <span className="assistant-agent-option-meta">inherited from project</span>
+                    )}
+                  </span>
+                  {!nodeDirectConfig?.agent && (
+                    <svg className="assistant-agent-option-check" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                      <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
                 </button>
-                {agents.map((a) => (
-                  <button
-                    key={a.id}
-                    className={`assistant-agent-option${nodeDirectConfig?.agent === a.id ? " active" : ""}`}
-                    onClick={() => { onAgentChange(a.id); setIsAgentDropdownOpen(false); }}
-                  >
-                    {a.name}
-                  </button>
-                ))}
+                {agents.map((a) => {
+                  const isActive = nodeDirectConfig?.agent === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      className={`assistant-agent-option${isActive ? " active" : ""}`}
+                      onClick={() => { onAgentChange(a.id); setIsAgentDropdownOpen(false); }}
+                    >
+                      <span className="assistant-agent-option-info">
+                        <span className="assistant-agent-option-name">{a.name}</span>
+                        <span className="assistant-agent-option-meta">{a.config?.model || "default"}</span>
+                      </span>
+                      <span className="assistant-agent-option-actions">
+                        {isActive && (
+                          <svg className="assistant-agent-option-check" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                            <path d="M3.5 8.5l3 3 6-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                        <button
+                          className="assistant-agent-edit-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsAgentDropdownOpen(false);
+                            onEditAgent?.(a);
+                          }}
+                          aria-label={`Edit ${a.name}`}
+                        >
+                          <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                            <path d="M11.5 1.5a2.121 2.121 0 0 1 3 3L5 14l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </span>
+                    </button>
+                  );
+                })}
                 <div className="assistant-agent-dropdown-divider" />
                 <button
-                  className="assistant-agent-option"
+                  className="assistant-agent-option assistant-agent-option-create"
                   onClick={() => { onCreateAgent(); setIsAgentDropdownOpen(false); }}
                 >
-                  + Create new…
+                  <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                    <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                  </svg>
+                  <span>New assistant</span>
                 </button>
               </div>
             )}
@@ -308,12 +502,157 @@ export function AssistantPanel({
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div className="agent-tab-bar">
+        <button
+          className={`agent-tab${activeTab === "chat" ? " agent-tab--active" : ""}`}
+          onClick={() => onTabChange("chat")}
+        >
+          Chat
+        </button>
+        <button
+          className={`agent-tab${activeTab === "review" ? " agent-tab--active" : ""}`}
+          onClick={() => onTabChange("review")}
+        >
+          Review
+          {reviewPendingCount > 0 && <span className="agent-tab-badge">{reviewPendingCount}</span>}
+        </button>
+        <button
+          className={`agent-tab${activeTab === "verify" ? " agent-tab--active" : ""}`}
+          onClick={() => onTabChange("verify")}
+        >
+          Verify
+          {verifyPendingCount > 0 && <span className="agent-tab-badge">{verifyPendingCount}</span>}
+        </button>
+      </div>
+
+      {/* Chat tab content */}
+      {activeTab === "chat" && <>
+
+      {/* Memory strip */}
+      {memoryCount > 0 && !isMemoryExpanded && (
+        <div className="memory-strip" onClick={() => setIsMemoryExpanded(true)}>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path d="M8 1a5 5 0 0 1 5 5c0 1.8-1 3.3-2.4 4.2-.4.3-.6.7-.6 1.1V12H6v-.7c0-.4-.2-.8-.6-1.1A5 5 0 0 1 8 1Z" stroke="currentColor" strokeWidth="1.2" fill="none" />
+            <path d="M6 13h4M6.5 14.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          <span>{memoryCount} {memoryCount === 1 ? "memory" : "memories"}</span>
+          <button className="memory-strip-manage">Manage</button>
+        </div>
+      )}
+      {isMemoryExpanded && (
+        <div className="memory-strip-expanded">
+          <div className="memory-strip-expanded-header">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+              <path d="M8 1a5 5 0 0 1 5 5c0 1.8-1 3.3-2.4 4.2-.4.3-.6.7-.6 1.1V12H6v-.7c0-.4-.2-.8-.6-1.1A5 5 0 0 1 8 1Z" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              <path d="M6 13h4M6.5 14.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <span>Memories</span>
+            <button
+              className="memory-strip-collapse"
+              onClick={() => setIsMemoryExpanded(false)}
+              aria-label="Collapse"
+            >
+              <svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true">
+                <path d="M4 10l4-4 4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+          {userMemories.length > 0 && (
+            <>
+              <div className="memory-group-label">All projects</div>
+              {userMemories.map((mem) => (
+                <div key={mem.id} className="memory-item">
+                  <span className="memory-item-text">{mem.content}</span>
+                  <button
+                    className="memory-item-delete"
+                    onClick={() => onDeleteMemory(mem.id)}
+                    aria-label="Delete"
+                  >
+                    <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                      <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+          {projectMemories.length > 0 && (
+            <>
+              <div className="memory-group-label">This project</div>
+              {projectMemories.map((mem) => (
+                <div key={mem.id} className="memory-item">
+                  <span className="memory-item-text">{mem.content}</span>
+                  <button
+                    className="memory-item-delete"
+                    onClick={() => onDeleteMemory(mem.id)}
+                    aria-label="Delete"
+                  >
+                    <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                      <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+          <div className="memory-add-row">
+            <input
+              className="memory-add-input"
+              placeholder="Add a memory..."
+              value={newMemoryText}
+              onChange={(e) => setNewMemoryText(e.target.value)}
+              maxLength={200}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newMemoryText.trim()) {
+                  onCreateMemory(newMemoryText.trim(), newMemoryScope);
+                  setNewMemoryText("");
+                }
+              }}
+            />
+            <select
+              className="memory-scope-select"
+              value={newMemoryScope}
+              onChange={(e) => setNewMemoryScope(e.target.value)}
+            >
+              <option value="project">This project</option>
+              <option value="user">All projects</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Memory toast */}
+      {memoryToast && (
+        <div className="memory-toast">
+          <span>Saved: "{truncate(memoryToast, 60)}"</span>
+          <button className="memory-toast-dismiss" onClick={onDismissMemoryToast}>
+            <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+              <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Body */}
       <div className="agent-pane-body" ref={bodyRef}>
         {hasMessages ? (
           <>
             {messages.map((msg, i) => (
               <div key={i} className={`agent-msg agent-msg-${msg.role}`}>
+                {msg.role === "user" && msg.mentionedFiles?.length > 0 && (
+                  <div className="agent-msg-mentions">
+                    {msg.mentionedFiles.map((id) => {
+                      const node = nodesById.get(String(id));
+                      return node ? (
+                        <span key={id} className="mention-chip mention-chip-readonly">
+                          <FileIcon />
+                          <span className="mention-chip-title">{node.title}</span>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
                 {msg.role === "user" && msg.context && (
                   <div className="agent-msg-context">
                     "{truncate(msg.context.text, 120)}"
@@ -326,25 +665,6 @@ export function AssistantPanel({
                     msg.content
                   )}
                 </div>
-                {msg.role === "assistant" && msg.isDocumentEdit && diffAvailable && i === messages.length - 1 && (
-                  <div className="agent-action-block">
-                    <div className="agent-action-block-header">
-                      <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      <span>Document updated</span>
-                    </div>
-                    <div className="agent-action-block-buttons">
-                      <button className="agent-action-btn" onClick={onToggleDiff}>
-                        {diffVisible ? "Hide changes" : "Show changes"}
-                      </button>
-                      <button className="agent-action-btn agent-action-btn-danger" onClick={onUndoEdit}>
-                        Undo
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
 
@@ -372,6 +692,32 @@ export function AssistantPanel({
                 )}
               </div>
             )}
+
+            {/* Memory suggestion nudge */}
+            {pendingMemorySuggestion && !isStreaming && (
+              <div className="memory-suggestion">
+                <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                  <path d="M8 1a5 5 0 0 1 5 5c0 1.8-1 3.3-2.4 4.2-.4.3-.6.7-.6 1.1V12H6v-.7c0-.4-.2-.8-.6-1.1A5 5 0 0 1 8 1Z" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                  <path d="M6 13h4M6.5 14.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                <span>Save "{truncate(pendingMemorySuggestion.content, 80)}" as a memory?</span>
+                <button
+                  className="memory-suggestion-save"
+                  onClick={() => onAcceptMemorySuggestion(pendingMemorySuggestion)}
+                >
+                  Save
+                </button>
+                <button
+                  className="memory-suggestion-dismiss"
+                  onClick={onDismissMemorySuggestion}
+                  aria-label="Dismiss"
+                >
+                  <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                    <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <EmptyState
@@ -382,6 +728,43 @@ export function AssistantPanel({
           />
         )}
       </div>
+
+      {/* Persistent edit action block — shows whenever diff is available */}
+      {diffAvailable && (
+        <div className="agent-action-block agent-action-block-sticky">
+          <div className="agent-action-block-header">
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>Document updated</span>
+            {diffStats && (
+              <span className="agent-action-block-stats">
+                {diffStats.modified > 0 && <span>{diffStats.modified} modified</span>}
+                {diffStats.added > 0 && <span>{diffStats.added} added</span>}
+                {diffStats.deleted > 0 && <span>{diffStats.deleted} removed</span>}
+              </span>
+            )}
+          </div>
+          <div className="agent-action-block-buttons">
+            <button className="agent-action-btn agent-action-btn-primary" onClick={() => { setConfirmingUndo(false); onAcceptEdit(); }}>
+              Accept
+            </button>
+            <button className="agent-action-btn" onClick={onToggleDiff}>
+              {diffVisible ? "Hide changes" : "Show changes"}
+            </button>
+            {!confirmingUndo ? (
+              <button className="agent-action-btn" onClick={() => setConfirmingUndo(true)}>
+                Undo
+              </button>
+            ) : (
+              <button className="agent-action-btn agent-action-btn-danger" onClick={() => { setConfirmingUndo(false); onUndoEdit(); }}>
+                Confirm undo
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Context block — above composer */}
       {pendingContext && (
@@ -404,11 +787,46 @@ export function AssistantPanel({
 
       {/* Composer */}
       <div className={`agent-composer${pendingContext ? " with-context" : ""}`}>
+        {/* Mention picker — opens upward */}
+        {isMentionOpen && filteredMentionNodes.length > 0 && (
+          <MentionPicker
+            files={filteredMentionNodes}
+            nodesById={nodesById}
+            selectedIndex={mentionIndex}
+            onSelect={handleMentionSelect}
+            onHoverIndex={setMentionIndex}
+          />
+        )}
+
+        {/* Mention chips */}
+        {mentionedFileIds?.length > 0 && (
+          <div className="mention-chips">
+            {mentionedFileIds
+              .map((id) => nodesById.get(String(id)))
+              .filter(Boolean)
+              .map((file) => (
+                <span key={file.id} className="mention-chip">
+                  <FileIcon />
+                  <span className="mention-chip-title">{file.title}</span>
+                  <button
+                    className="mention-chip-remove"
+                    onClick={() => handleMentionRemove(file.id)}
+                    aria-label={`Remove ${file.title}`}
+                  >
+                    <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                      <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+          </div>
+        )}
+
         <textarea
           ref={inputRef}
-          placeholder={pendingContext ? "Ask about this selection\u2026" : "Ask anything\u2026"}
+          placeholder={pendingContext ? "Ask about this selection\u2026" : "Ask anything, type @ to add files\u2026"}
           value={currentInput}
-          onChange={(e) => onInputChange(e.target.value)}
+          onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
         />
@@ -429,7 +847,7 @@ export function AssistantPanel({
             <button
               className="agent-composer-send"
               onClick={onSend}
-              disabled={!currentInput.trim()}
+              disabled={!currentInput.trim() && !(mentionedFileIds?.length > 0)}
               aria-label="Send"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
@@ -446,6 +864,49 @@ export function AssistantPanel({
           )}
         </div>
       </div>
+
+      </>}
+
+      {/* Review tab content */}
+      {activeTab === "review" && (
+        <div className="agent-pane-body">
+          <ReviewTab
+            comments={reviewTabComments}
+            pendingCount={reviewPendingCount}
+            acceptedCount={reviewAcceptedCount}
+            dismissedCount={reviewDismissedCount}
+            focusedCommentId={focusedCommentId}
+            aiThinkingId={aiThinkingId}
+            getReplies={getReplies}
+            onClickComment={onClickComment}
+            onApprove={onApproveComment}
+            onDismiss={onDismissComment}
+            onResolve={onResolveComment}
+            onDelete={onDeleteComment}
+            onReply={onReplyComment}
+            onAskAI={onAskAIComment}
+            onLaunchReview={onLaunchReview}
+            isReviewing={isReviewing}
+          />
+        </div>
+      )}
+
+      {/* Verify tab content */}
+      {activeTab === "verify" && (
+        <div className="agent-pane-body">
+          <VerifyTab
+            comments={verifyTabComments}
+            pendingCount={verifyPendingCount}
+            focusedCommentId={focusedCommentId}
+            onClickComment={onClickComment}
+            onAccept={onApproveComment}
+            onDismiss={onDismissComment}
+            onLaunchFactCheck={onLaunchFactCheck}
+            isFactChecking={isFactChecking}
+            factCheckProgress={factCheckProgress}
+          />
+        </div>
+      )}
     </aside>
   );
 }
