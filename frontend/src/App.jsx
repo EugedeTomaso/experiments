@@ -663,7 +663,7 @@ export default function App() {
 
     const handleFactCheckSelection = (e) => {
       const { from, to } = e.detail;
-      handleFactCheck(from, to);
+      handleFactCheckRef.current?.(from, to);
     };
 
     el.addEventListener("comment-selection-request", onSelectionRequest);
@@ -1060,6 +1060,7 @@ export default function App() {
     }
   };
 
+  const handleFactCheckRef = useRef(null);
   const handleFactCheck = async (selectionFrom = null, selectionTo = null) => {
     if (!activeNode || isFactChecking) return;
     setIsFactChecking(true);
@@ -1078,11 +1079,17 @@ export default function App() {
         selection_to: selectionTo,
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Fact-check request failed: ${response.status}`);
+      }
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let streamDone = false;
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -1093,7 +1100,7 @@ export default function App() {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6).trim();
-          if (data === "[DONE]") break;
+          if (data === "[DONE]") { streamDone = true; break; }
 
           try {
             const parsed = JSON.parse(data);
@@ -1119,6 +1126,7 @@ export default function App() {
       setFactCheckProgress(null);
     }
   };
+  handleFactCheckRef.current = handleFactCheck;
 
   const handleApproveComment = async (commentId) => {
     const comment = comments.find((c) => c.id === commentId);

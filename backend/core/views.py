@@ -686,7 +686,7 @@ class AIFactCheckView(APIView):
                     position_from=pos_from,
                     position_to=pos_to,
                     comment_type="fact_check",
-                    verdict=verdict_data.get("verdict", "dubious"),
+                    verdict=verdict_data.get("verdict", "dubious") if verdict_data.get("verdict") in {"verified", "dubious", "false"} else "dubious",
                     sources=sources,
                 )
 
