@@ -199,6 +199,12 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     return request(`/api/agent-configs/resolve/?${query}`);
   },
+  routeAgent(payload) {
+    return request("/api/ai/route-agent", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
   listAgents(projectId) {
     return request(`/api/agents/?project=${projectId}`);
   },
