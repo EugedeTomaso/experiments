@@ -399,3 +399,42 @@ class YjsState(models.Model):
 
     def __str__(self):
         return f"YjsState for {self.node.title}"
+
+
+class Critique(models.Model):
+    node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="critiques")
+    sections = models.JSONField(default=list)
+    overall_score = models.IntegerField()
+    summary = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Critique {self.id} for Node {self.node_id} ({self.overall_score}/10)"
+
+
+class CritiqueThread(models.Model):
+    critique = models.ForeignKey(Critique, on_delete=models.CASCADE, related_name="threads")
+    section_id = models.CharField(max_length=20)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("critique", "section_id")
+
+    def __str__(self):
+        return f"Thread for {self.critique_id} section {self.section_id}"
+
+
+class CritiqueMessage(models.Model):
+    thread = models.ForeignKey(CritiqueThread, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField(max_length=10, choices=[("user", "User"), ("assistant", "Assistant")])
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.role} message in thread {self.thread_id}"
