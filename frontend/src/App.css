@@ -6856,27 +6856,26 @@ button.ghost:focus-visible {
   padding: 64px 32px 48px;
 }
 
-/* Step container — fade+slide in on mount */
+/* Screen container — slide vertical on mount */
 
-.wizard-step {
+.wizard-screen {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  animation: wizard-step-in 250ms var(--ease);
+  gap: 16px;
 }
-
-.wizard-step.backward {
-  animation: wizard-step-in-backward 250ms var(--ease);
+.wizard-screen.slide-up {
+  animation: wizard-slide-up 250ms var(--ease) both;
 }
-
-@keyframes wizard-step-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+.wizard-screen.slide-down {
+  animation: wizard-slide-down 250ms var(--ease) both;
 }
-
-@keyframes wizard-step-in-backward {
-  from { opacity: 0; transform: translateY(-12px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes wizard-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes wizard-slide-down {
+  from { opacity: 0; transform: translateY(-24px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Typography */
@@ -7137,139 +7136,6 @@ button.ghost:focus-visible {
   color: var(--text-4);
 }
 
-/* Material options (Step 3) */
-
-.wizard-material-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.wizard-material-option {
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  font-size: 14px;
-  font-family: inherit;
-  color: var(--text-1);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color var(--duration-fast) var(--ease),
-              background var(--duration-fast) var(--ease);
-}
-
-.wizard-material-option:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-inset);
-}
-
-.wizard-material-option:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: var(--control-focus);
-}
-
-.wizard-material-option.selected {
-  border-color: var(--accent-border);
-  background: var(--accent-soft);
-}
-
-/* Structure tree (Step 4) */
-
-.wizard-structure-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.wizard-structure-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  animation: wizard-item-in 200ms var(--ease) both;
-  transition: background var(--duration-fast) var(--ease);
-}
-
-.wizard-structure-item:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-@keyframes wizard-item-in {
-  from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* Checkbox */
-
-.wizard-check {
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid var(--border-strong);
-  border-radius: 4px;
-  background: var(--surface);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  padding: 0;
-  transition: border-color var(--duration-fast) var(--ease),
-              background var(--duration-fast) var(--ease);
-}
-
-.wizard-check:hover {
-  border-color: var(--text-3);
-}
-
-.wizard-check:focus-visible {
-  outline: none;
-  box-shadow: var(--control-focus);
-}
-
-.wizard-check.checked {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
-}
-
-/* Item icon & title */
-
-.wizard-item-icon {
-  width: 14px;
-  height: 14px;
-  color: var(--text-4);
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-}
-
-.wizard-item-title {
-  font-size: 13px;
-  color: var(--text-1);
-  cursor: default;
-}
-
-.wizard-item-title.disabled {
-  color: var(--text-4);
-  text-decoration: line-through;
-}
-
-.wizard-item-rename {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  outline: none;
-  box-shadow: var(--control-focus);
-}
-
 /* Generating state (Step 4) */
 
 .wizard-generating {
@@ -7300,6 +7166,21 @@ button.ghost:focus-visible {
   margin: 0;
 }
 
+/* Evaluating screen */
+
+.wizard-evaluating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 0;
+  gap: 16px;
+}
+.wizard-evaluating-text {
+  font-size: 14px;
+  color: var(--text-3);
+}
+
 /* Notice (fallback message) */
 
 .wizard-notice {
@@ -7310,32 +7191,6 @@ button.ghost:focus-visible {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   margin: -8px 0 0;
-}
-
-/* Regenerate button */
-
-.wizard-regenerate {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-3);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  padding: 4px 0;
-  transition: color var(--duration-fast) var(--ease);
-}
-
-.wizard-regenerate:hover {
-  color: var(--text-1);
-}
-
-.wizard-regenerate:focus-visible {
-  outline: none;
-  box-shadow: var(--control-focus);
-  border-radius: var(--radius-sm);
 }
 
 /* Name input (Step 5) */
@@ -7362,6 +7217,18 @@ button.ghost:focus-visible {
 .wizard-name-input::placeholder {
   color: var(--text-4);
   font-weight: 400;
+}
+
+/* Name suggestion hint */
+
+.wizard-name-hint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-4);
+  pointer-events: none;
 }
 
 /* Actions row */
@@ -7435,33 +7302,6 @@ button.ghost:focus-visible {
   min-height: 80px;
 }
 
-/* Progress dots */
-
-.wizard-progress {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-
-.wizard-progress-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--border-strong);
-  transition: background var(--duration-fast) var(--ease),
-              transform var(--duration-fast) var(--ease);
-}
-
-.wizard-progress-dot.active {
-  background: var(--primary);
-  transform: scale(1.33);
-}
-
-.wizard-progress-dot.completed {
-  background: var(--text-3);
-}
-
 /* Skeleton loading */
 
 .wizard-skeleton {
@@ -7530,14 +7370,6 @@ button.ghost:focus-visible {
   font-weight: 600;
   color: var(--text-1);
   margin: 0;
-}
-
-/* Item title focus for keyboard rename */
-
-.wizard-item-title:focus-visible {
-  outline: none;
-  box-shadow: var(--control-focus);
-  border-radius: 2px;
 }
 
 /* Responsive */
@@ -7614,11 +7446,11 @@ button.ghost:focus-visible {
   gap: 16px;
   align-items: center;
   text-align: center;
-  animation: wizard-step-in 250ms var(--ease);
+  animation: wizard-slide-up 250ms var(--ease);
 }
 
 .welcome-page.backward {
-  animation: wizard-step-in-backward 250ms var(--ease);
+  animation: wizard-slide-down 250ms var(--ease);
 }
 
 /* Typography */
