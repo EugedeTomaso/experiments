@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { timeAgo } from "../utils";
+import { AgentMentionPicker } from "./AgentMentionPicker";
 
 export function ReviewCard({
   comment,
@@ -14,11 +15,20 @@ export function ReviewCard({
   onDelete,
   onReply,
   onAskAI,
+  agents,
 }) {
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const replyInputRef = useRef(null);
   const cardRef = useRef(null);
+
+  const filteredAgents = useMemo(() => {
+    if (mentionQuery === null || !agents) return [];
+    const q = mentionQuery.toLowerCase();
+    return agents.filter((a) => a.name.toLowerCase().startsWith(q));
+  }, [agents, mentionQuery]);
 
   useEffect(() => {
     if (isThreadOpen && replyInputRef.current) {
@@ -41,11 +51,46 @@ export function ReviewCard({
   const handleReplySubmit = () => {
     const text = replyText.trim();
     if (!text) return;
+
+    // Detect @AgentName in the reply
+    const mentionMatch = text.match(/@(\S+)/);
+    const mentionedAgent = mentionMatch
+      ? (agents || []).find((a) => a.name.toLowerCase() === mentionMatch[1].toLowerCase())
+      : null;
+
     onReply(comment.id, text);
     setReplyText("");
+    setMentionQuery(null);
+
+    // Auto-invoke agent if mentioned
+    if (mentionedAgent) {
+      onAskAI(comment.id, mentionedAgent.id);
+    }
   };
 
   const handleReplyKeyDown = (e) => {
+    if (mentionQuery !== null && filteredAgents.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => Math.min(i + 1, filteredAgents.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSelectAgent(filteredAgents[mentionIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleReplySubmit();
@@ -54,6 +99,16 @@ export function ReviewCard({
       setIsThreadOpen(false);
       setReplyText("");
     }
+  };
+
+  const handleSelectAgent = (agent) => {
+    const textarea = replyInputRef.current;
+    const cursorPos = textarea?.selectionStart || replyText.length;
+    const textBeforeCursor = replyText.slice(0, cursorPos);
+    const textAfterCursor = replyText.slice(cursorPos);
+    const newBefore = textBeforeCursor.replace(/@\w*$/, `@${agent.name} `);
+    setReplyText(newBefore + textAfterCursor);
+    setMentionQuery(null);
   };
 
   return (
@@ -170,10 +225,34 @@ export function ReviewCard({
             </button>
           )}
           <div className="review-card-reply-composer">
+            {mentionQuery !== null && filteredAgents.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <div style={{ position: "absolute", bottom: "100%", left: 0, zIndex: 10, width: "100%" }}>
+                  <AgentMentionPicker
+                    agents={filteredAgents}
+                    selectedIndex={mentionIndex}
+                    onSelect={handleSelectAgent}
+                    onHoverIndex={setMentionIndex}
+                  />
+                </div>
+              </div>
+            )}
             <textarea
               ref={replyInputRef}
               value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setReplyText(val);
+                const cursorPos = e.target.selectionStart;
+                const textBeforeCursor = val.slice(0, cursorPos);
+                const atMatch = textBeforeCursor.match(/@(\w*)$/);
+                if (atMatch) {
+                  setMentionQuery(atMatch[1]);
+                  setMentionIndex(0);
+                } else {
+                  setMentionQuery(null);
+                }
+              }}
               onKeyDown={handleReplyKeyDown}
               placeholder="Reply…"
               rows={1}

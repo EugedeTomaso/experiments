@@ -142,6 +142,7 @@ export function AssistantPanel({
   getReplies,
   onClickComment,
   onApproveComment,
+  onApproveReplyComment,
   onDismissComment,
   onResolveComment,
   onDeleteComment,
@@ -165,9 +166,10 @@ export function AssistantPanel({
   const [mentionFilter, setMentionFilter] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
   const [confirmingUndo, setConfirmingUndo] = useState(false);
-  const [isMemoryExpanded, setIsMemoryExpanded] = useState(false);
+  const [isMemoryPopoverOpen, setIsMemoryPopoverOpen] = useState(false);
   const [newMemoryText, setNewMemoryText] = useState("");
   const [newMemoryScope, setNewMemoryScope] = useState("project");
+  const memoryPopoverRef = useRef(null);
 
   const userMemories = useMemo(
     () => (memories || []).filter((m) => m.scope === "user"),
@@ -223,6 +225,18 @@ export function AssistantPanel({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isHistoryOpen]);
+
+  // Close memory popover on outside click
+  useEffect(() => {
+    if (!isMemoryPopoverOpen) return;
+    const handler = (e) => {
+      if (memoryPopoverRef.current && !memoryPopoverRef.current.contains(e.target)) {
+        setIsMemoryPopoverOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isMemoryPopoverOpen]);
 
   // Auto-scroll thread
   useEffect(() => {
@@ -564,99 +578,6 @@ export function AssistantPanel({
       {/* Chat tab content */}
       {activeTab === "chat" && <>
 
-      {/* Memory strip */}
-      {memoryCount > 0 && !isMemoryExpanded && (
-        <div className="memory-strip" onClick={() => setIsMemoryExpanded(true)}>
-          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-            <path d="M8 1a5 5 0 0 1 5 5c0 1.8-1 3.3-2.4 4.2-.4.3-.6.7-.6 1.1V12H6v-.7c0-.4-.2-.8-.6-1.1A5 5 0 0 1 8 1Z" stroke="currentColor" strokeWidth="1.2" fill="none" />
-            <path d="M6 13h4M6.5 14.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-          <span>{memoryCount} {memoryCount === 1 ? "memory" : "memories"}</span>
-          <button className="memory-strip-manage">Manage</button>
-        </div>
-      )}
-      {isMemoryExpanded && (
-        <div className="memory-strip-expanded">
-          <div className="memory-strip-expanded-header">
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-              <path d="M8 1a5 5 0 0 1 5 5c0 1.8-1 3.3-2.4 4.2-.4.3-.6.7-.6 1.1V12H6v-.7c0-.4-.2-.8-.6-1.1A5 5 0 0 1 8 1Z" stroke="currentColor" strokeWidth="1.2" fill="none" />
-              <path d="M6 13h4M6.5 14.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-            <span>Memories</span>
-            <button
-              className="memory-strip-collapse"
-              onClick={() => setIsMemoryExpanded(false)}
-              aria-label="Collapse"
-            >
-              <svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true">
-                <path d="M4 10l4-4 4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
-          {userMemories.length > 0 && (
-            <>
-              <div className="memory-group-label">All projects</div>
-              {userMemories.map((mem) => (
-                <div key={mem.id} className="memory-item">
-                  <span className="memory-item-text">{mem.content}</span>
-                  <button
-                    className="memory-item-delete"
-                    onClick={() => onDeleteMemory(mem.id)}
-                    aria-label="Delete"
-                  >
-                    <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
-                      <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </>
-          )}
-          {projectMemories.length > 0 && (
-            <>
-              <div className="memory-group-label">This project</div>
-              {projectMemories.map((mem) => (
-                <div key={mem.id} className="memory-item">
-                  <span className="memory-item-text">{mem.content}</span>
-                  <button
-                    className="memory-item-delete"
-                    onClick={() => onDeleteMemory(mem.id)}
-                    aria-label="Delete"
-                  >
-                    <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
-                      <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </>
-          )}
-          <div className="memory-add-row">
-            <input
-              className="memory-add-input"
-              placeholder="Add a memory..."
-              value={newMemoryText}
-              onChange={(e) => setNewMemoryText(e.target.value)}
-              maxLength={200}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newMemoryText.trim()) {
-                  onCreateMemory(newMemoryText.trim(), newMemoryScope);
-                  setNewMemoryText("");
-                }
-              }}
-            />
-            <select
-              className="memory-scope-select"
-              value={newMemoryScope}
-              onChange={(e) => setNewMemoryScope(e.target.value)}
-            >
-              <option value="project">This project</option>
-              <option value="user">All projects</option>
-            </select>
-          </div>
-        </div>
-      )}
-
       {/* Memory toast */}
       {memoryToast && (
         <div className="memory-toast">
@@ -878,7 +799,94 @@ export function AssistantPanel({
           rows={1}
         />
         <div className="agent-composer-footer">
-          <span className="agent-composer-model">{agentName}</span>
+          <div className="agent-composer-footer-left">
+            <span className="agent-composer-model">{agentName}</span>
+            <div className="memory-popover-wrapper" ref={memoryPopoverRef}>
+              <button
+                className={`memory-popover-trigger${isMemoryPopoverOpen ? " active" : ""}`}
+                onClick={() => setIsMemoryPopoverOpen((prev) => !prev)}
+                aria-label="Memories"
+                title="Memories"
+              >
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                  <path d="M8 1a5 5 0 0 1 5 5c0 1.8-1 3.3-2.4 4.2-.4.3-.6.7-.6 1.1V12H6v-.7c0-.4-.2-.8-.6-1.1A5 5 0 0 1 8 1Z" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                  <path d="M6 13h4M6.5 14.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                {memoryCount > 0 && <span className="memory-popover-count">{memoryCount}</span>}
+              </button>
+              {isMemoryPopoverOpen && (
+                <div className="memory-popover">
+                  {projectMemories.length > 0 && (
+                    <>
+                      <div className="memory-popover-group-label">This project</div>
+                      {projectMemories.map((mem) => (
+                        <div key={mem.id} className="memory-popover-item">
+                          <span className="memory-popover-item-text">{mem.content}</span>
+                          <button
+                            className="memory-popover-item-delete"
+                            onClick={() => onDeleteMemory(mem.id)}
+                            aria-label="Delete"
+                          >
+                            <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                              <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {userMemories.length > 0 && (
+                    <>
+                      <div className="memory-popover-group-label">All projects</div>
+                      {userMemories.map((mem) => (
+                        <div key={mem.id} className="memory-popover-item">
+                          <span className="memory-popover-item-text">{mem.content}</span>
+                          <button
+                            className="memory-popover-item-delete"
+                            onClick={() => onDeleteMemory(mem.id)}
+                            aria-label="Delete"
+                          >
+                            <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                              <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {memoryCount === 0 && (
+                    <div className="memory-popover-empty">No memories yet</div>
+                  )}
+                  <div className="memory-popover-add">
+                    <input
+                      className="memory-popover-add-input"
+                      placeholder="Add a memory..."
+                      value={newMemoryText}
+                      onChange={(e) => setNewMemoryText(e.target.value)}
+                      maxLength={200}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newMemoryText.trim()) {
+                          onCreateMemory(newMemoryText.trim(), newMemoryScope);
+                          setNewMemoryText("");
+                        }
+                        if (e.key === "Escape") {
+                          setIsMemoryPopoverOpen(false);
+                        }
+                      }}
+                    />
+                    <select
+                      className="memory-popover-scope"
+                      value={newMemoryScope}
+                      onChange={(e) => setNewMemoryScope(e.target.value)}
+                    >
+                      <option value="project">Project</option>
+                      <option value="user">Global</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           {isStreaming ? (
             <button
               className="agent-composer-stop"
@@ -927,6 +935,7 @@ export function AssistantPanel({
             getReplies={getReplies}
             onClickComment={onClickComment}
             onApprove={onApproveComment}
+            onApproveReply={onApproveReplyComment}
             onDismiss={onDismissComment}
             onResolve={onResolveComment}
             onDelete={onDeleteComment}
@@ -934,6 +943,7 @@ export function AssistantPanel({
             onAskAI={onAskAIComment}
             onLaunchReview={onLaunchReview}
             isReviewing={isReviewing}
+            agents={agents}
           />
         </div>
       )}

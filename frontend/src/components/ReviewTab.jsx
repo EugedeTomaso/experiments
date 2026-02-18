@@ -10,6 +10,7 @@ export function ReviewTab({
   getReplies,
   onClickComment,
   onApprove,
+  onApproveReply,
   onDismiss,
   onResolve,
   onDelete,
@@ -17,6 +18,7 @@ export function ReviewTab({
   onAskAI,
   onLaunchReview,
   isReviewing,
+  agents,
 }) {
   const allResolved = comments.length > 0 && pendingCount === 0;
   const isEmpty = comments.length === 0 && !isReviewing;
@@ -69,11 +71,13 @@ export function ReviewTab({
             isAiThinking={c.id === aiThinkingId}
             onClick={() => onClickComment(c)}
             onApprove={onApprove}
+            onApproveReply={onApproveReply}
             onDismiss={onDismiss}
             onResolve={onResolve}
             onDelete={onDelete}
             onReply={onReply}
             onAskAI={onAskAI}
+            agents={agents}
           />
         ))}
       </div>
