@@ -94,8 +94,7 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef,
     if (loading) return;
     get().action((ctx) => {
       const view = ctx.get(editorViewCtx);
-      const inlineComments = comments.filter((c) => c.quoted_text);
-      const tr = view.state.tr.setMeta(commentDecoPluginKey, inlineComments);
+      const tr = view.state.tr.setMeta(commentDecoPluginKey, comments);
       view.dispatch(tr);
     });
   }, [comments, loading, get]);
