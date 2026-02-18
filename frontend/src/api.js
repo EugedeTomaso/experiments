@@ -147,6 +147,19 @@ export const api = {
     return request(`/api/comments/${id}/resolve/`, { method: "POST" });
   },
 
+  // AI Fact-Check
+  factCheck(payload) {
+    const token = localStorage.getItem("marvin:access_token");
+    return fetch(`${API_BASE}/api/ai/fact-check`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+  },
+
   // AI Review
   requestReview(payload) {
     return request("/api/ai/review", {
