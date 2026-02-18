@@ -233,6 +233,7 @@ export default function App() {
   const [nodeAgentConfigs, setNodeAgentConfigs] = useState([]);
   const [resolvedAgent, setResolvedAgent] = useState(null);
   const [nodeDirectConfig, setNodeDirectConfig] = useState(null);
+  const [agentMode, setAgentMode] = useState("auto"); // "auto" | "fixed"
   const [isAgentCreatorOpen, setIsAgentCreatorOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null); // null = create, object = edit
 
@@ -284,7 +285,7 @@ export default function App() {
   const docMenuRef = useRef(null);
 
   // --- Comment state (centralized hook) ---
-  const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef });
+  const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef, content: draft });
   const {
     comments, openComments, decorationComments, activeThread: activeThreadComment,
     focusedId: focusedCommentId, navIndex: focusedNavIndex, navTotal,
@@ -466,15 +467,30 @@ export default function App() {
 
   useEffect(() => {
     if (!activeProjectId) return;
-    api.listNodes(activeProjectId).then((data) => {
+
+    // Flush any pending auto-save before switching projects so the
+    // server has the latest content when the new project loads.
+    clearTimeout(autoSaveTimerRef.current);
+    let flushPromise = Promise.resolve();
+    if (pendingSaveRef.current) {
+      const { nodeId, content } = pendingSaveRef.current;
+      setNodes((prev) =>
+        prev.map((n) =>
+          String(n.id) === String(nodeId) ? { ...n, content_md: content } : n
+        )
+      );
+      flushPromise = api.updateNode(nodeId, { content_md: content }).catch(() => {});
+      pendingSaveRef.current = null;
+    }
+
+    setActiveNodeId(null);
+    flushPromise.then(() => api.listNodes(activeProjectId)).then((data) => {
       setNodes(data);
       // Auto-expand all folders on load
       const folderIds = new Set(data.filter((n) => n.type === "folder").map((n) => String(n.id)));
       setExpandedFolders(folderIds);
-      if (!activeNodeId) {
-        const firstFile = data.find((n) => n.type === "file");
-        if (firstFile) setActiveNodeId(String(firstFile.id));
-      }
+      const firstFile = data.find((n) => n.type === "file");
+      if (firstFile) setActiveNodeId(String(firstFile.id));
     }).catch(() => {});
   }, [activeProjectId]);
 
@@ -530,15 +546,26 @@ export default function App() {
   }, [activeNode?.id, folderSummary]);
 
   useEffect(() => {
-    setActiveNodeId(null);
-  }, [activeProjectId]);
-
-  useEffect(() => {
     // Flush any pending auto-save for the previous node
     clearTimeout(autoSaveTimerRef.current);
     if (pendingSaveRef.current) {
       const { nodeId, content } = pendingSaveRef.current;
-      api.updateNode(nodeId, { content_md: content }).catch(() => {});
+      // Optimistically update the node in memory so navigating back
+      // loads the correct content even before the API responds.
+      setNodes((prev) =>
+        prev.map((n) =>
+          String(n.id) === String(nodeId) ? { ...n, content_md: content } : n
+        )
+      );
+      api.updateNode(nodeId, { content_md: content })
+        .then((updated) => {
+          setNodes((prev) =>
+            prev.map((n) =>
+              String(n.id) === String(updated.id) ? updated : n
+            )
+          );
+        })
+        .catch(() => {});
       pendingSaveRef.current = null;
     }
 
@@ -554,6 +581,7 @@ export default function App() {
       setDraft(content);
       loadedContentRef.current = content;
       setSaveStatus("saved");
+      clearComments();
       loadComments(node.id);
       api.listVersions(node.id).then(setVersions).catch(() => setVersions([]));
     } else {
@@ -566,7 +594,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNodeId]);
 
-  // Collab session lifecycle
+  // Collab session lifecycle — only activate if WebSocket server is reachable
   useEffect(() => {
     const node = nodes.find((n) => String(n.id) === String(activeNodeId));
     if (!activeNodeId || !node || node.type !== "file") return;
@@ -579,14 +607,37 @@ export default function App() {
       id: user?.id || 0,
     });
 
+    let destroyed = false;
+
     const unsubscribe = session.onConnectionChange((state) => {
+      if (destroyed) return;
       setConnectionStatus(state);
+      // If the server confirms connection, commit to collab mode
+      if (state === "connected") {
+        clearTimeout(connectTimeout);
+        setCollabSession(session);
+      }
     });
 
-    setCollabSession(session);
-    setConnectionStatus(session.connectionState);
+    // Give the WebSocket server a few seconds to connect.
+    // If it doesn't connect in time, fall back to API-based saving
+    // so content isn't lost to an empty Yjs document.
+    const connectTimeout = setTimeout(() => {
+      if (session.connectionState !== "connected") {
+        destroyed = true;
+        unsubscribe();
+        session.destroy();
+        setCollabSession(null);
+        setConnectionStatus("disconnected");
+      }
+    }, 3000);
+
+    // Start in non-collab mode; only switch if WebSocket connects
+    setConnectionStatus("connecting");
 
     return () => {
+      destroyed = true;
+      clearTimeout(connectTimeout);
       unsubscribe();
       session.destroy();
       setCollabSession(null);
@@ -598,7 +649,7 @@ export default function App() {
   // Auto-save with debounce
   useEffect(() => {
     if (!activeNodeId) return;
-    if (collabSession) return; // Collab server handles persistence
+    if (collabSession && connectionStatus === "connected") return; // Collab server handles persistence
     if (draft === loadedContentRef.current) {
       setSaveStatus("saved");
       pendingSaveRef.current = null;
@@ -626,7 +677,7 @@ export default function App() {
     }, autosaveDelay);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [draft, autosaveDelay, collabSession]);
+  }, [draft, autosaveDelay, collabSession, connectionStatus]);
 
   // Clear diff toggle when user edits and plugin clears its data
   useEffect(() => {
@@ -1371,20 +1422,49 @@ export default function App() {
     }
 
     try {
-      let resolved;
-      try {
-        resolved = await api.resolveAgentConfig(
-          activeNode ? { node: activeNode.id } : { project: activeProjectId }
-        );
-      } catch (_) {
-        // Fall back to project-level resolution if node-level fails
-        if (activeNode && activeProjectId) {
-          try {
-            resolved = await api.resolveAgentConfig({ project: activeProjectId });
-          } catch (_) {}
+      let config;
+      let routedAgentId = null;
+      let routedAgentName = null;
+
+      if (agentMode === "auto" && agents.length >= 2) {
+        // Auto mode: ask backend to route
+        try {
+          const routed = await api.routeAgent({
+            project_id: activeProjectId,
+            query: userMsg,
+          });
+          if (routed.agent_id) {
+            routedAgentId = routed.agent_id;
+            routedAgentName = routed.agent_name;
+            config = { ...defaultAgent, ...routed.config };
+          }
+        } catch (_) {
+          // Routing failed — fall through to default resolution
         }
       }
-      const config = { ...defaultAgent, ...(resolved?.config || {}) };
+
+      // If not routed (fixed mode, <2 agents, or routing failed), use existing resolution
+      if (!config) {
+        let resolved;
+        try {
+          resolved = await api.resolveAgentConfig(
+            activeNode ? { node: activeNode.id } : { project: activeProjectId }
+          );
+        } catch (_) {
+          if (activeNode && activeProjectId) {
+            try {
+              resolved = await api.resolveAgentConfig({ project: activeProjectId });
+            } catch (_) {}
+          }
+        }
+        config = { ...defaultAgent, ...(resolved?.config || {}) };
+
+        // In auto mode with 1 agent, show that agent's name
+        if (agentMode === "auto" && agents.length === 1) {
+          routedAgentId = agents[0].id;
+          routedAgentName = agents[0].name;
+        }
+      }
 
       const apiMessages = [];
       let systemContent = config.system_prompt || "";
@@ -1630,16 +1710,16 @@ Rules for memory suggestions:
             }
           }
           assistantContent = finalState.chatContent || "I've updated the document.";
-          setChatMessages((prev) => [...prev, { role: "assistant", content: assistantContent, isDocumentEdit: true }]);
+          setChatMessages((prev) => [...prev, { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName }]);
         } else {
           assistantContent = fullContent;
           if (fullContent) {
-            setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+            setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent, routedAgentId, routedAgentName }]);
           }
         }
         // Persist assistant message
         if (convId && assistantContent) {
-          api.createMessage({ conversation: convId, role: "assistant", content: assistantContent }).catch(() => {});
+          api.createMessage({ conversation: convId, role: "assistant", content: assistantContent, routed_agent: routedAgentId }).catch(() => {});
         }
         // Check for memory suggestion in AI response
         const finalParserState = parser.getState();
@@ -1885,6 +1965,7 @@ Rules for memory suggestions:
   const handleRestoreVersion = (version) => {
     const md = version.content_md || "";
     setDraft(md);
+    loadedContentRef.current = md;
     setCompareVersionId(null);
     if (editorRef.current) {
       editorRef.current.replaceContent(md);
@@ -2822,6 +2903,8 @@ Rules for memory suggestions:
           memoryToast={memoryToast}
           onDismissMemoryToast={() => setMemoryToast(null)}
           activeProjectId={activeProjectId}
+          agentMode={agentMode}
+          onAgentModeChange={setAgentMode}
         />
       </div>
       )}
