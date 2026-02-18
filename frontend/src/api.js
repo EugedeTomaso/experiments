@@ -173,6 +173,30 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+
+  // AI Critique
+  requestCritique(payload) {
+    return request("/api/ai/critique", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  listCritiques(nodeId) {
+    return request(`/api/critiques/?node_id=${nodeId}`);
+  },
+
+  getCritique(id) {
+    return request(`/api/critiques/${id}/`);
+  },
+
+  discussCritiqueSection(payload) {
+    return request("/api/ai/critique-discuss", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   listVersions(nodeId) {
     return request(`/api/versions/?node=${nodeId}`);
   },
