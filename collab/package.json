@@ -1,0 +1,15 @@
+{
+  "name": "jakarta-collab",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.16.0",
+    "yjs": "^13.6.0",
+    "y-protocols": "^1.0.6",
+    "lib0": "^0.2.88"
+  }
+}

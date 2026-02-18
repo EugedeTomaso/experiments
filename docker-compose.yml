@@ -42,5 +42,17 @@ services:
     depends_on:
       - backend
 
+  collab:
+    build: ./collab
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-insecure-secret-key-change-me}
+      DJANGO_API_URL: http://backend:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key}
+      PORT: 4444
+    ports:
+      - "4444:4444"
+    depends_on:
+      - backend
+
 volumes:
   db_data:
