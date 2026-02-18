@@ -356,3 +356,12 @@ class PublishRecord(models.Model):
 
     def __str__(self):
         return f"{self.title} → {self.platform_connection.platform}"
+
+
+class YjsState(models.Model):
+    node = models.OneToOneField(Node, related_name="yjs_state", on_delete=models.CASCADE)
+    state = models.BinaryField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"YjsState for {self.node.title}"
