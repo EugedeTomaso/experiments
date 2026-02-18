@@ -223,8 +223,15 @@ class Agent(models.Model):
 
 
 class Conversation(models.Model):
+    class AgentMode(models.TextChoices):
+        AUTO = "auto", "Auto"
+        FIXED = "fixed", "Fixed"
+
     node = models.ForeignKey(Node, related_name="conversations", on_delete=models.CASCADE)
     title = models.CharField(max_length=200, blank=True, default="")
+    agent_mode = models.CharField(
+        max_length=10, choices=AgentMode.choices, default=AgentMode.AUTO
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -245,6 +252,10 @@ class Message(models.Model):
     )
     role = models.CharField(max_length=20, choices=Role.choices)
     content = models.TextField()
+    routed_agent = models.ForeignKey(
+        "Agent", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="routed_messages",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

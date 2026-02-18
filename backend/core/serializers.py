@@ -199,6 +199,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             "id",
             "node",
             "title",
+            "agent_mode",
             "message_count",
             "preview",
             "created_at",
@@ -215,10 +216,14 @@ class ConversationSerializer(serializers.ModelSerializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    routed_agent_name = serializers.CharField(
+        source="routed_agent.name", read_only=True, default=None
+    )
+
     class Meta:
         model = Message
-        fields = ["id", "conversation", "role", "content", "created_at"]
-        read_only_fields = ["created_at"]
+        fields = ["id", "conversation", "role", "content", "routed_agent", "routed_agent_name", "created_at"]
+        read_only_fields = ["created_at", "routed_agent_name"]
 
 
 class ProviderKeySerializer(serializers.ModelSerializer):
