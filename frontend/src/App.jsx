@@ -2111,8 +2111,12 @@ Rules for memory suggestions:
   };
 
   const handleRestoreVersion = (version) => {
-    setDraft(version.content_md || "");
+    const md = version.content_md || "";
+    setDraft(md);
     setCompareVersionId(null);
+    if (editorRef.current) {
+      editorRef.current.replaceContent(md);
+    }
   };
 
   const handleCompareVersion = useCallback((version) => {
