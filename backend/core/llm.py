@@ -158,6 +158,23 @@ FOCUS_DESCRIPTIONS = {
 }
 
 
+CRITIQUE_SYSTEM_PROMPT = (
+    "You are a professional writing critic. Analyze the following document "
+    "and provide a comprehensive critique.\n\n"
+    "For each aspect you evaluate, return a JSON object with:\n"
+    '- "title": the aspect name (e.g., "Structure", "Clarity", "Tone", "Argument")\n'
+    '- "score": a rating from 1 to 10\n'
+    '- "body": your detailed evaluation (2-4 sentences)\n\n'
+    "Choose the aspects that are most relevant to THIS specific document. "
+    "Typically 4-7 aspects.\n\n"
+    "Also provide:\n"
+    '- "overall_score": a single 1-10 rating for the document\n'
+    '- "summary": a 1-2 sentence executive summary\n\n'
+    "Return ONLY valid JSON in this format:\n"
+    '{"overall_score": 7, "summary": "...", "sections": [{"title": "...", "score": 7, "body": "..."}, ...]}'
+)
+
+
 def generate_review_sync(
     provider: str, api_key: str, model: str, content_md: str, focus: str = "all"
 ) -> list:
@@ -193,6 +210,45 @@ def generate_review_sync(
             except json.JSONDecodeError:
                 pass
         return []
+
+
+def generate_critique_sync(
+    provider: str, api_key: str, model: str, content_md: str
+) -> dict:
+    """Generate a holistic document critique. Returns dict with overall_score, summary, sections."""
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    messages = [
+        {"role": "system", "content": CRITIQUE_SYSTEM_PROMPT},
+        {"role": "user", "content": content_md[:12000]},
+    ]
+
+    if config["type"] == "anthropic":
+        raw = _sync_anthropic_review(api_key, config["base_url"], model, messages)
+    else:
+        raw = _sync_openai_compatible_review(api_key, config["base_url"], model, messages)
+
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict) and "sections" in result:
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Try extracting JSON object from markdown fences
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            result = json.loads(raw[start : end + 1])
+            if isinstance(result, dict) and "sections" in result:
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return {"overall_score": 0, "summary": "Failed to generate critique.", "sections": []}
 
 
 def _sync_openai_compatible_review(api_key: str, base_url: str, model: str, messages: list) -> str:
