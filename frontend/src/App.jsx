@@ -706,6 +706,13 @@ export default function App() {
     }
   }, [activeNodeId]);
 
+  // Sync agent_mode to backend when it changes for an active conversation
+  useEffect(() => {
+    if (activeConversationId && agentMode) {
+      api.updateConversation(activeConversationId, { agent_mode: agentMode }).catch(() => {});
+    }
+  }, [activeConversationId, agentMode]);
+
   useEffect(() => {
     if (!activeProjectId || !activeNode) {
       setResolvedAgent(null);
@@ -1306,9 +1313,16 @@ export default function App() {
 
   const handleSelectConversation = async (convId) => {
     setActiveConversationId(convId);
+    const conv = conversations.find((c) => String(c.id) === String(convId));
+    if (conv) setAgentMode(conv.agent_mode || "auto");
     try {
       const msgs = await api.listMessages(convId);
-      setChatMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
+      setChatMessages(msgs.map((m) => ({
+        role: m.role,
+        content: m.content,
+        routedAgentId: m.routed_agent || null,
+        routedAgentName: m.routed_agent_name || null,
+      })));
     } catch {
       setChatMessages([]);
     }
@@ -1318,6 +1332,7 @@ export default function App() {
     setActiveConversationId(null);
     setChatMessages([]);
     setStreamingContent("");
+    setAgentMode("auto");
     // Refresh conversation list to get updated previews/counts
     if (activeNodeId) {
       api.listConversations(activeNodeId).then(setConversations).catch(() => {});
@@ -1421,7 +1436,7 @@ export default function App() {
         const title = userMsg.length > 50
           ? userMsg.slice(0, userMsg.lastIndexOf(" ", 50) || 50)
           : userMsg;
-        const conv = await api.createConversation({ node: Number(targetNodeId), title });
+        const conv = await api.createConversation({ node: Number(targetNodeId), title, agent_mode: agentMode });
         convId = conv.id;
         setActiveConversationId(conv.id);
         setConversations((prev) => [conv, ...prev]);
