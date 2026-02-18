@@ -133,6 +133,16 @@ class Comment(models.Model):
         REJECTED = "rejected", "Rejected"
         RESOLVED = "resolved", "Resolved"
 
+    class CommentType(models.TextChoices):
+        COMMENT = "comment", "Comment"
+        REVIEW = "review", "Review"
+        FACT_CHECK = "fact_check", "Fact Check"
+
+    class Verdict(models.TextChoices):
+        VERIFIED = "verified", "Verified"
+        DUBIOUS = "dubious", "Dubious"
+        FALSE = "false", "False"
+
     node = models.ForeignKey(Node, related_name="comments", on_delete=models.CASCADE)
     parent = models.ForeignKey(
         "self", related_name="replies", null=True, blank=True, on_delete=models.CASCADE
@@ -150,6 +160,13 @@ class Comment(models.Model):
     quoted_text = models.TextField(blank=True, default="")
     position_from = models.IntegerField(null=True, blank=True)
     position_to = models.IntegerField(null=True, blank=True)
+    comment_type = models.CharField(
+        max_length=20, choices=CommentType.choices, default=CommentType.COMMENT
+    )
+    verdict = models.CharField(
+        max_length=20, choices=Verdict.choices, null=True, blank=True
+    )
+    sources = models.JSONField(null=True, blank=True)
 
 
 class AgentConfig(models.Model):

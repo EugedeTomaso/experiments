@@ -134,6 +134,9 @@ class CommentSerializer(serializers.ModelSerializer):
             "quoted_text",
             "position_from",
             "position_to",
+            "comment_type",
+            "verdict",
+            "sources",
             "replies",
             "reply_count",
         ]
