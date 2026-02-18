@@ -341,6 +341,30 @@ class AIStreamView(APIView):
         return response
 
 
+class AIAutocompleteView(APIView):
+    def post(self, request):
+        text = request.data.get("text", "").strip()
+        if not text:
+            return Response({"detail": "text is required"}, status=400)
+
+        context = request.data.get("context", "")
+
+        from .llm import AUTOCOMPLETE_PROVIDER
+        provider_key = ProviderKey.objects.filter(provider=AUTOCOMPLETE_PROVIDER).first()
+        api_key = provider_key.get_api_key() if provider_key else ""
+        if not api_key:
+            api_key = get_hardcoded_provider_key(AUTOCOMPLETE_PROVIDER)
+        if not api_key:
+            return Response({"detail": "OpenRouter key missing"}, status=400)
+
+        try:
+            from .llm import generate_autocomplete_sync
+            completion = generate_autocomplete_sync(api_key, text, context)
+            return Response({"completion": completion})
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=500)
+
+
 SUMMARY_DEBOUNCE = timedelta(minutes=15)
 
 
