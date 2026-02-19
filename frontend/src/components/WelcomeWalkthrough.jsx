@@ -241,10 +241,11 @@ function StructureItem({ item, onToggle, onRename }) {
 /*
   Steps:
   0 — Welcome (philosophy + CTA)
-  1 — Type selection ("Every project has a shape")
-  2 — Name + description ("Give it a name")
-  3 — Structure ("AI that reads the whole project") [skipped for freeform → review]
-  4 — Review ("Review your work") [step 3 for freeform]
+  1 — Type selection ("What are you making?")
+  2 — Name + description ("Give it a working title")
+  3 — Structure (non-freeform only) / Features showcase (freeform)
+  4 — Features showcase (non-freeform) / Launch (freeform)
+  5 — Launch (non-freeform)
 */
 
 export function WelcomeWalkthrough({ onComplete, onSkip, defaultAgent, apiBase }) {
@@ -261,10 +262,9 @@ export function WelcomeWalkthrough({ onComplete, onSkip, defaultAgent, apiBase }
   const goForward = (s) => { setDirection("forward"); setStep(s); };
   const goBackward = (s) => { setDirection("backward"); setStep(s); };
 
-  const assistantStep = projectType === "freeform" ? 3 : 4;
-
-  // Progress dots (shown from step 2+): name, structure?, assistant
-  const totalDots = projectType === "freeform" ? 2 : 3;
+  const featuresStep = projectType === "freeform" ? 3 : 4;
+  const launchStep = projectType === "freeform" ? 4 : 5;
+  const totalDots = projectType === "freeform" ? 3 : 4;
   const currentDotIndex = step - 2;
 
   // Focus name input on step 2
@@ -422,41 +422,67 @@ Rules:
   const stepClass = `welcome-page ${direction === "backward" ? "backward" : ""}`;
   const flatItems = structure ? flattenItems(structure) : [];
 
-  /* ── Review step content (shared between freeform step 3 and standard step 4) ── */
+  /* ── Features showcase step ── */
 
-  const renderReviewStep = () => (
+  const renderFeaturesStep = () => (
     <>
-      <h1 className="welcome-heading">Review your work.</h1>
-      <p className="welcome-text">
-        Hit Review and your AI reads the whole document — then leaves
-        inline suggestions, like a real editor. Approve the ones you like,
-        dismiss the rest.
-      </p>
-      <div className="welcome-review-mock">
-        <div className="welcome-mock-quote">
-          "It's tempting to tinker around the edges"
+      <h1 className="welcome-heading">Three things to know.</h1>
+      <div className="welcome-features">
+        <div className="welcome-feature-card">
+          <div className="welcome-feature-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </div>
+          <div className="welcome-feature-title">Select to format</div>
+          <div className="welcome-feature-desc">
+            Highlight any text and a toolbar appears — bold, italic, strikethrough, code, or leave a comment.
+          </div>
         </div>
-        <div className="welcome-mock-arrow">
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M6 2v8M3 7l3 3 3-3" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        <div className="welcome-feature-card">
+          <div className="welcome-feature-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <path d="M9 15l2 2 4-4" />
+            </svg>
+          </div>
+          <div className="welcome-feature-title">AI review</div>
+          <div className="welcome-feature-desc">
+            Hit Review and your AI reads the whole draft — then leaves inline suggestions, like a real editor.
+          </div>
         </div>
-        <div className="welcome-mock-suggestion">
-          "It's tempting to tinker at the margins"
-        </div>
-        <div className="welcome-mock-actions">
-          <span className="welcome-mock-btn welcome-mock-btn--approve">Approve</span>
-          <span className="welcome-mock-btn welcome-mock-btn--dismiss">Dismiss</span>
+        <div className="welcome-feature-card">
+          <div className="welcome-feature-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l1.5 3.4L17 8l-3.5 1.6L12 13l-1.5-3.4L7 8l3.5-1.6Z" />
+              <path d="M19 10l.75 1.7 1.75.8-1.75.8L19 15l-.75-1.7-1.75-.8 1.75-.8Z" />
+              <path d="M9 17l.6 1.3 1.4.7-1.4.6L9 21l-.6-1.4-1.4-.6 1.4-.7Z" />
+            </svg>
+          </div>
+          <div className="welcome-feature-title">AI assistant</div>
+          <div className="welcome-feature-desc">
+            Press <kbd>&#8984;J</kbd> to chat. It reads your entire project and remembers your preferences.
+          </div>
         </div>
       </div>
-      <p className="welcome-text" style={{ fontSize: 13 }}>
-        We loaded a sample draft so you can try it right away.
-        Select any text for formatting, or press <kbd style={{
-          display: "inline-block", padding: "1px 5px", fontSize: 11,
-          fontFamily: "'SF Mono', Menlo, Monaco, monospace", fontWeight: 500,
-          background: "var(--surface-inset)", border: "1px solid var(--border)",
-          borderRadius: 4, color: "var(--text-2)"
-        }}>⌘J</kbd> for the assistant.
+      <button className="welcome-cta wt-pulse" onClick={() => goForward(launchStep)}>
+        Continue
+      </button>
+    </>
+  );
+
+  /* ── Launch step ── */
+
+  const renderLaunchStep = () => (
+    <>
+      <div className="welcome-brand">
+        <div className="welcome-brand-mark">M</div>
+      </div>
+      <h1 className="welcome-heading">Ready.</h1>
+      <p className="welcome-text">
+        We've loaded a sample draft so you can try everything right away.
       </p>
       <button
         className={`welcome-cta ${!isCreating ? "wt-pulse" : ""}`}
@@ -613,17 +639,17 @@ Rules:
           </div>
         )}
 
-        {/* ── Step 3 (freeform): Review ── */}
-        {step === 3 && projectType === "freeform" && (
-          <div className={stepClass} key="review-freeform">
-            {renderReviewStep()}
+        {/* ── Features step ── */}
+        {step === featuresStep && (
+          <div className={stepClass} key="features">
+            {renderFeaturesStep()}
           </div>
         )}
 
-        {/* ── Step 4: Review (non-freeform) ── */}
-        {step === 4 && projectType !== "freeform" && (
-          <div className={stepClass} key="review">
-            {renderReviewStep()}
+        {/* ── Launch step ── */}
+        {step === launchStep && (
+          <div className={stepClass} key="launch">
+            {renderLaunchStep()}
           </div>
         )}
       </div>
