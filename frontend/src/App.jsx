@@ -21,6 +21,7 @@ import { ProjectHome } from "./components/ProjectHome";
 import { AllProjects } from "./components/AllProjects";
 import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
 import { SpotlightTour } from "./components/SpotlightTour";
+import { HelpModal } from "./components/HelpModal";
 import { useComments } from "./hooks/useComments";
 import { createStreamParser } from "./streamParser";
 import { buildSnippet, wordCount } from "./utils";
@@ -71,7 +72,7 @@ const INITIAL_DEFAULT_AGENT = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Marvin. Based on the project type and description, generate 2-3 assistants tailored to this project.
+const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Mive. Based on the project type and description, generate 2-3 assistants tailored to this project.
 
 Each assistant should serve a different purpose (e.g., creative collaborator, editor/critic, research/planning).
 
@@ -199,11 +200,11 @@ export default function App() {
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
   const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
-    const saved = localStorage.getItem("marvin:assistant-width");
+    const saved = localStorage.getItem("mive:assistant-width");
     return saved ? Number(saved) : 380;
   });
   const [editorZoom, setEditorZoom] = useState(() => {
-    const saved = localStorage.getItem("marvin:editor-zoom");
+    const saved = localStorage.getItem("mive:editor-zoom");
     return saved ? Number(saved) : 100;
   });
 
@@ -247,17 +248,18 @@ export default function App() {
   // --- Settings state ---
   const [providerKeys, setProviderKeys] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [publishState, setPublishState] = useState(null); // { platform, connection }
   const [collabSession, setCollabSession] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [autosaveDelay, setAutosaveDelay] = useState(() => {
-    const saved = localStorage.getItem("marvin:autosave-delay");
+    const saved = localStorage.getItem("mive:autosave-delay");
     return saved ? Number(saved) : 1500;
   });
   const [defaultAgent, setDefaultAgent] = useState(() => {
     try {
-      const saved = localStorage.getItem("marvin:default-agent");
+      const saved = localStorage.getItem("mive:default-agent");
       return saved ? JSON.parse(saved) : INITIAL_DEFAULT_AGENT;
     } catch {
       return INITIAL_DEFAULT_AGENT;
@@ -333,7 +335,7 @@ export default function App() {
   const [focusedNodeId, setFocusedNodeId] = useState(null);
   const [outlineFilter, setOutlineFilter] = useState("");
   const [outlineWidth, setOutlineWidth] = useState(() => {
-    const saved = localStorage.getItem("marvin:outline-width");
+    const saved = localStorage.getItem("mive:outline-width");
     return saved ? Number(saved) : 220;
   });
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -439,23 +441,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("marvin:autosave-delay", String(autosaveDelay));
+    localStorage.setItem("mive:autosave-delay", String(autosaveDelay));
   }, [autosaveDelay]);
 
   useEffect(() => {
-    localStorage.setItem("marvin:default-agent", JSON.stringify(defaultAgent));
+    localStorage.setItem("mive:default-agent", JSON.stringify(defaultAgent));
   }, [defaultAgent]);
 
   useEffect(() => {
-    localStorage.setItem("marvin:assistant-width", String(assistantWidth));
+    localStorage.setItem("mive:assistant-width", String(assistantWidth));
   }, [assistantWidth]);
 
   useEffect(() => {
-    localStorage.setItem("marvin:outline-width", String(outlineWidth));
+    localStorage.setItem("mive:outline-width", String(outlineWidth));
   }, [outlineWidth]);
 
   useEffect(() => {
-    localStorage.setItem("marvin:editor-zoom", String(editorZoom));
+    localStorage.setItem("mive:editor-zoom", String(editorZoom));
   }, [editorZoom]);
 
   useEffect(() => {
@@ -607,7 +609,7 @@ export default function App() {
     const node = nodes.find((n) => String(n.id) === String(activeNodeId));
     if (!activeNodeId || !node || node.type !== "file") return;
 
-    const jwt = localStorage.getItem("marvin:access_token");
+    const jwt = localStorage.getItem("mive:access_token");
     if (!jwt) return;
 
     const session = createCollabSession(activeNodeId, jwt, {
@@ -1035,7 +1037,7 @@ export default function App() {
   const showWalkthrough = !walkthroughDismissed && projects.length === 0 && !isWizardOpen;
 
   const handleWalkthroughComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
-    localStorage.setItem("marvin:walkthrough-seen", "true");
+    localStorage.setItem("mive:walkthrough-seen", "true");
     setWalkthroughDismissed(true);
 
     const project = await api.createProject({
@@ -1084,7 +1086,7 @@ export default function App() {
   };
 
   const handleWalkthroughSkip = () => {
-    localStorage.setItem("marvin:walkthrough-seen", "true");
+    localStorage.setItem("mive:walkthrough-seen", "true");
     setWalkthroughDismissed(true);
   };
 
@@ -1156,7 +1158,7 @@ export default function App() {
     setAssistantTab("review");
     if (!isAssistantOpen) setIsAssistantOpen(true);
     try {
-      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
       const provider = providerSettings.provider || "deepseek";
       const model = providerSettings.model || "deepseek-chat";
       const newComments = await api.requestReview({
@@ -1184,7 +1186,7 @@ export default function App() {
     setAssistantTab("review");
     if (!isAssistantOpen) setIsAssistantOpen(true);
     try {
-      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
       const provider = providerSettings.provider || "deepseek";
       const model = providerSettings.model || "deepseek-chat";
       const newCritique = await api.requestCritique({
@@ -1206,7 +1208,7 @@ export default function App() {
     if (!activeCritiqueId) return;
     setDiscussingSection(sectionId);
     try {
-      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
       const provider = providerSettings.provider || "deepseek";
       const model = providerSettings.model || "deepseek-chat";
       const result = await api.discussCritiqueSection({
@@ -1228,6 +1230,12 @@ export default function App() {
     }
   };
 
+  const handleApplyCritiqueMessage = (messageContent) => {
+    setChatInput("Apply this critique suggestion to my document:\n\n" + messageContent);
+    setAssistantTab("chat");
+    if (!isAssistantOpen) setIsAssistantOpen(true);
+  };
+
   const handleFactCheckRef = useRef(null);
   const handleFactCheck = async (selectionFrom = null, selectionTo = null) => {
     if (!activeNode || isFactChecking) return;
@@ -1237,7 +1245,7 @@ export default function App() {
     if (!isAssistantOpen) setIsAssistantOpen(true);
 
     try {
-      const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+      const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
       const provider = providerSettings.provider || "deepseek";
       const model = providerSettings.model || "deepseek-chat";
 
@@ -1779,7 +1787,7 @@ Rules for memory suggestions:
               }, 400);
             }
             // Publish AI suggestion to collaborators if sharing is enabled
-            if (collabSession && localStorage.getItem("marvin:ai-visible") === "true") {
+            if (collabSession && localStorage.getItem("mive:ai-visible") === "true") {
               collabSession.publishAiSuggestion(
                 user?.id,
                 preEditDraftRef.current || "",
@@ -2352,7 +2360,7 @@ Rules for memory suggestions:
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-left">
-          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Marvin</button>
+          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Mive</button>
           <span className="topbar-divider" />
           <ProjectSwitcher
             projects={projects}
@@ -2412,6 +2420,18 @@ Rules for memory suggestions:
             ) : null;
           })()}
           {collabSession && <PresenceIndicator awareness={collabSession.awareness} />}
+          <button
+            className="topbar-icon-btn"
+            onClick={() => setIsHelpOpen(true)}
+            aria-label="Help"
+            title="Help"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <path d="M12 17h.01" />
+            </svg>
+          </button>
           <span className="topbar-divider" />
           <div className="user-menu-wrapper" ref={userMenuRef}>
             <button
@@ -2947,6 +2967,7 @@ Rules for memory suggestions:
           discussingSection={discussingSection}
           onLaunchCritique={handleRequestCritique}
           onDiscussSection={handleDiscussSection}
+          onApplyCritiqueMessage={handleApplyCritiqueMessage}
           onSelectCritique={setActiveCritiqueId}
         />
       </div>
@@ -3006,6 +3027,15 @@ Rules for memory suggestions:
         />
       )}
 
+
+      <HelpModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+        onReplayTour={() => {
+          setIsHelpOpen(false);
+          setShowAppTour(true);
+        }}
+      />
 
       {showAppTour && (
         <SpotlightTour onComplete={() => setShowAppTour(false)} />
