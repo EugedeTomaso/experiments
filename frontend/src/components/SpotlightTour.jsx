@@ -54,9 +54,9 @@ const STEPS = [
     ensureVisible: '[aria-label="Toggle assistant"]',
   },
   {
-    selector: '[aria-label="Settings"]',
-    title: "Settings",
-    text: "API keys, editor preferences, AI defaults — all here.",
+    selector: '[aria-label="Help"]',
+    title: "Need help?",
+    text: "Keyboard shortcuts, feature guides, FAQs — everything you need is here.",
     align: "bottom",
     padding: 6,
     radius: 8,

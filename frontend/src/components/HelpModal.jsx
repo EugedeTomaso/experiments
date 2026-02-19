@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const SECTIONS = [
   { id: "getting-started", label: "Getting Started", icon: "M13 2L3 14h9l-1 8 10-12h-9l1-8" },
@@ -54,6 +54,22 @@ const FAQ = [
 export function HelpModal({ isOpen, onClose, onReplayTour }) {
   const [activeSection, setActiveSection] = useState("getting-started");
   const [expandedFaq, setExpandedFaq] = useState(null);
+
+  // Reset to Getting Started on reopen
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSection("getting-started");
+      setExpandedFaq(null);
+    }
+  }, [isOpen]);
+
+  // Escape key closes modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

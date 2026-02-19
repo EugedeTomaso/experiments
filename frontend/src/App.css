@@ -8671,12 +8671,6 @@ button.ghost:focus-visible {
   gap: 12px;
 }
 
-.spotlight-tooltip-counter {
-  font-size: 11px;
-  color: var(--text-4);
-  font-variant-numeric: tabular-nums;
-}
-
 .spotlight-tooltip-hint {
   font-size: 12px;
   color: var(--text-3);
