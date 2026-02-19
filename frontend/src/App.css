@@ -8637,7 +8637,7 @@ button.ghost:focus-visible {
   box-shadow: var(--shadow-float);
   padding: 16px 20px;
   max-width: 280px;
-  animation: spotlight-tooltip-in 300ms var(--ease);
+  animation: spotlight-tooltip-in 400ms var(--ease);
 }
 
 .spotlight-tour.entering .spotlight-tooltip {
@@ -8703,6 +8703,47 @@ button.ghost:focus-visible {
 .spotlight-tooltip-btn:focus-visible {
   outline: none;
   box-shadow: var(--control-focus);
+}
+
+.spotlight-tooltip-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.spotlight-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background var(--duration-fast) var(--ease),
+              transform var(--duration-fast) var(--ease);
+}
+
+.spotlight-dot.active {
+  background: var(--primary);
+  transform: scale(1.4);
+}
+
+.spotlight-dot.completed {
+  background: var(--text-3);
+}
+
+.spotlight-skip {
+  display: block;
+  margin-top: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.spotlight-skip:hover {
+  color: var(--text-2);
 }
 
 /* ── InvitationBanner ── */
