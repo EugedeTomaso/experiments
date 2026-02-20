@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MiveLogo } from "../components/MiveLogo";
+import { EditorDemo } from "../components/EditorDemo";
 
 /* ── Inline SVG icons ── */
 
@@ -219,15 +220,9 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Hero screenshot ── */}
+      {/* ── Interactive demo ── */}
       <div className="landing-hero-screenshot landing-animate" ref={addRef}>
-        <div className="landing-screenshot-frame">
-          <img
-            src="/screenshots/editor-full.png"
-            alt="Mive editor — document with sidebar outline and AI assistant panel"
-            loading="eager"
-          />
-        </div>
+        <EditorDemo />
       </div>
 
       {/* ── Showcase 1: AI Assistant ── */}

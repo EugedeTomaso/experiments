@@ -611,6 +611,293 @@
 .landing-animate-delay-2 { transition-delay: 200ms; }
 .landing-animate-delay-3 { transition-delay: 300ms; }
 
+/* ===========================
+   Editor Demo (interactive hero)
+   =========================== */
+
+.demo-wrapper {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Tabs */
+.demo-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+  padding: 0 4px;
+}
+
+.demo-tab {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-4);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease),
+              background var(--duration-fast) var(--ease);
+}
+
+.demo-tab:hover {
+  color: var(--text-2);
+}
+
+.demo-tab.active {
+  color: var(--text-1);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* Frame */
+.demo-frame {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: opacity 250ms var(--ease);
+}
+
+.demo-frame.fading {
+  opacity: 0;
+}
+
+/* Topbar */
+.demo-topbar {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--canvas);
+}
+
+.demo-topbar-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.demo-topbar-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.demo-topbar-brand {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-4);
+  letter-spacing: -0.01em;
+  margin-right: 34px; /* offset for dots */
+}
+
+/* Body — three panes */
+.demo-body {
+  display: flex;
+  min-height: 320px;
+}
+
+/* Sidebar */
+.demo-sidebar {
+  width: 180px;
+  padding: 12px 0;
+  border-right: 1px solid var(--border);
+  background: var(--canvas);
+  flex-shrink: 0;
+}
+
+.demo-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: default;
+  border-radius: 4px;
+  margin: 0 6px;
+}
+
+.demo-sidebar-item.active {
+  background: var(--surface-inset);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+/* Editor pane */
+.demo-editor {
+  flex: 1;
+  padding: 28px 32px;
+  min-width: 0;
+}
+
+.demo-editor-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-1);
+  margin: 0 0 16px;
+}
+
+.demo-editor-content {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-2);
+}
+
+.demo-editor-content p {
+  margin: 0 0 12px;
+}
+
+.demo-editor-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Blinking cursor */
+.demo-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--text-1);
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: demo-blink 1s steps(2) infinite;
+}
+
+@keyframes demo-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Chat pane */
+.demo-chat {
+  width: 240px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  background: var(--canvas);
+}
+
+.demo-chat-header {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.demo-chat-messages {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+/* Chat message */
+.demo-chat-msg {
+  display: flex;
+  gap: 8px;
+  animation: demo-msg-in 300ms var(--ease) both;
+}
+
+@keyframes demo-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.demo-chat-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.demo-chat-avatar.user {
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+}
+
+.demo-chat-avatar.assistant {
+  background: var(--primary);
+}
+
+.demo-chat-text {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.demo-mention {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Typing indicator */
+.demo-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.demo-typing-indicator span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-4);
+  animation: demo-dot-bounce 1.4s ease-in-out infinite;
+}
+
+.demo-typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.demo-typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes demo-dot-bounce {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* Chat composer */
+.demo-chat-composer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-4);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .landing-showcase {
@@ -629,6 +916,18 @@
 
   .landing-showcase-detail {
     text-align: left;
+  }
+
+  .demo-sidebar {
+    display: none;
+  }
+
+  .demo-chat {
+    display: none;
+  }
+
+  .demo-body {
+    min-height: 200px;
   }
 }
 
@@ -697,5 +996,18 @@
 
   .landing-cta-heading {
     font-size: 26px;
+  }
+
+  .demo-editor {
+    padding: 20px 16px;
+  }
+
+  .demo-editor-title {
+    font-size: 20px;
+  }
+
+  .demo-tab {
+    padding: 6px 14px;
+    font-size: 12px;
   }
 }
