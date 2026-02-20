@@ -1,0 +1,26 @@
+/* Screenplay CSS — used for non-Fountain screenplay exports via standard PDF exporter */
+@page {
+  size: letter;
+  margin: 1in 1in 0.5in 1.5in;
+  @top-right { content: counter(page) "."; font-family: Courier, monospace; font-size: 12pt; }
+}
+body {
+  font-family: Courier, "Courier New", monospace;
+  font-size: 12pt;
+  line-height: 1;
+  color: #000;
+}
+.doc-title {
+  font-size: 18pt;
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 2em;
+}
+h1 {
+  font-size: 12pt;
+  text-transform: uppercase;
+  font-weight: bold;
+  margin-top: 24pt;
+}
+h2 { font-size: 12pt; margin-top: 12pt; }
+p { margin: 6pt 0; }

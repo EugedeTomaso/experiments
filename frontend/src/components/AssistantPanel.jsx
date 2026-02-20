@@ -162,6 +162,7 @@ export function AssistantPanel({
   discussingSection,
   onLaunchCritique,
   onDiscussSection,
+  onApplyCritiqueMessage,
   onSelectCritique,
 }) {
   const bodyRef = useRef(null);
@@ -979,6 +980,7 @@ export function AssistantPanel({
               discussingSection={discussingSection}
               onLaunchCritique={onLaunchCritique}
               onDiscussSection={onDiscussSection}
+              onApplyMessage={onApplyCritiqueMessage}
               onSelectCritique={onSelectCritique}
               activeCritiqueId={activeCritiqueId}
             />

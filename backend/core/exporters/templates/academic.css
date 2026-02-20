@@ -1,0 +1,33 @@
+@page {
+  size: letter;
+  margin: 1in;
+  @top-right { content: counter(page); font-size: 10pt; }
+}
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 2;
+  color: #000;
+}
+.doc-title {
+  font-size: 14pt;
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 1em;
+}
+h1 {
+  font-size: 14pt;
+  text-align: center;
+  font-weight: bold;
+  margin-top: 1em;
+  page-break-before: always;
+}
+h1:first-of-type { page-break-before: avoid; }
+h2 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 1em; }
+h3 { font-size: 12pt; font-style: italic; margin-top: 0.5em; }
+p { margin: 0; text-indent: 0.5in; text-align: justify; }
+p:first-of-type, h1 + p, h2 + p, h3 + p { text-indent: 0; }
+blockquote {
+  margin: 1em 0.5in;
+  font-size: 11pt;
+}

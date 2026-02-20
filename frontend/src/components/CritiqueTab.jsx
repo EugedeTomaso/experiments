@@ -30,6 +30,7 @@ export default function CritiqueTab({
   discussingSection,
   onLaunchCritique,
   onDiscussSection,
+  onApplyMessage,
   onSelectCritique,
   activeCritiqueId,
 }) {
@@ -85,6 +86,7 @@ export default function CritiqueTab({
               section={section}
               messages={threadMessages[section.id] || []}
               onDiscuss={onDiscussSection}
+              onApplyMessage={onApplyMessage}
               isDiscussing={discussingSection === section.id}
             />
           ))}

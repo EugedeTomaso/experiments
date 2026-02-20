@@ -4,16 +4,90 @@ import { getAuthHeader } from "../api";
 /* ── Types ── */
 
 const PROJECT_TYPES = [
+  { id: "product", label: "Product / Work", desc: "Briefs, specs, and roadmaps", icon: "M2.5 3a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Zm2.5 3h2m-2 2.5h6m-6 2.5h4" },
+  { id: "marketing", label: "Marketing", desc: "Landing pages, campaigns, and brand copy", icon: "M2 3h12v9H2Zm0 3h12M5 9h6" },
+  { id: "article", label: "Article / Essay", desc: "Editorial or long-form essays", icon: "M3 2.5h10a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Zm1.5 3h7m-7 2.5h7m-7 2.5h4" },
+  { id: "newsletter", label: "Newsletter", desc: "Issues, digests, and series", icon: "M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1Zm0 0l6 4 6-4" },
+  { id: "academic", label: "Academic", desc: "Thesis, papers, and research", icon: "M8 2L2 5l6 3 6-3Zm-6 5v4l6 3 6-3V7" },
+  { id: "legal", label: "Legal", desc: "Contracts, briefs, and policy docs", icon: "M4 2h8l1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3Zm2 4h4m-4 2h4m-4 2h2" },
   { id: "novel", label: "Novel", desc: "Long-form fiction with chapters and arcs", icon: "M4 2.5h8a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a.5.5 0 0 1-.5-.5v-14A.5.5 0 0 1 4 2.5Zm0 0a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2" },
   { id: "short-story", label: "Short Story", desc: "Single narrative, shorter form", icon: "M3.5 2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm2 4h5m-5 3h5m-5 3h3" },
   { id: "screenplay", label: "Screenplay", desc: "Film or theater script", icon: "M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1H2Zm0 3h12m-12 3h12m0-6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4" },
   { id: "tv-series", label: "TV Series", desc: "Show bible and episode outlines", icon: "M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1Zm3 10h6m-3 0v2" },
   { id: "youtube", label: "YouTube / Video", desc: "Video scripts and production notes", icon: "M2.5 4.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Zm4 2l3.5 2-3.5 2Z" },
-  { id: "article", label: "Article / Essay", desc: "Editorial or long-form essays", icon: "M3 2.5h10a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Zm1.5 3h7m-7 2.5h7m-7 2.5h4" },
-  { id: "academic", label: "Academic", desc: "Thesis, papers, and research", icon: "M8 2L2 5l6 3 6-3Zm-6 5v4l6 3 6-3V7" },
-  { id: "product", label: "Product / Work", desc: "Briefs, specs, and roadmaps", icon: "M2.5 3a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Zm2.5 3h2m-2 2.5h6m-6 2.5h4" },
+  { id: "podcast", label: "Podcast", desc: "Episodes, interviews, and show notes", icon: "M8 2a3 3 0 0 0-3 3v3a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM4 8a4 4 0 0 0 8 0M8 12v3m-2 0h4" },
+  { id: "social-media", label: "Social Media", desc: "Threads, campaigns, and calendars", icon: "M3 3h4v4H3Zm6 0h4v4H9ZM3 9h4v4H3Zm6 1h4m-4 2h3" },
   { id: "freeform", label: "Freeform", desc: "Empty project — start from scratch", icon: "M12 3l1 1-8 8-2.5.5.5-2.5 8-8ZM10.5 4.5l1 1" },
 ];
+
+const SUBCATEGORIES = {
+  product: [
+    { id: "brief", label: "Brief", desc: "Problem statement, solution, requirements" },
+    { id: "full-product", label: "Full Product", desc: "Research, strategy, and specs" },
+    { id: "research-project", label: "Research Project", desc: "Data collection and synthesis" },
+  ],
+  marketing: [
+    { id: "landing-page", label: "Landing Page", desc: "Copy, structure, and messaging" },
+    { id: "campaign-brief", label: "Campaign Brief", desc: "Goals, audience, channels, creative" },
+    { id: "brand-guidelines", label: "Brand Guidelines", desc: "Voice, tone, visual identity" },
+  ],
+  article: [
+    { id: "blog", label: "Blog", desc: "Notes and a draft, quick to publish" },
+    { id: "essay", label: "Essay", desc: "Research, outline, and polished draft" },
+    { id: "longform", label: "Longform", desc: "Multi-section feature with sources" },
+  ],
+  newsletter: [
+    { id: "single-issue", label: "Single Issue", desc: "One standalone issue" },
+    { id: "newsletter-series", label: "Series", desc: "Recurring issues with a theme" },
+    { id: "digest", label: "Digest", desc: "Curated links and commentary" },
+  ],
+  academic: [
+    { id: "academic-essay", label: "Academic Essay", desc: "Research notes, outline, draft, references" },
+    { id: "paper", label: "Paper", desc: "IMRAD structure with methodology" },
+    { id: "monograph", label: "Monograph", desc: "Chapter-based scholarly work" },
+    { id: "thesis", label: "Thesis", desc: "Full thesis with literature review" },
+  ],
+  legal: [
+    { id: "contract", label: "Contract", desc: "Terms, clauses, and schedules" },
+    { id: "legal-brief", label: "Legal Brief", desc: "Arguments, citations, and analysis" },
+    { id: "policy-doc", label: "Policy Doc", desc: "Policy language and compliance notes" },
+  ],
+  novel: [
+    { id: "novella", label: "Novella", desc: "Compact, 5-8 chapters, no parts" },
+    { id: "standard", label: "Standard", desc: "Parts and chapters with planning docs" },
+    { id: "saga", label: "Saga", desc: "Multi-book series with world building" },
+  ],
+  "short-story": [
+    { id: "flash", label: "Flash", desc: "One scene, under 1,000 words" },
+    { id: "short", label: "Short", desc: "Notes and a draft, classic form" },
+    { id: "novelette", label: "Novelette", desc: "Scene-based with parts" },
+  ],
+  screenplay: [
+    { id: "short-film", label: "Short Film", desc: "Logline, characters, single script" },
+    { id: "feature", label: "Feature", desc: "Three-act structure with treatment" },
+    { id: "series", label: "Series", desc: "Pilot and episode outlines" },
+  ],
+  "tv-series": [
+    { id: "limited", label: "Limited", desc: "4-6 episodes, self-contained" },
+    { id: "season", label: "Season", desc: "8-10 episodes, single season" },
+    { id: "multi-season", label: "Multi-season", desc: "Multiple seasons with master arc" },
+  ],
+  youtube: [
+    { id: "short-video", label: "Short Video", desc: "Under 60 seconds, hook and script" },
+    { id: "standard-video", label: "Standard Video", desc: "Outline, script, production notes" },
+    { id: "long-video", label: "Long Video", desc: "Documentary-style with research" },
+  ],
+  podcast: [
+    { id: "solo-episode", label: "Solo Episode", desc: "Outline, script, and show notes" },
+    { id: "interview", label: "Interview", desc: "Questions, research, and notes" },
+    { id: "podcast-series", label: "Series", desc: "Multiple episodes with planning" },
+  ],
+  "social-media": [
+    { id: "thread", label: "Thread", desc: "Sequential posts on a topic" },
+    { id: "campaign", label: "Campaign", desc: "Multi-platform content plan" },
+    { id: "content-calendar", label: "Content Calendar", desc: "Scheduled posts and themes" },
+  ],
+};
 
 const FALLBACK_STRUCTURES = {
   novel: [
@@ -75,6 +149,29 @@ const FALLBACK_STRUCTURES = {
     { type: "file", title: "Research" },
     { type: "file", title: "Roadmap" },
     { type: "file", title: "Specs" },
+  ],
+  marketing: [
+    { type: "file", title: "Brief" },
+    { type: "file", title: "Copy Draft" },
+    { type: "file", title: "Assets List" },
+  ],
+  newsletter: [
+    { type: "file", title: "Issue Draft" },
+    { type: "file", title: "Notes" },
+  ],
+  legal: [
+    { type: "file", title: "Draft" },
+    { type: "file", title: "Notes" },
+    { type: "file", title: "References" },
+  ],
+  podcast: [
+    { type: "file", title: "Episode Outline" },
+    { type: "file", title: "Script" },
+    { type: "file", title: "Show Notes" },
+  ],
+  "social-media": [
+    { type: "file", title: "Content Brief" },
+    { type: "file", title: "Draft" },
   ],
   freeform: [],
 };
@@ -242,16 +339,18 @@ function StructureItem({ item, onToggle, onRename }) {
   Steps:
   0 — Welcome (philosophy + CTA)
   1 — Type selection ("What are you making?")
-  2 — Name + description ("Give it a working title")
-  3 — Structure (non-freeform only) / Features showcase (freeform)
-  4 — Features showcase (non-freeform) / Launch (freeform)
-  5 — Launch (non-freeform)
+  2 — Subcategory selection (skipped for freeform)
+  3 — Name + description ("Give it a working title")
+  4 — Structure (skipped for freeform)
+  5 — Features showcase
+  6 — Launch
 */
 
 export function WelcomeWalkthrough({ onComplete, onSkip, defaultAgent, apiBase }) {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState("forward");
   const [projectType, setProjectType] = useState(null);
+  const [projectExtension, setProjectExtension] = useState(null);
   const [projectName, setProjectName] = useState("");
   const [description, setDescription] = useState("");
   const [structure, setStructure] = useState(null);
@@ -262,41 +361,56 @@ export function WelcomeWalkthrough({ onComplete, onSkip, defaultAgent, apiBase }
   const goForward = (s) => { setDirection("forward"); setStep(s); };
   const goBackward = (s) => { setDirection("backward"); setStep(s); };
 
-  const featuresStep = projectType === "freeform" ? 3 : 4;
-  const launchStep = projectType === "freeform" ? 4 : 5;
-  const totalDots = projectType === "freeform" ? 3 : 4;
-  const currentDotIndex = step - 2;
+  const hasSubcategories = projectType && SUBCATEGORIES[projectType];
+  const isFreeform = projectType === "freeform";
+  const totalDots = isFreeform ? 3 : 4;
+  const currentDotIndex = isFreeform
+    ? (step === 3 ? 0 : step === 5 ? 1 : step === 6 ? 2 : -1)
+    : step - 3;
 
-  // Focus name input on step 2
   useEffect(() => {
-    if (step === 2 && nameInputRef.current) {
+    if (step === 3 && nameInputRef.current) {
       setTimeout(() => nameInputRef.current?.focus(), 260);
     }
   }, [step]);
 
-  // Escape key
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape") {
         if (step === 0) onSkip();
+        else if (step === 2) goBackward(1);
+        else if (step === 3) goBackward(hasSubcategories ? 2 : 1);
+        else if (step === 5 && isFreeform) goBackward(3);
         else goBackward(step - 1);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [step, onSkip]);
+  }, [step, onSkip, hasSubcategories, isFreeform]);
 
   const handleTypeSelect = (typeId) => {
     setProjectType(typeId);
+    setProjectExtension(null);
     setStructure(null);
-    goForward(2);
+    if (typeId === "freeform") {
+      goForward(3);
+    } else if (SUBCATEGORIES[typeId]) {
+      goForward(2);
+    } else {
+      goForward(3);
+    }
+  };
+
+  const handleSubcategorySelect = (extId) => {
+    setProjectExtension(extId);
+    goForward(3);
   };
 
   const handleNameContinue = () => {
     if (projectType === "freeform") {
-      goForward(3);
+      goForward(5);
     } else {
-      goForward(3);
+      goForward(4);
       if (!structure) generateStructure();
     }
   };
@@ -409,7 +523,7 @@ Rules:
       await onComplete({
         name: projectName.trim() || "Untitled",
         type: projectType,
-        extension: null,
+        extension: projectExtension,
         structure: enabledStructure,
         description,
         structureSummary: flatItems.map((i) => i.title).join(", "),
@@ -467,7 +581,7 @@ Rules:
           </div>
         </div>
       </div>
-      <button className="welcome-cta wt-pulse" onClick={() => goForward(launchStep)}>
+      <button className="welcome-cta wt-pulse" onClick={() => goForward(6)}>
         Continue
       </button>
     </>
@@ -560,8 +674,35 @@ Rules:
           </div>
         )}
 
-        {/* ── Step 2: Name + Description ── */}
-        {step === 2 && (
+        {/* ── Step 2: Subcategory selection ── */}
+        {step === 2 && hasSubcategories && (
+          <div className={stepClass} key="subcategory">
+            <h1 className="welcome-heading">What kind?</h1>
+            <p className="welcome-text">
+              This helps us set up the right structure for your project.
+            </p>
+            <p className="welcome-hint">Pick one to continue</p>
+            <div className="welcome-type-list">
+              {SUBCATEGORIES[projectType].map((sub, i) => (
+                <button
+                  key={sub.id}
+                  className={`welcome-type-option ${i === 0 ? "wt-pulse-subtle" : ""}`}
+                  onClick={() => handleSubcategorySelect(sub.id)}
+                >
+                  <div className="welcome-type-option-inner">
+                    <div className="welcome-type-text">
+                      <span className="welcome-type-label">{sub.label}</span>
+                      <span className="welcome-type-desc">{sub.desc}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Name + Description ── */}
+        {step === 3 && (
           <div className={stepClass} key="name">
             <h1 className="welcome-heading">Give it a working title.</h1>
             <p className="welcome-text">Working titles change — that's the point.</p>
@@ -590,8 +731,8 @@ Rules:
           </div>
         )}
 
-        {/* ── Step 3: Structure (non-freeform) ── */}
-        {step === 3 && projectType !== "freeform" && (
+        {/* ── Step 4: Structure (non-freeform) ── */}
+        {step === 4 && projectType !== "freeform" && (
           <div className={stepClass} key="structure">
             <h1 className="welcome-heading">
               We'll set up the scaffolding.
@@ -629,7 +770,7 @@ Rules:
                   </button>
                   <button
                     className="welcome-cta wt-pulse"
-                    onClick={() => goForward(4)}
+                    onClick={() => goForward(5)}
                   >
                     Continue
                   </button>
@@ -640,14 +781,14 @@ Rules:
         )}
 
         {/* ── Features step ── */}
-        {step === featuresStep && (
+        {step === 5 && (
           <div className={stepClass} key="features">
             {renderFeaturesStep()}
           </div>
         )}
 
         {/* ── Launch step ── */}
-        {step === launchStep && (
+        {step === 6 && (
           <div className={stepClass} key="launch">
             {renderLaunchStep()}
           </div>
@@ -660,13 +801,17 @@ Rules:
           <div className="welcome-nav-side">
             <button
               className="welcome-nav-btn"
-              onClick={() => goBackward(step - 1)}
+              onClick={() => {
+                if (step === 3 && !hasSubcategories) goBackward(1);
+                else if (step === 5 && isFreeform) goBackward(3);
+                else goBackward(step - 1);
+              }}
               aria-label="Previous"
             >
               <ChevronLeft />
             </button>
           </div>
-          {step > 1 && (
+          {step > 2 && (
             <div className="welcome-nav-dots">
               {Array.from({ length: totalDots }, (_, i) => (
                 <div

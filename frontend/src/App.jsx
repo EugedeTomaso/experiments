@@ -242,7 +242,9 @@ export default function App() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
 
   // --- Walkthrough state ---
-  const [walkthroughDismissed, setWalkthroughDismissed] = useState(false);
+  const [walkthroughDismissed, setWalkthroughDismissed] = useState(
+    () => localStorage.getItem("mive:walkthrough-seen") === "true"
+  );
   const [showAppTour, setShowAppTour] = useState(false);
 
   // --- Settings state ---
@@ -1034,42 +1036,62 @@ export default function App() {
   };
 
   // --- Walkthrough handlers ---
-  const showWalkthrough = !walkthroughDismissed && projects.length === 0 && !isWizardOpen;
+  const showWalkthrough = !walkthroughDismissed && !isWizardOpen;
 
   const handleWalkthroughComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
     localStorage.setItem("mive:walkthrough-seen", "true");
     setWalkthroughDismissed(true);
 
-    const project = await api.createProject({
-      name,
-      project_type: type || "",
-      project_extension: extension || "",
-    });
-    setProjects((prev) => [...prev, project]);
-    setActiveProjectId(project.id);
+    let project;
 
-    let order = 0;
-    let firstFileSeeded = false;
-    const createNodesRecursive = async (items, parentId) => {
-      for (const item of items) {
-        const isFirstFile = item.type === "file" && !firstFileSeeded;
-        if (isFirstFile) firstFileSeeded = true;
-        const node = await api.createNode({
-          project: project.id,
-          parent: parentId,
-          type: item.type,
-          title: item.title,
-          order: order++,
-          content_md: isFirstFile ? SAMPLE_DRAFT : (item.content_md || ""),
+    if (projects.length > 0) {
+      // Demo project already exists — update it with user's chosen name/type
+      project = projects[0];
+      try {
+        const updated = await api.updateProject(project.id, {
+          name,
+          project_type: type || "",
+          project_extension: extension || "",
         });
-        if (item.children?.length) {
-          await createNodesRecursive(item.children, node.id);
-        }
+        setProjects((prev) => prev.map((p) => (p.id === project.id ? updated : p)));
+        project = updated;
+      } catch {
+        // If update fails, use existing project as-is
       }
-    };
+      setActiveProjectId(project.id);
+    } else {
+      // No projects — create from scratch
+      project = await api.createProject({
+        name,
+        project_type: type || "",
+        project_extension: extension || "",
+      });
+      setProjects((prev) => [...prev, project]);
+      setActiveProjectId(project.id);
 
-    if (structure?.length) {
-      await createNodesRecursive(structure, null);
+      let order = 0;
+      let firstFileSeeded = false;
+      const createNodesRecursive = async (items, parentId) => {
+        for (const item of items) {
+          const isFirstFile = item.type === "file" && !firstFileSeeded;
+          if (isFirstFile) firstFileSeeded = true;
+          const node = await api.createNode({
+            project: project.id,
+            parent: parentId,
+            type: item.type,
+            title: item.title,
+            order: order++,
+            content_md: isFirstFile ? SAMPLE_DRAFT : (item.content_md || ""),
+          });
+          if (item.children?.length) {
+            await createNodesRecursive(item.children, node.id);
+          }
+        }
+      };
+
+      if (structure?.length) {
+        await createNodesRecursive(structure, null);
+      }
     }
 
     const allNodes = await api.listNodes(project.id);

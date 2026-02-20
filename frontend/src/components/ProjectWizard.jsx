@@ -4,25 +4,35 @@ import { GhostTextarea } from "./GhostTextarea";
 
 // Template prefills — clicking a template pre-fills the description textarea
 const TEMPLATE_PREFILLS = {
+  product: "A product brief for ",
+  marketing: "Marketing copy for ",
+  article: "An article about ",
+  newsletter: "A newsletter about ",
+  academic: "A research paper on ",
+  legal: "A legal document for ",
   novel: "A novel about ",
   "short-story": "A short story about ",
   screenplay: "A screenplay about ",
   "tv-series": "A TV series about ",
   youtube: "A video about ",
-  article: "An article about ",
-  academic: "A research paper on ",
-  product: "A product brief for ",
+  podcast: "A podcast episode about ",
+  "social-media": "Social media content about ",
 };
 
 const TEMPLATE_LABELS = [
+  { id: "product", label: "Product / Work" },
+  { id: "marketing", label: "Marketing" },
+  { id: "article", label: "Article / Essay" },
+  { id: "newsletter", label: "Newsletter" },
+  { id: "academic", label: "Academic" },
+  { id: "legal", label: "Legal" },
   { id: "novel", label: "Novel" },
   { id: "short-story", label: "Short Story" },
   { id: "screenplay", label: "Screenplay" },
   { id: "tv-series", label: "TV Series" },
   { id: "youtube", label: "YouTube / Video" },
-  { id: "article", label: "Article / Essay" },
-  { id: "academic", label: "Academic" },
-  { id: "product", label: "Product / Work" },
+  { id: "podcast", label: "Podcast" },
+  { id: "social-media", label: "Social Media" },
 ];
 
 // --- Data constants (used by structure generation prompts) ---
@@ -35,6 +45,11 @@ const EXTENSION_SIZES = {
   season: "medium", "full-product": "medium", monograph: "medium",
   saga: "large", series: "large", "multi-season": "large",
   "long-video": "large", longform: "large", thesis: "large", "research-project": "large",
+  "single-issue": "small", digest: "small", "newsletter-series": "medium",
+  "solo-episode": "small", interview: "small", "podcast-series": "medium",
+  thread: "small", campaign: "medium", "content-calendar": "medium",
+  "landing-page": "small", "campaign-brief": "small", "brand-guidelines": "medium",
+  contract: "medium", "legal-brief": "small", "policy-doc": "medium",
 };
 
 const EXTENSION_PROMPTS = {
@@ -71,6 +86,26 @@ const EXTENSION_PROMPTS = {
   brief: "Flat structure: problem statement, proposed solution, requirements, and success metrics.",
   "full-product": "Organized into Research, Strategy, and Specs folders. Include overview at top and launch plan at bottom.",
   "research-project": "Include a Data Collection folder (interviews, surveys, competitive analysis) and a Synthesis folder (findings, recommendations). Add research plan, methodology, and final report.",
+  // Newsletter
+  "single-issue": "Flat structure: a single issue draft and notes document. Keep it simple — one issue at a time.",
+  "newsletter-series": "Create an Issues folder with Issue 1, Issue 2, Issue 3 as documents. Include a series overview and subscriber notes at the top level.",
+  digest: "Flat structure: a curated links document and a commentary draft. Digests are compact — no folders needed.",
+  // Podcast
+  "solo-episode": "Three documents: episode outline, script, and show notes. Solo episodes need a clear monologue structure.",
+  interview: "Include guest research, question list, episode outline, and show notes. Keep the interview prep front and center.",
+  "podcast-series": "Create an Episodes folder with Episode 1-3 outlines. Include a series overview, recurring segments doc, and show notes template at the top level.",
+  // Social Media
+  thread: "Flat structure: a thread outline and draft document. Threads are sequential — no folders.",
+  campaign: "Create a Content folder with platform-specific drafts (Twitter, LinkedIn, Instagram). Include a campaign brief and content calendar at the top level.",
+  "content-calendar": "Create weekly folders (Week 1, Week 2, Week 3) each containing post drafts. Include a content strategy and themes document at the top level.",
+  // Marketing
+  "landing-page": "Flat structure: hero copy, body sections, and CTA variations. Landing pages are single-page — no complex hierarchy.",
+  "campaign-brief": "Include campaign goals, target audience, channel strategy, creative brief, and timeline. All flat documents.",
+  "brand-guidelines": "Organized into Voice & Tone, Visual Identity, and Messaging folders. Include a brand overview at the top and usage examples at the bottom.",
+  // Legal
+  contract: "Include a terms overview, main contract draft, schedules/exhibits folder, and revision notes.",
+  "legal-brief": "Flat structure: case summary, arguments, supporting citations, and conclusion. Legal briefs follow a strict linear format.",
+  "policy-doc": "Include a policy overview, main policy draft, definitions document, and compliance notes.",
 };
 
 const FALLBACK_STRUCTURES = {
@@ -512,6 +547,207 @@ const FALLBACK_STRUCTURES = {
         { type: "file", title: "Recommendations" },
       ]},
       { type: "file", title: "Final Report" },
+    ],
+  },
+  // --- Marketing ---
+  "marketing:landing-page": {
+    suggestedName: "Untitled Landing Page",
+    structure: [
+      { type: "file", title: "Hero Copy" },
+      { type: "file", title: "Body Sections" },
+      { type: "file", title: "CTA Variations" },
+    ],
+  },
+  marketing: {
+    suggestedName: "Untitled Marketing Project",
+    structure: [
+      { type: "file", title: "Brief" },
+      { type: "file", title: "Copy Draft" },
+      { type: "file", title: "Assets List" },
+    ],
+  },
+  "marketing:campaign-brief": {
+    suggestedName: "Untitled Campaign Brief",
+    structure: [
+      { type: "file", title: "Campaign Goals" },
+      { type: "file", title: "Target Audience" },
+      { type: "file", title: "Channel Strategy" },
+      { type: "file", title: "Creative Brief" },
+      { type: "file", title: "Timeline" },
+    ],
+  },
+  "marketing:brand-guidelines": {
+    suggestedName: "Untitled Brand Guidelines",
+    structure: [
+      { type: "file", title: "Brand Overview" },
+      { type: "folder", title: "Voice & Tone", children: [
+        { type: "file", title: "Writing Style" },
+        { type: "file", title: "Dos and Don'ts" },
+      ]},
+      { type: "folder", title: "Visual Identity", children: [
+        { type: "file", title: "Colors & Typography" },
+        { type: "file", title: "Logo Usage" },
+      ]},
+      { type: "folder", title: "Messaging", children: [
+        { type: "file", title: "Key Messages" },
+        { type: "file", title: "Taglines" },
+      ]},
+      { type: "file", title: "Usage Examples" },
+    ],
+  },
+  // --- Newsletter ---
+  "newsletter:single-issue": {
+    suggestedName: "Untitled Issue",
+    structure: [
+      { type: "file", title: "Issue Draft" },
+      { type: "file", title: "Notes" },
+    ],
+  },
+  newsletter: {
+    suggestedName: "Untitled Newsletter",
+    structure: [
+      { type: "file", title: "Issue Draft" },
+      { type: "file", title: "Notes" },
+    ],
+  },
+  "newsletter:newsletter-series": {
+    suggestedName: "Untitled Newsletter Series",
+    structure: [
+      { type: "file", title: "Series Overview" },
+      { type: "file", title: "Subscriber Notes" },
+      { type: "folder", title: "Issues", children: [
+        { type: "file", title: "Issue 1" },
+        { type: "file", title: "Issue 2" },
+        { type: "file", title: "Issue 3" },
+      ]},
+    ],
+  },
+  "newsletter:digest": {
+    suggestedName: "Untitled Digest",
+    structure: [
+      { type: "file", title: "Curated Links" },
+      { type: "file", title: "Commentary Draft" },
+    ],
+  },
+  // --- Legal ---
+  "legal:contract": {
+    suggestedName: "Untitled Contract",
+    structure: [
+      { type: "file", title: "Terms Overview" },
+      { type: "file", title: "Contract Draft" },
+      { type: "folder", title: "Schedules & Exhibits", children: [
+        { type: "file", title: "Schedule A" },
+        { type: "file", title: "Schedule B" },
+      ]},
+      { type: "file", title: "Revision Notes" },
+    ],
+  },
+  legal: {
+    suggestedName: "Untitled Legal Document",
+    structure: [
+      { type: "file", title: "Draft" },
+      { type: "file", title: "Notes" },
+      { type: "file", title: "References" },
+    ],
+  },
+  "legal:legal-brief": {
+    suggestedName: "Untitled Legal Brief",
+    structure: [
+      { type: "file", title: "Case Summary" },
+      { type: "file", title: "Arguments" },
+      { type: "file", title: "Supporting Citations" },
+      { type: "file", title: "Conclusion" },
+    ],
+  },
+  "legal:policy-doc": {
+    suggestedName: "Untitled Policy Document",
+    structure: [
+      { type: "file", title: "Policy Overview" },
+      { type: "file", title: "Policy Draft" },
+      { type: "file", title: "Definitions" },
+      { type: "file", title: "Compliance Notes" },
+    ],
+  },
+  // --- Podcast ---
+  "podcast:solo-episode": {
+    suggestedName: "Untitled Episode",
+    structure: [
+      { type: "file", title: "Episode Outline" },
+      { type: "file", title: "Script" },
+      { type: "file", title: "Show Notes" },
+    ],
+  },
+  podcast: {
+    suggestedName: "Untitled Podcast",
+    structure: [
+      { type: "file", title: "Episode Outline" },
+      { type: "file", title: "Script" },
+      { type: "file", title: "Show Notes" },
+    ],
+  },
+  "podcast:interview": {
+    suggestedName: "Untitled Interview Episode",
+    structure: [
+      { type: "file", title: "Guest Research" },
+      { type: "file", title: "Question List" },
+      { type: "file", title: "Episode Outline" },
+      { type: "file", title: "Show Notes" },
+    ],
+  },
+  "podcast:podcast-series": {
+    suggestedName: "Untitled Podcast Series",
+    structure: [
+      { type: "file", title: "Series Overview" },
+      { type: "file", title: "Recurring Segments" },
+      { type: "folder", title: "Episodes", children: [
+        { type: "file", title: "Episode 1 Outline" },
+        { type: "file", title: "Episode 2 Outline" },
+        { type: "file", title: "Episode 3 Outline" },
+      ]},
+      { type: "file", title: "Show Notes Template" },
+    ],
+  },
+  // --- Social Media ---
+  "social-media:thread": {
+    suggestedName: "Untitled Thread",
+    structure: [
+      { type: "file", title: "Thread Outline" },
+      { type: "file", title: "Draft" },
+    ],
+  },
+  "social-media": {
+    suggestedName: "Untitled Social Content",
+    structure: [
+      { type: "file", title: "Content Brief" },
+      { type: "file", title: "Draft" },
+    ],
+  },
+  "social-media:campaign": {
+    suggestedName: "Untitled Campaign",
+    structure: [
+      { type: "file", title: "Campaign Brief" },
+      { type: "file", title: "Content Calendar" },
+      { type: "folder", title: "Content", children: [
+        { type: "file", title: "Twitter Drafts" },
+        { type: "file", title: "LinkedIn Drafts" },
+        { type: "file", title: "Instagram Drafts" },
+      ]},
+    ],
+  },
+  "social-media:content-calendar": {
+    suggestedName: "Untitled Content Calendar",
+    structure: [
+      { type: "file", title: "Content Strategy" },
+      { type: "file", title: "Themes" },
+      { type: "folder", title: "Week 1", children: [
+        { type: "file", title: "Post Drafts" },
+      ]},
+      { type: "folder", title: "Week 2", children: [
+        { type: "file", title: "Post Drafts" },
+      ]},
+      { type: "folder", title: "Week 3", children: [
+        { type: "file", title: "Post Drafts" },
+      ]},
     ],
   },
   // --- Freeform ---

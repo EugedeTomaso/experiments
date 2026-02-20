@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 
 function scoreColor(score) {
   if (score >= 8) return "var(--green-text, #2d7d46)";
@@ -16,6 +17,7 @@ export default function CritiqueSectionCard({
   section,
   messages,
   onDiscuss,
+  onApplyMessage,
   isDiscussing,
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +71,23 @@ export default function CritiqueSectionCard({
               <span className="critique-msg-role">
                 {msg.role === "user" ? "You" : "Critic"}
               </span>
-              <p className="critique-msg-content">{msg.content}</p>
+              <div className={`critique-msg-content${msg.role === "assistant" ? " chat-content-md" : ""}`}>
+                {msg.role === "assistant" ? (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
+              </div>
+              {msg.role === "assistant" && onApplyMessage && (
+                <div className="critique-msg-actions">
+                  <button
+                    className="critique-apply-btn"
+                    onClick={() => onApplyMessage(msg.content)}
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           {isDiscussing && (

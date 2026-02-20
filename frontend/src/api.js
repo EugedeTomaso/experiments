@@ -1,14 +1,14 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export function getAuthHeader() {
-  const token = localStorage.getItem("marvin:access_token");
+  const token = localStorage.getItem("mive:access_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 let _refreshPromise = null;
 
 async function refreshAccessToken() {
-  const refresh = localStorage.getItem("marvin:refresh_token");
+  const refresh = localStorage.getItem("mive:refresh_token");
   if (!refresh) throw new Error("No refresh token");
   const res = await fetch(`${API_BASE}/api/auth/refresh/`, {
     method: "POST",
@@ -17,8 +17,8 @@ async function refreshAccessToken() {
   });
   if (!res.ok) throw new Error("Refresh failed");
   const data = await res.json();
-  localStorage.setItem("marvin:access_token", data.access);
-  if (data.refresh) localStorage.setItem("marvin:refresh_token", data.refresh);
+  localStorage.setItem("mive:access_token", data.access);
+  if (data.refresh) localStorage.setItem("mive:refresh_token", data.refresh);
   return data.access;
 }
 
@@ -33,7 +33,7 @@ async function request(path, options = {}) {
   });
 
   // On 401, try refreshing the token and retry once
-  if (response.status === 401 && localStorage.getItem("marvin:refresh_token")) {
+  if (response.status === 401 && localStorage.getItem("mive:refresh_token")) {
     try {
       // Deduplicate concurrent refresh attempts
       if (!_refreshPromise) {
@@ -60,8 +60,8 @@ async function request(path, options = {}) {
       return retry.json();
     } catch {
       // Refresh failed — clear tokens so user gets redirected to login
-      localStorage.removeItem("marvin:access_token");
-      localStorage.removeItem("marvin:refresh_token");
+      localStorage.removeItem("mive:access_token");
+      localStorage.removeItem("mive:refresh_token");
       const error = new Error("Session expired");
       error.status = 401;
       throw error;
@@ -149,7 +149,7 @@ export const api = {
 
   // AI Fact-Check
   factCheck(payload) {
-    const token = localStorage.getItem("marvin:access_token");
+    const token = localStorage.getItem("mive:access_token");
     return fetch(`${API_BASE}/api/ai/fact-check`, {
       method: "POST",
       headers: {

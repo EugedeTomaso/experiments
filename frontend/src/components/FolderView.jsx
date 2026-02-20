@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { buildSnippet, timeAgo, wordCount } from "../utils";
+import { ContextFilePicker } from "./ContextFilePicker";
 
 const FileIcon = () => (
   <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -40,12 +41,18 @@ export function FolderView({
   folderSummary,
   childrenMap,
   nodesById,
+  allNodes,
   onSelectNode,
   onCreateNode,
   onRenameNode,
+  onUpdateNode,
+  canEdit = true,
 }) {
   const [sortBy, setSortBy] = useState("recent");
   const [viewMode, setViewMode] = useState("grid");
+  const [showCtx, setShowCtx] = useState(false);
+
+  const hasPinnedCtx = (activeNode.context_nodes || []).length > 0;
 
   const directChildren = useMemo(() => {
     const children = childrenMap.get(String(activeNode.id)) || [];
@@ -111,6 +118,17 @@ export function FolderView({
         )}
       </div>
 
+      {(hasPinnedCtx || showCtx) && (
+        <div className="folder-context-compact">
+          <ContextFilePicker
+            pinnedIds={activeNode.context_nodes || []}
+            nodes={allNodes || []}
+            excludeNodeId={activeNode.id}
+            onChange={(newIds) => onUpdateNode?.(activeNode.id, { context_nodes: newIds })}
+          />
+        </div>
+      )}
+
       <div className="folder-toolbar">
         <div className="folder-sort-pills">
           {[
@@ -127,6 +145,14 @@ export function FolderView({
             </button>
           ))}
         </div>
+        {!hasPinnedCtx && (
+          <button
+            className={`folder-ctx-btn${showCtx ? " active" : ""}`}
+            onClick={() => setShowCtx(!showCtx)}
+          >
+            + Context
+          </button>
+        )}
         <div className="folder-view-toggle">
           <button
             className={`folder-view-btn ${viewMode === "grid" ? "active" : ""}`}
@@ -155,9 +181,11 @@ export function FolderView({
       {directChildren.length === 0 ? (
         <div className="folder-empty">
           <p>This folder is empty</p>
-          <button className="folder-empty-action" onClick={() => onCreateNode("file")}>
-            Create a document
-          </button>
+          {canEdit && (
+            <button className="folder-empty-action" onClick={() => onCreateNode("file")}>
+              Create a document
+            </button>
+          )}
         </div>
       ) : viewMode === "grid" ? (
         <div className="folder-card-grid">
@@ -194,13 +222,15 @@ export function FolderView({
               </div>
             </div>
           ))}
-          <div
-            className="folder-card folder-card-new"
-            onClick={() => onCreateNode("file")}
-          >
-            <PlusIcon />
-            <span>New document</span>
-          </div>
+          {canEdit && (
+            <div
+              className="folder-card folder-card-new"
+              onClick={() => onCreateNode("file")}
+            >
+              <PlusIcon />
+              <span>New document</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="folder-list">
@@ -225,13 +255,15 @@ export function FolderView({
               </span>
             </div>
           ))}
-          <div
-            className="folder-list-item folder-list-new"
-            onClick={() => onCreateNode("file")}
-          >
-            <span className="folder-list-icon"><PlusIcon /></span>
-            <span className="folder-list-title">New document</span>
-          </div>
+          {canEdit && (
+            <div
+              className="folder-list-item folder-list-new"
+              onClick={() => onCreateNode("file")}
+            >
+              <span className="folder-list-icon"><PlusIcon /></span>
+              <span className="folder-list-title">New document</span>
+            </div>
+          )}
         </div>
       )}
     </div>

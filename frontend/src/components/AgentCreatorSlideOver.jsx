@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { getAuthHeader } from "../api";
 
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
@@ -9,7 +10,7 @@ const PROVIDERS = [
   { value: "groq", label: "Groq" },
 ];
 
-const GENERATION_PROMPT = `You are helping a user create a writing assistant for a markdown editor called Marvin. Based on their description, generate a JSON object with these fields:
+const GENERATION_PROMPT = `You are helping a user create a writing assistant for a markdown editor called Mive. Based on their description, generate a JSON object with these fields:
 
 - "name": A short, memorable name for the assistant (1-3 words)
 - "system_prompt": A detailed system prompt that captures the described personality, writing style, and behavior. Write it as direct instructions to the AI. Be specific and actionable.
@@ -23,14 +24,36 @@ export function AgentCreatorSlideOver({
   isOpen,
   onClose,
   onCreate,
+  onUpdate,
+  onDelete,
   apiBase,
+  agent, // null = create mode, object = edit mode
 }) {
+  const isEditMode = !!agent;
   const [step, setStep] = useState("describe"); // describe | generating | review
   const [description, setDescription] = useState("");
   const [generated, setGenerated] = useState(null);
   const [error, setError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const abortRef = useRef(null);
+
+  // When opening in edit mode, jump to review with agent data
+  useEffect(() => {
+    if (isOpen && agent) {
+      setGenerated({
+        name: agent.name || "",
+        provider: agent.config?.provider || "deepseek",
+        model: agent.config?.model || "deepseek-chat",
+        temperature: agent.config?.temperature ?? 0.7,
+        system_prompt: agent.config?.system_prompt || "",
+      });
+      setStep("review");
+    } else if (isOpen && !agent) {
+      setStep("describe");
+      setGenerated(null);
+    }
+  }, [isOpen, agent]);
 
   const reset = () => {
     setStep("describe");
@@ -38,6 +61,7 @@ export function AgentCreatorSlideOver({
     setGenerated(null);
     setError("");
     setIsCreating(false);
+    setIsConfirmingDelete(false);
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
@@ -60,7 +84,7 @@ export function AgentCreatorSlideOver({
 
       const response = await fetch(`${apiBase}/api/ai/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           provider: "deepseek",
           model: "deepseek-chat",
@@ -125,15 +149,32 @@ export function AgentCreatorSlideOver({
     }
   };
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!generated) return;
     setIsCreating(true);
     try {
       const { name, ...config } = generated;
-      await onCreate({ name, config });
+      if (isEditMode) {
+        await onUpdate(agent.id, { name, config });
+      } else {
+        await onCreate({ name, config });
+      }
       handleClose();
     } catch (err) {
-      setError(err.message || "Failed to create assistant.");
+      setError(err.message || (isEditMode ? "Failed to save changes." : "Failed to create assistant."));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!agent) return;
+    setIsCreating(true);
+    try {
+      await onDelete(agent.id);
+      handleClose();
+    } catch (err) {
+      setError(err.message || "Failed to delete assistant.");
     } finally {
       setIsCreating(false);
     }
@@ -159,12 +200,12 @@ export function AgentCreatorSlideOver({
       {isOpen && <div className="slide-over-backdrop" onClick={handleClose} />}
       <div className={`slide-over agent-creator-slide-over ${isOpen ? "slide-over-open" : ""}`}>
         <div className="slide-over-header">
-          <h2>New Assistant</h2>
+          <h2>{isEditMode ? "Edit Assistant" : "New Assistant"}</h2>
           <button className="ghost" onClick={handleClose}>Close</button>
         </div>
 
         <div className="slide-over-body">
-          {step === "describe" && (
+          {step === "describe" && !isEditMode && (
             <div className="creator-step">
               <div className="creator-intro">
                 <p className="creator-heading">Describe the assistant you need</p>
@@ -208,9 +249,13 @@ export function AgentCreatorSlideOver({
           {step === "review" && generated && (
             <div className="creator-step">
               <div className="creator-intro">
-                <p className="creator-heading">Review & customize</p>
+                <p className="creator-heading">
+                  {isEditMode ? "Edit configuration" : "Review & customize"}
+                </p>
                 <p className="creator-hint">
-                  Adjust anything before creating the assistant.
+                  {isEditMode
+                    ? "Update the assistant's name, voice, or engine."
+                    : "Adjust anything before creating the assistant."}
                 </p>
               </div>
 
@@ -222,6 +267,7 @@ export function AgentCreatorSlideOver({
                     value={generated.name}
                     onChange={(e) => updateField("name", e.target.value)}
                     placeholder="Assistant name"
+                    autoFocus={isEditMode}
                   />
                 </label>
               </div>
@@ -280,15 +326,53 @@ export function AgentCreatorSlideOver({
               <div className="creator-actions">
                 <button
                   className="primary"
-                  onClick={handleCreate}
+                  onClick={handleSave}
                   disabled={isCreating || !generated.name?.trim()}
                 >
-                  {isCreating ? "Creating..." : "Create assistant"}
+                  {isCreating
+                    ? (isEditMode ? "Saving..." : "Creating...")
+                    : (isEditMode ? "Save changes" : "Create assistant")}
                 </button>
-                <button className="ghost" onClick={() => { setStep("describe"); setError(""); }}>
-                  Start over
-                </button>
+                {!isEditMode && (
+                  <button className="ghost" onClick={() => { setStep("describe"); setError(""); }}>
+                    Start over
+                  </button>
+                )}
               </div>
+
+              {isEditMode && (
+                <div className="creator-danger-zone">
+                  {isConfirmingDelete ? (
+                    <div className="creator-confirm-delete">
+                      <span className="creator-confirm-text">
+                        Delete <strong>{agent.name}</strong>? This cannot be undone.
+                      </span>
+                      <div className="creator-confirm-actions">
+                        <button
+                          className="creator-confirm-cancel"
+                          onClick={() => setIsConfirmingDelete(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="creator-confirm-delete-btn"
+                          onClick={handleDelete}
+                          disabled={isCreating}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="creator-delete-btn"
+                      onClick={() => setIsConfirmingDelete(true)}
+                    >
+                      Delete this assistant
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

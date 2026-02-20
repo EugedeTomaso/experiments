@@ -1786,7 +1786,7 @@ export default function AiSuggestionBanner({ aiSuggestions, currentUserId, onVie
 
 **Step 3: Add "Share AI suggestions" toggle to SettingsModal**
 
-In `frontend/src/components/SettingsModal.jsx`, add a toggle that reads/writes `localStorage.getItem("marvin:ai-visible")` and calls `collabSession.setAiVisible(value)`.
+In `frontend/src/components/SettingsModal.jsx`, add a toggle that reads/writes `localStorage.getItem("mive:ai-visible")` and calls `collabSession.setAiVisible(value)`.
 
 **Step 4: Wire AI flow in App.jsx**
 

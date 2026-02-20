@@ -5,7 +5,7 @@ import { resolveCommentPositions } from "./commentPositions";
 
 export const commentDecoPluginKey = new PluginKey("comment-decorations");
 
-function buildDecorations(doc, comments) {
+function buildDecorations(doc, comments, focusedId, flashId) {
   // Render all comments passed in — filtering is done by the caller
   const resolved = resolveCommentPositions(doc, comments);
   const decos = [];
@@ -26,6 +26,12 @@ function buildDecorations(doc, comments) {
       }
       if (comment.comment_type === "fact_check" && comment.verdict) {
         classes.push(`comment-highlight--${comment.verdict}`);
+      }
+      if (comment.id === focusedId) {
+        classes.push("comment-highlight--active");
+      }
+      if (comment.id === flashId) {
+        classes.push("comment-highlight--flash");
       }
 
       try {
@@ -54,9 +60,10 @@ export const commentDecoPlugin = $prose(() => {
         return DecorationSet.empty;
       },
       apply(tr, oldDecos) {
-        const newComments = tr.getMeta(commentDecoPluginKey);
-        if (newComments !== undefined) {
-          return buildDecorations(tr.doc, newComments);
+        const meta = tr.getMeta(commentDecoPluginKey);
+        if (meta !== undefined) {
+          const { comments: newComments, focusedId, flashId } = meta;
+          return buildDecorations(tr.doc, newComments, focusedId, flashId);
         }
         if (tr.docChanged) {
           return oldDecos.map(tr.mapping, tr.doc);

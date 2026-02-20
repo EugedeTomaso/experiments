@@ -470,7 +470,7 @@ In `frontend/src/api.js`, add after `requestReview` method (~line 156):
 
 ```javascript
 factCheck(payload) {
-  const token = localStorage.getItem("marvin:access_token");
+  const token = localStorage.getItem("mive:access_token");
   return fetch(`${BASE}/api/ai/fact-check`, {
     method: "POST",
     headers: {
@@ -518,7 +518,7 @@ const handleFactCheck = async (selectionFrom = null, selectionTo = null) => {
   setFactCheckProgress(null);
 
   try {
-    const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+    const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
     const provider = providerSettings.provider || "deepseek";
     const model = providerSettings.model || "deepseek-chat";
 

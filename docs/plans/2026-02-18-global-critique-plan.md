@@ -824,7 +824,7 @@ const handleRequestCritique = async () => {
   setAssistantTab("review");
   if (!isAssistantOpen) setIsAssistantOpen(true);
   try {
-    const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+    const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
     const provider = providerSettings.provider || "deepseek";
     const model = providerSettings.model || "deepseek-chat";
     const newCritique = await api.requestCritique({
@@ -850,7 +850,7 @@ const handleDiscussSection = async (sectionId, message) => {
   if (!activeCritiqueId) return;
   setDiscussingSection(sectionId);
   try {
-    const providerSettings = JSON.parse(localStorage.getItem("marvin:ai-provider") || "{}");
+    const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
     const provider = providerSettings.provider || "deepseek";
     const model = providerSettings.model || "deepseek-chat";
     const result = await api.discussCritiqueSection({

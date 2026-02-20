@@ -1,0 +1,39 @@
+@page {
+  size: A4;
+  margin: 1in;
+  @bottom-center { content: counter(page); font-size: 10pt; color: #666; }
+}
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12pt;
+  line-height: 1.6;
+  color: #1a1a1a;
+}
+.doc-title {
+  font-size: 24pt;
+  text-align: center;
+  margin-bottom: 2em;
+}
+h1 { font-size: 20pt; margin-top: 1.5em; page-break-before: always; }
+h1:first-of-type { page-break-before: avoid; }
+h2 { font-size: 16pt; margin-top: 1.2em; }
+h3 { font-size: 14pt; margin-top: 1em; }
+p { margin: 0.5em 0; text-align: justify; }
+blockquote {
+  border-left: 2pt solid #999;
+  padding-left: 1em;
+  color: #555;
+  margin: 1em 0;
+}
+code {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 10pt;
+  background: #f4f4f4;
+  padding: 1pt 3pt;
+}
+pre {
+  background: #f4f4f4;
+  padding: 0.5em;
+  font-size: 10pt;
+  overflow: hidden;
+}

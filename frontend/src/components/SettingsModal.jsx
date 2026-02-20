@@ -27,7 +27,6 @@ export function SettingsModal({
   defaultAgent,
   onDefaultAgentChange,
   memories,
-  activeProjectId,
   onCreateMemory,
   onDeleteMemory,
   onUpdateMemory,
@@ -36,7 +35,6 @@ export function SettingsModal({
   const [activeSection, setActiveSection] = useState("providers");
   const [keyForm, setKeyForm] = useState({ provider: "openai", api_key: "" });
   const [keyMessage, setKeyMessage] = useState("");
-  const [memoryScope, setMemoryScope] = useState("user");
   const [newMemoryText, setNewMemoryText] = useState("");
   const [editingMemoryId, setEditingMemoryId] = useState(null);
   const [editingMemoryText, setEditingMemoryText] = useState("");
@@ -180,9 +178,9 @@ export function SettingsModal({
                     <label className="settings-label settings-toggle-label">
                       <input
                         type="checkbox"
-                        checked={localStorage.getItem("marvin:ai-visible") === "true"}
+                        checked={localStorage.getItem("mive:ai-visible") === "true"}
                         onChange={(e) => {
-                          localStorage.setItem("marvin:ai-visible", e.target.checked);
+                          localStorage.setItem("mive:ai-visible", e.target.checked);
                           collabSession.setAiVisible(e.target.checked);
                         }}
                       />
@@ -249,24 +247,8 @@ export function SettingsModal({
           {activeSection === "memory" && (
             <div className="settings-section">
               <p className="settings-description">
-                Memories help the AI remember your preferences across conversations.
+                Global preferences the AI remembers across all projects. Project-specific memories can be managed from each project's overview.
               </p>
-
-              <div className="memory-scope-toggle">
-                <button
-                  className={`memory-scope-btn${memoryScope === "user" ? " active" : ""}`}
-                  onClick={() => setMemoryScope("user")}
-                >
-                  All projects
-                </button>
-                <button
-                  className={`memory-scope-btn${memoryScope === "project" ? " active" : ""}`}
-                  onClick={() => setMemoryScope("project")}
-                  disabled={!activeProjectId}
-                >
-                  This project
-                </button>
-              </div>
 
               <div className="memory-add-form">
                 <input
@@ -277,7 +259,7 @@ export function SettingsModal({
                   maxLength={200}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && newMemoryText.trim()) {
-                      onCreateMemory(newMemoryText.trim(), memoryScope);
+                      onCreateMemory(newMemoryText.trim(), "user");
                       setNewMemoryText("");
                     }
                   }}
@@ -286,7 +268,7 @@ export function SettingsModal({
                   className="primary"
                   onClick={() => {
                     if (!newMemoryText.trim()) return;
-                    onCreateMemory(newMemoryText.trim(), memoryScope);
+                    onCreateMemory(newMemoryText.trim(), "user");
                     setNewMemoryText("");
                   }}
                   disabled={!newMemoryText.trim()}
@@ -297,7 +279,7 @@ export function SettingsModal({
 
               <div className="settings-memory-list">
                 {(memories || [])
-                  .filter((m) => m.scope === memoryScope)
+                  .filter((m) => m.scope === "user")
                   .map((mem) => (
                     <div key={mem.id} className="settings-memory-item">
                       {editingMemoryId === mem.id ? (
@@ -346,9 +328,9 @@ export function SettingsModal({
                       </button>
                     </div>
                   ))}
-                {(memories || []).filter((m) => m.scope === memoryScope).length === 0 && (
+                {(memories || []).filter((m) => m.scope === "user").length === 0 && (
                   <div className="settings-memory-empty">
-                    No {memoryScope === "user" ? "global" : "project"} memories yet.
+                    No global memories yet.
                   </div>
                 )}
               </div>

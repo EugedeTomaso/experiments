@@ -63,6 +63,25 @@ function findInDoc(doc, textMap, quotedText, hintFrom) {
   return matches[0];
 }
 
+export { buildTextMap, findInDoc };
+
+export function applySuggestion(view, quotedText, suggestedText, hintFrom) {
+  const doc = view.state.doc;
+  const textMap = buildTextMap(doc);
+  const match = findInDoc(doc, textMap, quotedText, hintFrom);
+
+  if (!match) return false;
+
+  const tr = view.state.tr;
+  // Preserve marks from the original text's start position
+  const $from = doc.resolve(match.from);
+  const marks = $from.marks();
+  const replacement = view.state.schema.text(suggestedText, marks);
+  tr.replaceWith(match.from, match.to, replacement);
+  view.dispatch(tr);
+  return true;
+}
+
 export function resolveCommentPositions(doc, comments) {
   if (!doc || !comments?.length) return [];
 

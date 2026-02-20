@@ -23,7 +23,7 @@ import { mermaidPlugin } from "./mermaidPlugin";
 import { createMarginAvatarPlugin } from "./marginAvatarPlugin";
 import "@milkdown/theme-nord/style.css";
 
-function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef, readOnly = false, currentRole, collabSession }) {
+function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession }) {
   const pluginViewFactory = usePluginViewFactory();
   const [loading, get] = useInstance();
   const shellRef = useRef(null);
@@ -89,15 +89,21 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], editorRef,
     [docId, !!collabSession]
   );
 
-  // Sync comments into the decoration plugin
+  // Sync comments + focus/flash state into the decoration plugin
   useEffect(() => {
     if (loading) return;
-    get().action((ctx) => {
+    const editor = get();
+    if (!editor?.action) return;
+    editor.action((ctx) => {
       const view = ctx.get(editorViewCtx);
-      const tr = view.state.tr.setMeta(commentDecoPluginKey, comments);
+      const tr = view.state.tr.setMeta(commentDecoPluginKey, {
+        comments,
+        focusedId: focusedCommentId,
+        flashId: flashCommentId,
+      });
       view.dispatch(tr);
     });
-  }, [comments, loading, get]);
+  }, [comments, focusedCommentId, flashCommentId, loading, get]);
 
   // Expose scrollToPos to parent
   useEffect(() => {

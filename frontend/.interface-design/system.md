@@ -1,4 +1,4 @@
-# Marvin Design System
+# Mive Design System
 
 Writing and creation tool with three-zone layout: outline rail, markdown editor, and AI assistant panel.
 
@@ -24,13 +24,16 @@ Three-column flex layout, all collapsible:
 ### Document Header
 - Large title (40px/700) — editable inline, Notion-style
 - "Untitled" titles shown in muted `--text-4`, auto-select on focus
-- Meta row: word count, VersionsMenu dropdown, Save status
+- Meta row: word count + save status (left), icon-only actions (right: Versions, Export, `⋯` overflow)
+- Overflow menu (`⋯`): Review all / grammar / clarity / style
+- Contextual review bar: appears between header and editor only when comments or diff exist. Contains diff toggle pill, comment navigator (◀ N/M ▶), and review progress.
+- Bottom status bar: sticky zoom controls (A-/100%/A+) at bottom-right of editor viewport
 
 ### Assistant Pane (White Surface)
 - Explicit white surface (`--surface`) background — same surface as editor
 - Separated from editor via `border-left: 1px solid --border-subtle` on the pane + invisible `.pane-divider` grab zone (8px, no visible line, 3px×32px handle on hover at 0.4 opacity)
 - Editor keeps `max-width: 720px; margin: 0 auto` — centers in available space
-- Assistant width stored in state + `localStorage('marvin:assistant-width')`, default 380px, range 280–600px
+- Assistant width stored in state + `localStorage('mive:assistant-width')`, default 380px, range 280–600px
 - Double-click divider resets to default width
 - Top bar: pill-shaped agent selector + circular "+" button + close
 - Chat thread: 20px gap, 14px/1.6 text — same reading comfort as editor
@@ -243,6 +246,11 @@ z-index: 100;
 
 | Component         | File                              | Description                              |
 |-------------------|-----------------------------------|------------------------------------------|
+| AuthShell         | `components/AuthShell.jsx`        | Auth page router (login/register/forgot/reset) |
+| LoginPage         | `components/LoginPage.jsx`        | Sign-in form with social buttons          |
+| RegisterPage      | `components/RegisterPage.jsx`     | Account creation form                     |
+| ForgotPasswordPage| `components/ForgotPasswordPage.jsx`| Password reset request                   |
+| ResetPasswordPage | `components/ResetPasswordPage.jsx`| New password form (from email link)       |
 | ProjectSwitcher   | `components/ProjectSwitcher.jsx`  | Topbar dropdown for project selection     |
 | AssistantPanel    | `components/AssistantPanel.jsx`   | Right panel with conversation history + chat thread |
 | VersionsMenu      | `components/VersionsMenu.jsx`     | Document header dropdown for versions     |
@@ -252,14 +260,15 @@ z-index: 100;
 | SelectionToolbar  | `components/SelectionToolbar.jsx` | Formatting toolbar (Bold/Italic/Strike/Code + Comment) |
 | SlashMenu         | `components/SlashMenu.jsx`        | `/` command menu in editor                |
 | AgentCreatorSlideOver | `components/AgentCreatorSlideOver.jsx` | AI-powered agent creation flow |
+| SpotlightTour     | `components/SpotlightTour.jsx`        | Post-creation guided overlay tour       |
 | SettingsModal     | `components/SettingsModal.jsx`    | Centered modal with left nav sections     |
-| ProjectWizard     | `components/ProjectWizard.jsx`    | 5-step project creation wizard with AI structure generation |
+| ProjectWizard     | `components/ProjectWizard.jsx`    | Multi-step project creation wizard with AI structure generation |
 
 ### Settings Modal
 
 Centered 640x480 modal with left nav (180px, `--surface-inset` bg) + content area. Left nav uses same item pattern as tree (hover/active states with `--accent-soft`/`--accent-medium`). Sections are data-driven from a `SECTIONS` array — adding a section means one array entry + one conditional content block.
 
-Sections: Provider Keys, Editor, AI Defaults. Settings values persisted to `localStorage` with `marvin:` prefix keys.
+Sections: Provider Keys, Editor, AI Defaults. Settings values persisted to `localStorage` with `mive:` prefix keys.
 
 ```css
 .settings-modal { border-radius: var(--radius-lg); box-shadow: var(--shadow-float); }
@@ -271,30 +280,74 @@ Responsive (< 900px): full-screen, nav becomes horizontal row at top.
 
 ### Project Wizard
 
-Full-page 5-step project creation flow. Replaces main `.app` content when active (conditional render, not overlay). Canvas bg, 480px centered content, 64px top padding.
+Full-page multi-step project creation flow. Replaces main `.app` content when active (conditional render, not overlay). Canvas bg, 480px centered content, 64px top padding. Three path variants with different step counts.
 
-**Steps:**
-1. **Type** — 8 project types as vertical list of bordered options (Novel, Short Story, Screenplay, TV Series, YouTube, Article, Product, Freeform). Click advances.
-2. **Description** — Type-specific prompt + textarea. Skip or Continue.
-3. **Material** — "Starting fresh" / "I have notes" / "I have a draft". Paste area for latter two.
-4. **Structure** — AI generates folder/file tree via `/api/ai/stream`. Signature: items animate in with 40ms stagger (`wizard-item-in`). Checkboxes to toggle, double-click to rename. Regenerate button. Falls back to `FALLBACK_STRUCTURES` if AI unavailable.
-5. **Name** — Input pre-filled with AI suggestion. Enter to create.
+**Standard path (5 steps):**
+1. **Type** — 10 project types as vertical list of bordered options (Novel, Short Story, Screenplay, TV Series, YouTube, Article, Academic, Product, Freeform, Custom). Click advances.
+2. **Scope** — Extension/sub-type selection per project type (e.g., Novella/Standard/Saga).
+3. **Details** — Combined description + material. Textarea for description, material mode buttons ("Starting fresh" default-selected / "Notes" / "Draft"). Paste area for notes/draft.
+4. **Structure** — AI generates folder/file tree via `/api/ai/stream`. Skeleton loading preview during generation. Checkboxes to toggle, double-click or Enter/F2 to rename. Regenerate button. Falls back to `FALLBACK_STRUCTURES` if AI unavailable.
+5. **Name** — Input pre-filled with AI suggestion. Enter to create. Success animation (checkmark pop) on creation.
 
-Freeform type skips steps 2–4, goes directly to step 5.
+**Custom path (6 steps):** Type → Custom Description → AI Questions → Material → Structure → Name.
+
+**Freeform path (2 steps):** Type → Name.
+
+**Progress indicator:** Dot-based progress at top from step 2 onwards. Current = `--primary` (scaled 1.33x), completed = `--text-3`, remaining = `--border-strong`.
+
+**Directional animations:** Forward steps slide up (`translateY(12px)`), backward steps slide down (`translateY(-12px)`).
+
+**Skeleton loading:** 7 placeholder lines with varied widths and pulse animation, previewing structure tree shape during AI generation. Replaces spinner.
+
+**Notices:** AI fallback warnings use `--warning` color with tinted background and border.
 
 ```css
 .wizard { flex: 1; background: var(--canvas); }
 .wizard-body { max-width: 480px; margin: 0 auto; padding: 64px 32px 48px; }
-.wizard-step { animation: wizard-step-in 250ms var(--ease); }
+.wizard-step { gap: 24px; animation: wizard-step-in 250ms var(--ease); }
+.wizard-step.backward { animation: wizard-step-in-backward 250ms var(--ease); }
 .wizard-heading { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; }
-.wizard-type-option { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.wizard-type-option { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .wizard-type-option:hover { border-color: var(--border-strong); background: var(--surface-inset); }
+.wizard-type-option:focus-visible { border-color: var(--accent); box-shadow: var(--control-focus); }
 .wizard-material-option.selected { border-color: var(--accent-border); background: var(--accent-soft); }
-.wizard-structure-item { animation: wizard-item-in 200ms var(--ease) both; } /* stagger via inline animationDelay */
+.wizard-structure-item { padding: 8px 12px; animation: wizard-item-in 200ms var(--ease) both; }
+.wizard-check { border-radius: 4px; }
 .wizard-check.checked { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.wizard-progress-dot { width: 6px; height: 6px; border-radius: 50%; }
+.wizard-progress-dot.active { background: var(--primary); transform: scale(1.33); }
+.wizard-notice { color: var(--warning); background: rgba(217,119,6,0.06); border: 1px solid rgba(217,119,6,0.15); }
 ```
 
-Responsive (< 640px): 32px/16px padding, 20px heading.
+All interactive elements have `:focus-visible` states. All spacing on 4px grid. Tree indent: `depth * 16 + 8` (matches sidebar). Responsive (< 640px): 32px/16px padding, 20px heading.
+
+### Welcome Walkthrough (Interactive)
+
+Full-page onboarding flow with guided interaction cues. Steps: Welcome → Type → Name → Structure → Assistant. All CTA buttons have pulsing ring animation (`.wt-pulse`) to draw the eye. Type selection step has hint text ("Pick one to continue") and subtle border glow on first option. Name step shows "or press Enter ↵" hint.
+
+```css
+.wt-pulse::after { inset: -4px; border: 2px solid var(--primary); animation: wt-pulse-ring 2s ease-out infinite; }
+.wt-pulse-subtle { animation: wt-subtle-glow 2.5s ease-in-out infinite; /* border-color oscillates */ }
+.welcome-hint { font-size: 12px; color: var(--text-4); }
+```
+
+### Spotlight Tour (Post-Creation)
+
+3-step overlay tour shown after project creation, highlights real UI elements:
+1. **Outline rail** — informational, click anywhere to advance
+2. **Editor section** — informational
+3. **Assistant toggle** — `clickTarget` step, user clicks the real button to advance and open assistant
+
+Uses clip-path polygon with rectangular cutout for dark overlay (`rgba(0,0,0,0.45)`). Pulsing ring (`border: 2px solid rgba(255,255,255,0.5)`) around target. Tooltip uses card pattern. For `clickTarget` steps, backdrop has `pointer-events: none` so clicks reach the real element. Keyboard: Enter/ArrowRight to advance, Escape to skip. 800ms initial delay for app settle.
+
+```css
+.spotlight-backdrop { background: rgba(0,0,0,0.45); clip-path: polygon(/* hole */); z-index: 9991; }
+.spotlight-ring { border: 2px solid rgba(255,255,255,0.5); animation: spotlight-ring-pulse 2s ease-in-out infinite; z-index: 9992; }
+.spotlight-tooltip { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-float); z-index: 9993; }
+.spotlight-tooltip-btn { /* Primary button pattern, 12px font, 6px 14px padding */ }
+```
+
+Component: `components/SpotlightTour.jsx`. Triggered from `App.jsx` via `showAppTour` state after `handleWalkthroughComplete`.
 
 ### Formatting Toolbar
 
@@ -325,6 +378,37 @@ Document content uses larger, more readable typography than the UI shell (Notion
 | Code (inline) | `--surface-inset` bg, `--border-subtle` border | |
 | Code (block) | `--surface-inset` bg, `--border` border, `16px 20px` padding | |
 | HR | `1px solid --border`, `1.5em` vertical margin | |
+
+### Auth Pages (Login / Register / Forgot / Reset)
+
+Borderless forms floating on canvas background — no card container. Pen-on-paper design: underline-only inputs. Centered narrow column (360px max-width). Brand name at top, generous vertical spacing.
+
+**Layout:** `auth-page` (full viewport, flex-center, `--canvas` bg) → `auth-container` (360px max-width, column, center-aligned). Fade-in entry animation (300ms, translateY 8px).
+
+**Inputs:** Bottom-border-only (`border-bottom: 1px solid --border`, no other borders). Transparent background. 15px font, 12px vertical padding. Focus state: `--text-1` underline color. Placeholder: `--text-4`.
+
+**Social buttons:** Side-by-side ghost buttons with provider icons (Google multicolor SVG, GitHub currentColor SVG). `--surface` bg, `--border`, `--radius-sm`. Hover: `--border-strong`, `--surface-inset` bg. Disabled state at 0.5 opacity (UI-only for now).
+
+**Divider:** Horizontal line with centered "or" text. `--border` lines, `--text-4` label, 12px font.
+
+**Submit button:** Full-width primary button (`--primary` bg, `--on-primary` color, `--radius-sm`). 14px/500 weight. Disabled: 0.5 opacity.
+
+**Error messages:** `--error` color text on `--error-soft` background, `--radius-sm`, 13px font.
+
+**Navigation links:** Text buttons (`auth-link-btn`) — `--text-3` color, no decoration, hover to `--text-1`.
+
+```css
+.auth-page { min-height: 100vh; background: var(--canvas); display: flex; align-items: center; justify-content: center; }
+.auth-container { max-width: 360px; }
+.auth-brand { font-size: 14px; font-weight: 600; margin-bottom: 48px; }
+.auth-heading { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; }
+.auth-input { border: none; border-bottom: 1px solid var(--border); background: transparent; padding: 12px 0; font-size: 15px; }
+.auth-input:focus { border-bottom-color: var(--text-1); }
+.auth-social-btn { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); }
+.auth-submit-btn { background: var(--primary); color: var(--on-primary); border-radius: var(--radius-sm); }
+```
+
+**Auth state:** `AuthContext.jsx` (React context) + `AuthGate.jsx` (conditional render). JWT tokens stored in `localStorage` with `mive:` prefix (`mive:access_token`, `mive:refresh_token`). AuthShell manages page routing (login/register/forgot/reset) without a router library.
 
 ## Rules
 

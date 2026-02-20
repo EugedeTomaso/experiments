@@ -5,7 +5,7 @@ import { collectBlocks, isEmptyParagraph } from "./diffUpdate";
 
 export const aiTextPluginKey = new PluginKey("ai-text-appear");
 
-const INIT_STATE = { decos: DecorationSet.empty, savedOldDoc: null, mode: "idle" };
+const INIT_STATE = { decos: DecorationSet.empty, savedOldDoc: null, mode: "idle", stats: null };
 
 function createCursorWidget() {
   const span = document.createElement("span");
@@ -41,6 +41,7 @@ function getInsertedRanges(tr) {
 
 function computeDiffDecos(oldDoc, newDoc) {
   const decos = [];
+  const stats = { modified: 0, added: 0, deleted: 0 };
 
   const oldAll = collectBlocks(oldDoc);
   const newAll = collectBlocks(newDoc);
@@ -78,7 +79,7 @@ function computeDiffDecos(oldDoc, newDoc) {
   const newCount = newEnd - newStart;
 
   if (oldCount === 0 && newCount === 0) {
-    return DecorationSet.create(newDoc, []);
+    return { decoSet: DecorationSet.create(newDoc, []), stats };
   }
 
   const pairs = Math.min(oldCount, newCount);
@@ -115,6 +116,10 @@ function computeDiffDecos(oldDoc, newDoc) {
       const addedFrom = pre;
       const addedTo = newText.length - suf;
 
+      if (addedTo > addedFrom || deletedText) {
+        stats.modified++;
+      }
+
       // Highlight added text
       if (addedTo > addedFrom) {
         const from = contentStart + addedFrom;
@@ -148,6 +153,7 @@ function computeDiffDecos(oldDoc, newDoc) {
       }
     } else {
       // Different block types — mark entire new block as addition
+      stats.modified++;
       const from = nb.offset + 1;
       const to = nb.offset + 1 + nb.node.content.size;
       if (from < to && to <= newDoc.content.size) {
@@ -160,6 +166,7 @@ function computeDiffDecos(oldDoc, newDoc) {
 
   // Extra new blocks (additions)
   for (let k = pairs; k < newCount; k++) {
+    stats.added++;
     const nb = newContent[newStart + k];
     if (nb.node.isTextblock && nb.node.content.size > 0) {
       const from = nb.offset + 1;
@@ -174,6 +181,8 @@ function computeDiffDecos(oldDoc, newDoc) {
 
   // Extra old blocks (deletions) — show as widget at boundary
   if (oldCount > pairs) {
+    stats.deleted += oldCount - pairs;
+
     // Find the position to insert the deletion widget
     let insertPos;
     if (pairs > 0) {
@@ -208,9 +217,10 @@ function computeDiffDecos(oldDoc, newDoc) {
     }
   }
 
-  return decos.length > 0
+  const decoSet = decos.length > 0
     ? DecorationSet.create(newDoc, decos)
     : DecorationSet.empty;
+  return { decoSet, stats };
 }
 
 // ── Plugin ──────────────────────────────────────────────────────────
@@ -229,10 +239,15 @@ export const aiTextPlugin = $prose(() => {
           return INIT_STATE;
         }
 
+        // Set a comparison doc (for version comparison)
+        if (meta && typeof meta === "object" && meta.action === "set-compare-doc") {
+          return { ...oldState, savedOldDoc: meta.doc, mode: "idle" };
+        }
+
         // Hide diff decorations but keep savedOldDoc for toggle
         if (meta === "hide-diff" || meta === "auto-hide-diff") {
           if (oldState.mode === "diff") {
-            return { decos: DecorationSet.empty, savedOldDoc: oldState.savedOldDoc, mode: "diff-hidden" };
+            return { ...oldState, decos: DecorationSet.empty, mode: "diff-hidden" };
           }
           return oldState;
         }
@@ -246,8 +261,8 @@ export const aiTextPlugin = $prose(() => {
           if (!oldState.savedOldDoc) {
             return INIT_STATE;
           }
-          const diffDecos = computeDiffDecos(oldState.savedOldDoc, newState.doc);
-          return { decos: diffDecos, savedOldDoc: oldState.savedOldDoc, mode: "diff" };
+          const { decoSet, stats } = computeDiffDecos(oldState.savedOldDoc, newState.doc);
+          return { decos: decoSet, savedOldDoc: oldState.savedOldDoc, mode: "diff", stats };
         }
 
         if (meta === "streaming" && tr.docChanged) {
@@ -256,33 +271,11 @@ export const aiTextPlugin = $prose(() => {
             ? _oldState.doc
             : oldState.savedOldDoc;
 
-          // Map old decorations to new positions
-          let mapped = oldState.decos.map(tr.mapping, tr.doc);
-
-          // Remove old cursor widget
-          const oldCursors = [];
-          mapped.find().forEach((d) => {
-            if (d.spec?.isCursor) oldCursors.push(d);
-          });
-          if (oldCursors.length) {
-            mapped = mapped.remove(oldCursors);
-          }
-
-          // Find new text ranges from the transaction's steps
-          const insertedRanges = getInsertedRanges(tr);
+          // Only show cursor widget — no inline decorations to avoid
+          // flickering from animation restarts on DOM recreation.
           const newDecos = [];
+          const insertedRanges = getInsertedRanges(tr);
 
-          for (const { from, to } of insertedRanges) {
-            if (from >= 0 && to <= newState.doc.content.size && to > from) {
-              try {
-                newDecos.push(
-                  Decoration.inline(from, to, { class: "ai-text-new" })
-                );
-              } catch (_) {}
-            }
-          }
-
-          // Add cursor widget at the end of the last inserted range
           if (insertedRanges.length > 0) {
             const lastPos = Math.max(...insertedRanges.map((r) => r.to));
             if (lastPos > 0 && lastPos <= newState.doc.content.size) {
@@ -298,7 +291,7 @@ export const aiTextPlugin = $prose(() => {
           }
 
           return {
-            decos: mapped.add(newState.doc, newDecos),
+            decos: DecorationSet.create(newState.doc, newDecos),
             savedOldDoc,
             mode: "streaming",
           };

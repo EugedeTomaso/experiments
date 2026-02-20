@@ -2,6 +2,31 @@ const DOC_OPEN = "<document>";
 const DOC_CLOSE = "</document>";
 const MSG_OPEN = "<message>";
 const MSG_CLOSE = "</message>";
+const MEM_OPEN = "<memory_suggestion>";
+const MEM_CLOSE = "</memory_suggestion>";
+
+function parseMemorySuggestion(text) {
+  const openIdx = text.indexOf(MEM_OPEN);
+  if (openIdx === -1) return null;
+  const closeIdx = text.indexOf(MEM_CLOSE, openIdx);
+  if (closeIdx === -1) return null;
+  const inner = text.slice(openIdx + MEM_OPEN.length, closeIdx).trim();
+  const contentMatch = inner.match(/content:\s*(.+)/);
+  const scopeMatch = inner.match(/scope:\s*(user|project)/);
+  if (!contentMatch) return null;
+  return {
+    content: contentMatch[1].trim(),
+    scope: scopeMatch ? scopeMatch[1] : "user",
+  };
+}
+
+function stripMemoryTag(text) {
+  const openIdx = text.indexOf(MEM_OPEN);
+  if (openIdx === -1) return text;
+  const closeIdx = text.indexOf(MEM_CLOSE);
+  if (closeIdx === -1) return text.slice(0, openIdx).trimEnd();
+  return (text.slice(0, openIdx) + text.slice(closeIdx + MEM_CLOSE.length)).trim();
+}
 
 export function createStreamParser() {
   let fullText = "";
@@ -14,17 +39,20 @@ export function createStreamParser() {
 
     getState() {
       const docOpenIdx = fullText.indexOf(DOC_OPEN);
+      const memorySuggestion = parseMemorySuggestion(fullText);
 
       // No <document> tag → normal chat response
       if (docOpenIdx === -1) {
         // Check if we might be mid-tag (e.g. "<doc" at the very end)
         const tail = fullText.slice(-DOC_OPEN.length);
         const possiblePartial = DOC_OPEN.startsWith(tail) && tail.length > 0 && tail.startsWith("<");
+        const rawChat = possiblePartial ? fullText.slice(0, -tail.length) : fullText;
         return {
           mode: possiblePartial ? "pending" : "chat",
-          chatContent: possiblePartial ? fullText.slice(0, -tail.length) : fullText,
+          chatContent: stripMemoryTag(rawChat),
           documentContent: null,
           isDocumentComplete: false,
+          memorySuggestion,
         };
       }
 
@@ -51,9 +79,10 @@ export function createStreamParser() {
 
       return {
         mode: "document_edit",
-        chatContent,
+        chatContent: stripMemoryTag(chatContent),
         documentContent,
         isDocumentComplete,
+        memorySuggestion,
       };
     },
 

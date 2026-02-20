@@ -377,7 +377,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
           payload.agent_id = agentId;
         } else {
           const providerSettings = JSON.parse(
-            localStorage.getItem("marvin:ai-provider") || "{}"
+            localStorage.getItem("mive:ai-provider") || "{}"
           );
           payload.provider = providerSettings.provider || "deepseek";
           payload.model = providerSettings.model || "deepseek-chat";
