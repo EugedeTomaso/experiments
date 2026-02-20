@@ -898,8 +898,8 @@
   color: var(--text-4);
 }
 
-/* Suggestion card */
-.demo-suggestion {
+/* Action cards (shared) */
+.demo-action-card {
   margin-top: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -907,6 +907,30 @@
   animation: demo-msg-in 300ms var(--ease) both;
 }
 
+.demo-action-buttons {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.demo-action-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 3px 10px;
+  border-radius: 4px;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.demo-action-btn.accept { color: var(--accent, #2563eb); }
+.demo-action-btn.neutral { color: var(--text-3); }
+.demo-action-btn.reject { color: var(--red, #c0392b); }
+
+/* Suggestion diff */
 .demo-suggestion-diff {
   font-size: 12px;
   line-height: 1.6;
@@ -927,35 +951,67 @@
   display: block;
 }
 
-.demo-suggestion-actions {
+/* Review card */
+.demo-review-header {
   display: flex;
-  gap: 2px;
-  padding: 6px 8px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-}
-
-.demo-suggestion-btn {
-  all: unset;
-  cursor: pointer;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
   font-size: 11px;
   font-weight: 500;
-  font-family: inherit;
-  padding: 3px 10px;
-  border-radius: 4px;
-  transition: background var(--duration-fast) var(--ease);
-}
-
-.demo-suggestion-btn.accept {
-  color: var(--accent, #2563eb);
-}
-
-.demo-suggestion-btn.diff {
   color: var(--text-3);
+  border-bottom: 1px solid var(--border);
 }
 
-.demo-suggestion-btn.reject {
-  color: var(--red, #c0392b);
+.demo-review-header svg { color: var(--accent, #2563eb); }
+.demo-review-author { color: var(--text-2); }
+
+.demo-review-quote {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-4);
+  padding: 8px 12px 0;
+  line-height: 1.4;
+}
+
+.demo-review-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  padding: 6px 12px 10px;
+}
+
+/* Critique card */
+.demo-critique-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.demo-critique-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.demo-critique-score {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.demo-critique-score.green { color: #2d7d46; background: #dafbe1; }
+.demo-critique-score.amber { color: #9a6700; background: #fff8c5; }
+.demo-critique-score.red { color: #c4432b; background: #ffebe9; }
+
+.demo-critique-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  padding: 8px 12px 10px;
 }
 
 /* Responsive */
