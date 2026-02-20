@@ -25,6 +25,7 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
   const [editingMemoryId, setEditingMemoryId] = useState(null);
   const [editingMemoryText, setEditingMemoryText] = useState("");
   const titleRef = useRef(null);
+  const briefRef = useRef(null);
 
   const projectMemories = memories.filter((m) => m.scope === "project");
 
@@ -32,6 +33,12 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
     setAutoContext(project?.auto_context !== false);
     setIsConfirmingDelete(false);
   }, [project?.id]);
+
+  useEffect(() => {
+    if (briefRef.current && document.activeElement !== briefRef.current) {
+      briefRef.current.textContent = project?.brief || "";
+    }
+  }, [project?.brief]);
 
   const toggleAutoContext = () => {
     const next = !autoContext;
@@ -108,6 +115,7 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
         )}
 
         <p
+          ref={briefRef}
           className="project-home-brief"
           contentEditable
           suppressContentEditableWarning
@@ -118,6 +126,10 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
             }
           }}
           onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.target.blur();
+            }
             if (e.key === "Escape") {
               e.target.textContent = project.brief || "";
               e.target.blur();
