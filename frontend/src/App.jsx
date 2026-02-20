@@ -2882,6 +2882,7 @@ Rules for memory suggestions:
               onDelete={() => handleDeleteProject(activeProjectId)}
               onEditAgent={openAgentEditor}
               onCreateAgent={openAgentCreator}
+              onSelectNode={(nodeId) => setActiveNodeId(nodeId)}
               memories={memories}
               onCreateMemory={handleCreateMemory}
               onDeleteMemory={handleDeleteMemory}
