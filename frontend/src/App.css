@@ -4574,6 +4574,12 @@
   border-bottom: none;
 }
 
+.project-home-recent-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
 .project-home-recent-name {
   font-size: 14px;
   font-weight: 500;
@@ -4652,7 +4658,7 @@
   transition: background var(--duration-fast) var(--ease);
 }
 .project-home-memory-item:hover {
-  background: var(--surface-inset);
+  background: rgba(0, 0, 0, 0.03);
 }
 .project-home-memory-text {
   flex: 1;
