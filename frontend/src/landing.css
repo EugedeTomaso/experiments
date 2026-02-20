@@ -898,6 +898,66 @@
   color: var(--text-4);
 }
 
+/* Suggestion card */
+.demo-suggestion {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  animation: demo-msg-in 300ms var(--ease) both;
+}
+
+.demo-suggestion-diff {
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  background: var(--surface-inset);
+}
+
+.demo-suggestion-del {
+  color: var(--red, #c0392b);
+  text-decoration: line-through;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.demo-suggestion-ins {
+  color: var(--green, #27ae60);
+  text-decoration: none;
+  display: block;
+}
+
+.demo-suggestion-actions {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.demo-suggestion-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 3px 10px;
+  border-radius: 4px;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.demo-suggestion-btn.accept {
+  color: var(--accent, #2563eb);
+}
+
+.demo-suggestion-btn.diff {
+  color: var(--text-3);
+}
+
+.demo-suggestion-btn.reject {
+  color: var(--red, #c0392b);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .landing-showcase {

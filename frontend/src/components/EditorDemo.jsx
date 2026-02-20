@@ -39,11 +39,15 @@ const SCENES = [
       "After three years of patching our REST API, we hit a wall. Every new feature meant weeks of workarounds.",
       "The decision to rewrite wasn't easy — but the alternative was slower. Here's what we learned along the way.",
     ],
+    suggestion: {
+      del: "After three years of patching our REST API, we hit a wall.",
+      ins: "Every Friday deploy felt like defusing a bomb. Three years of patches, and our API was a house of cards.",
+    },
     chat: [
       { role: "user", text: "@editor make the intro more engaging" },
       {
         role: "assistant",
-        text: 'Try opening with the pain point: "Every Friday deploy felt like defusing a bomb." Then reveal the scale of the problem before the solution.',
+        text: "I rewrote your opening to lead with the pain point. Review the suggestion above.",
       },
     ],
   },
@@ -72,9 +76,10 @@ const SCENES = [
 ];
 
 const TYPING_SPEED = 28; // ms per character
-const SCENE_DURATION = 13000; // ms before auto-advancing (typing ~7s + chat ~3.5s + pause)
+const SCENE_DURATION = 14000; // ms before auto-advancing
 const CHAT_DELAY_1 = 800; // ms after typing finishes to show user msg
 const CHAT_DELAY_2 = 1800; // ms after user msg to show assistant msg
+const SUGGESTION_DELAY = 600; // ms after assistant msg to show suggestion card
 
 /* ── Typing hook ── */
 
@@ -145,7 +150,24 @@ function DemoSidebar({ items }) {
   );
 }
 
-function DemoChat({ messages, typingDone }) {
+function DemoSuggestion({ suggestion, visible }) {
+  if (!suggestion || !visible) return null;
+  return (
+    <div className="demo-suggestion">
+      <div className="demo-suggestion-diff">
+        <del className="demo-suggestion-del">{suggestion.del}</del>
+        <ins className="demo-suggestion-ins">{suggestion.ins}</ins>
+      </div>
+      <div className="demo-suggestion-actions">
+        <button className="demo-suggestion-btn accept">Accept</button>
+        <button className="demo-suggestion-btn diff">Show changes</button>
+        <button className="demo-suggestion-btn reject">Reject</button>
+      </div>
+    </div>
+  );
+}
+
+function DemoChat({ messages, typingDone, onAllVisible }) {
   const [visibleCount, setVisibleCount] = useState(0);
 
   useEffect(() => {
@@ -153,12 +175,15 @@ function DemoChat({ messages, typingDone }) {
     if (!typingDone) return;
 
     const t1 = setTimeout(() => setVisibleCount(1), CHAT_DELAY_1);
-    const t2 = setTimeout(() => setVisibleCount(2), CHAT_DELAY_1 + CHAT_DELAY_2);
+    const t2 = setTimeout(() => {
+      setVisibleCount(2);
+      onAllVisible?.();
+    }, CHAT_DELAY_1 + CHAT_DELAY_2);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [typingDone]);
+  }, [typingDone, onAllVisible]);
 
   return (
     <div className="demo-chat">
@@ -202,6 +227,7 @@ function DemoChat({ messages, typingDone }) {
 export function EditorDemo() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showSuggestion, setShowSuggestion] = useState(false);
   const timerRef = useRef(null);
   const scene = SCENES[activeIndex];
 
@@ -213,10 +239,17 @@ export function EditorDemo() {
     !isTransitioning
   );
 
+  const handleChatAllVisible = useCallback(() => {
+    if (scene.suggestion) {
+      setTimeout(() => setShowSuggestion(true), SUGGESTION_DELAY);
+    }
+  }, [scene.suggestion]);
+
   const goToScene = useCallback(
     (index) => {
       if (index === activeIndex) return;
       setIsTransitioning(true);
+      setShowSuggestion(false);
       setTimeout(() => {
         setActiveIndex(index);
         setIsTransitioning(false);
@@ -283,10 +316,18 @@ export function EditorDemo() {
                 </p>
               ))}
             </div>
+            <DemoSuggestion
+              suggestion={scene.suggestion}
+              visible={showSuggestion}
+            />
           </div>
 
           {/* Assistant pane */}
-          <DemoChat messages={scene.chat} typingDone={typingDone} />
+          <DemoChat
+            messages={scene.chat}
+            typingDone={typingDone}
+            onAllVisible={handleChatAllVisible}
+          />
         </div>
       </div>
     </div>
