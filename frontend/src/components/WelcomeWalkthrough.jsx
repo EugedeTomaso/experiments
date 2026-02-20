@@ -268,7 +268,7 @@ function ChevronLeft() {
 
 /* ── Structure Item ── */
 
-function StructureItem({ item, onToggle, onRename }) {
+function StructurePill({ item, onToggle, onRename, delay = 0 }) {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef(null);
 
@@ -286,49 +286,72 @@ function StructureItem({ item, onToggle, onRename }) {
   };
 
   return (
-    <div
-      className="wizard-structure-item"
-      style={{
-        paddingLeft: `${item.depth * 16 + 8}px`,
-        animationDelay: `${item.flatIndex * 40}ms`,
-      }}
+    <button
+      className={`scaffold-pill${item.enabled ? "" : " disabled"}`}
+      style={{ animationDelay: `${delay}ms` }}
+      onClick={() => onToggle(item._id)}
+      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
     >
-      <button
-        className={`wizard-check ${item.enabled ? "checked" : ""}`}
-        onClick={() => onToggle(item._id)}
-        aria-label={item.enabled ? "Disable" : "Enable"}
-      >
-        {item.enabled && <CheckIcon />}
-      </button>
-      <span className="wizard-item-icon">
-        {item.type === "folder" ? <FolderIcon /> : <FileIcon />}
-      </span>
       {editing ? (
         <input
           ref={inputRef}
-          className="wizard-item-rename"
+          className="scaffold-pill-rename"
           defaultValue={item.title}
+          onClick={(e) => e.stopPropagation()}
           onBlur={handleRenameSubmit}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleRenameSubmit();
             if (e.key === "Escape") setEditing(false);
+            e.stopPropagation();
           }}
         />
       ) : (
-        <span
-          className={`wizard-item-title ${!item.enabled ? "disabled" : ""}`}
-          tabIndex={0}
-          onDoubleClick={() => setEditing(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === "F2") {
-              e.preventDefault();
-              setEditing(true);
-            }
-          }}
-        >
-          {item.title}
-        </span>
+        <span className="scaffold-pill-text">{item.title}</span>
       )}
+    </button>
+  );
+}
+
+function StructureCards({ structure, onToggle, onRename }) {
+  if (!structure) return null;
+  let delayCounter = 0;
+  return (
+    <div className="scaffold-cards">
+      {structure.map((item) => {
+        if (item.type === "folder") {
+          const groupDelay = delayCounter * 60;
+          delayCounter++;
+          return (
+            <div key={item._id} className="scaffold-group" style={{ animationDelay: `${groupDelay}ms` }}>
+              <div className="scaffold-group-header">
+                <FolderIcon />
+                <span className="scaffold-group-title">{item.title}</span>
+                <button
+                  className={`scaffold-group-toggle${item.enabled ? "" : " off"}`}
+                  onClick={() => onToggle(item._id)}
+                  aria-label={item.enabled ? "Disable group" : "Enable group"}
+                >
+                  {item.enabled ? "On" : "Off"}
+                </button>
+              </div>
+              {item.children && item.children.length > 0 && (
+                <div className="scaffold-group-pills">
+                  {item.children.map((child) => {
+                    const d = delayCounter * 40;
+                    delayCounter++;
+                    return (
+                      <StructurePill key={child._id} item={child} onToggle={onToggle} onRename={onRename} delay={d} />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+        const d = delayCounter * 40;
+        delayCounter++;
+        return <StructurePill key={item._id} item={item} onToggle={onToggle} onRename={onRename} delay={d} />;
+      })}
     </div>
   );
 }
@@ -751,16 +774,11 @@ Rules:
               </div>
             ) : (
               <>
-                <div className="welcome-structure-list">
-                  {flatItems.map((item) => (
-                    <StructureItem
-                      key={item._id}
-                      item={item}
-                      onToggle={handleToggle}
-                      onRename={handleRename}
-                    />
-                  ))}
-                </div>
+                <StructureCards
+                  structure={structure}
+                  onToggle={handleToggle}
+                  onRename={handleRename}
+                />
                 <div className="welcome-actions">
                   <button
                     className="welcome-ghost-btn"

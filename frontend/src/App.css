@@ -1842,6 +1842,11 @@
   background: var(--surface);
 }
 
+.editor-shell .ProseMirror td:nth-child(odd),
+.editor-shell .ProseMirror td:nth-child(even) {
+  background: var(--surface);
+}
+
 .editor-shell .ProseMirror th {
   background: var(--surface-inset);
   font-weight: 600;
@@ -1849,6 +1854,11 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-3);
+}
+
+.editor-shell .ProseMirror th:nth-child(odd),
+.editor-shell .ProseMirror th:nth-child(even) {
+  background: var(--surface-inset);
 }
 
 .editor-shell .ProseMirror .ProseMirror-selectednode {
@@ -8237,6 +8247,124 @@ button.ghost:focus-visible {
   text-align: left;
 }
 
+/* Scaffold cards (wizard step 4) */
+.scaffold-cards {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.scaffold-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  animation: scaffold-fade-in 250ms var(--ease) both;
+}
+
+.scaffold-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.scaffold-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  flex: 1;
+}
+
+.scaffold-group-toggle {
+  border: none;
+  background: none;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-4);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.scaffold-group-toggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-2);
+}
+
+.scaffold-group-toggle.off {
+  color: var(--error);
+}
+
+.scaffold-group-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scaffold-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  background: var(--surface);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+  animation: scaffold-fade-in 200ms var(--ease) both;
+}
+
+.scaffold-pill:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-inset);
+}
+
+.scaffold-pill.disabled {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.scaffold-pill.disabled:hover {
+  opacity: 0.6;
+}
+
+.scaffold-pill-text {
+  pointer-events: none;
+}
+
+.scaffold-pill-rename {
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-1);
+  padding: 0;
+  width: auto;
+  min-width: 60px;
+  outline: none;
+}
+
+@keyframes scaffold-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .welcome-structure-skeleton {
   width: 100%;
   max-width: 400px;
@@ -8483,7 +8611,8 @@ button.ghost:focus-visible {
   }
 
   .welcome-structure-list,
-  .welcome-structure-skeleton {
+  .welcome-structure-skeleton,
+  .scaffold-cards {
     max-width: 100%;
   }
 
