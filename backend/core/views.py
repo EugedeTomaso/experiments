@@ -800,8 +800,20 @@ class AICritiqueDiscussView(APIView):
 
         history = list(thread.messages.order_by("created_at").values("role", "content"))
 
+        agent_id = request.data.get("agent_id")
         provider = request.data.get("provider", "deepseek")
         model = request.data.get("model", "deepseek-chat")
+
+        agent = None
+        agent_system_prompt = ""
+        if agent_id:
+            agent = Agent.objects.filter(id=agent_id).first()
+            if agent:
+                agent_config = agent.config or {}
+                provider = agent_config.get("provider", provider)
+                model = agent_config.get("model", model)
+                if agent_config.get("system_prompt"):
+                    agent_system_prompt = agent_config["system_prompt"] + "\n\n"
 
         try:
             pk = ProviderKey.objects.get(provider=provider)
@@ -809,7 +821,7 @@ class AICritiqueDiscussView(APIView):
         except ProviderKey.DoesNotExist:
             return Response({"error": f"No API key for {provider}"}, status=400)
 
-        system_content = (
+        system_content = agent_system_prompt + (
             f"You are a professional writing critic discussing your evaluation of a document.\n\n"
             f"Your critique of the section \"{section['title']}\" (score: {section['score']}/10):\n"
             f"{section['body']}\n\n"

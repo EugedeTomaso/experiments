@@ -33,6 +33,7 @@ export default function CritiqueTab({
   onApplyMessage,
   onSelectCritique,
   activeCritiqueId,
+  agents,
 }) {
   const [showHistory, setShowHistory] = useState(false);
 
@@ -88,6 +89,7 @@ export default function CritiqueTab({
               onDiscuss={onDiscussSection}
               onApplyMessage={onApplyMessage}
               isDiscussing={discussingSection === section.id}
+              agents={agents}
             />
           ))}
 

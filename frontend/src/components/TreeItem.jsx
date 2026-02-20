@@ -55,6 +55,7 @@ export function TreeItem({
   dropPosition,
   draggingId,
   agentNodeIds,
+  streamingNodeIds,
   focusedNodeId,
   onFocusNode,
   onExpandNode,
@@ -68,6 +69,7 @@ export function TreeItem({
   const isDropTarget = String(dropTargetId) === String(node.id);
   const isDragging = String(draggingId) === String(node.id);
   const hasAgent = agentNodeIds?.has(String(node.id));
+  const isStreamingNode = streamingNodeIds?.has(String(node.id));
   const isActive = String(activeNodeId) === String(node.id);
   const isFocused = String(focusedNodeId) === String(node.id);
 
@@ -300,7 +302,8 @@ export function TreeItem({
             </div>
           )}
         </div>
-        {hasAgent && <span className="agent-dot" />}
+        {isStreamingNode && <span className="streaming-dot" />}
+        {hasAgent && !isStreamingNode && <span className="agent-dot" />}
         {!isEditing && (
           <div className="tree-more-wrapper" ref={menuRef}>
             <button
@@ -346,6 +349,7 @@ export function TreeItem({
               dropPosition={dropPosition}
               draggingId={draggingId}
               agentNodeIds={agentNodeIds}
+              streamingNodeIds={streamingNodeIds}
               focusedNodeId={focusedNodeId}
               onFocusNode={onFocusNode}
               onExpandNode={onExpandNode}

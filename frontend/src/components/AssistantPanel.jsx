@@ -983,6 +983,7 @@ export function AssistantPanel({
               onApplyMessage={onApplyCritiqueMessage}
               onSelectCritique={onSelectCritique}
               activeCritiqueId={activeCritiqueId}
+              agents={agents}
             />
           )}
         </div>

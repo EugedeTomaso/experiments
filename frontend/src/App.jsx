@@ -192,8 +192,9 @@ export default function App() {
   const autoSaveTimerRef = useRef(null);
   const loadedContentRef = useRef("");
   const pendingSaveRef = useRef(null); // { nodeId, content } or null
-  const abortRef = useRef(null);
-  const preEditDraftRef = useRef(null);
+  const activeStreamsRef = useRef(new Map()); // Map<nodeId, StreamSession>
+  const activeNodeIdRef = useRef(null);
+  const preEditDraftsRef = useRef(new Map()); // Map<nodeId, preEditDraft>
 
   // --- Layout state ---
   const [isOutlineOpen, setIsOutlineOpen] = useState(true);
@@ -212,7 +213,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingNodeIds, setStreamingNodeIds] = useState(new Set());
   const [isEditingDocument, setIsEditingDocument] = useState(false);
   const [diffVisible, setDiffVisible] = useState(false);
   const [diffAvailable, setDiffAvailable] = useState(false);
@@ -350,6 +351,8 @@ export default function App() {
   const hoverTimerRef = useRef(null);
 
   // --- Derived state ---
+  const isStreamingCurrentNode = streamingNodeIds.has(String(activeNodeId));
+
   const nodesById = useMemo(
     () => new Map(nodes.map((n) => [String(n.id), n])),
     [nodes]
@@ -431,6 +434,8 @@ export default function App() {
   }, [draft]);
 
   // --- Effects ---
+  useEffect(() => { activeNodeIdRef.current = activeNodeId; }, [activeNodeId]);
+
   useEffect(() => {
     api.listProjects().then((data) => {
       setProjects(data);
@@ -703,13 +708,58 @@ export default function App() {
     }
   }, [draft, diffAvailable]);
 
-  // Load conversations when node changes; reset chat state
+  // Load conversations when node changes; save/restore streaming state
   useEffect(() => {
-    setChatMessages([]);
-    setStreamingContent("");
-    setChatInput("");
-    setActiveConversationId(null);
-    setMentionedFileIds([]);
+    const nodeKey = String(activeNodeId);
+    const session = activeStreamsRef.current.get(nodeKey);
+
+    if (session && !session.completed) {
+      // Arriving at a node with an active background stream — restore its state
+      setChatMessages([...session.chatMessages]);
+      setStreamingContent(session.streamingContent);
+      setIsEditingDocument(session.isEditingDocument);
+      setActiveConversationId(session.conversationId);
+      setChatInput("");
+      setMentionedFileIds([]);
+      setDiffAvailable(false);
+      setDiffVisible(false);
+    } else if (session && session.completed) {
+      // Stream finished while we were away — restore final state
+      setChatMessages([...session.chatMessages]);
+      setStreamingContent("");
+      setIsEditingDocument(false);
+      setActiveConversationId(session.conversationId);
+      setChatInput("");
+      setMentionedFileIds([]);
+      if (session.pendingMemorySuggestion) {
+        setPendingMemorySuggestion(session.pendingMemorySuggestion);
+      }
+      // Apply diff highlights after editor mounts
+      if (session.diffAvailable && session.finalDocumentContent) {
+        setTimeout(() => {
+          if (editorRef.current) {
+            try {
+              editorRef.current.replaceContentDiff(session.finalDocumentContent);
+              editorRef.current.showDiffHighlights();
+              const stats = editorRef.current.getDiffStats();
+              setDiffStats(stats);
+              setDiffVisible(true);
+              setDiffAvailable(true);
+            } catch (_) {}
+          }
+        }, 400);
+      }
+      activeStreamsRef.current.delete(nodeKey);
+    } else {
+      // No active stream — normal behavior
+      setChatMessages([]);
+      setStreamingContent("");
+      setIsEditingDocument(false);
+      setChatInput("");
+      setActiveConversationId(null);
+      setMentionedFileIds([]);
+    }
+
     if (activeNodeId) {
       api.listConversations(activeNodeId).then(setConversations).catch(() => setConversations([]));
     } else {
@@ -772,6 +822,7 @@ export default function App() {
 
     const onAiRequest = (e) => {
       setPendingContext({ text: e.detail.text, from: e.detail.from, to: e.detail.to });
+      setAssistantTab("chat");
       setIsAssistantOpen(true);
     };
 
@@ -1226,20 +1277,23 @@ export default function App() {
     }
   };
 
-  const handleDiscussSection = async (sectionId, message) => {
+  const handleDiscussSection = async (sectionId, message, agentId) => {
     if (!activeCritiqueId) return;
     setDiscussingSection(sectionId);
     try {
-      const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
-      const provider = providerSettings.provider || "deepseek";
-      const model = providerSettings.model || "deepseek-chat";
-      const result = await api.discussCritiqueSection({
+      const payload = {
         critique_id: activeCritiqueId,
         section_id: sectionId,
         message,
-        provider,
-        model,
-      });
+      };
+      if (agentId) {
+        payload.agent_id = agentId;
+      } else {
+        const providerSettings = JSON.parse(localStorage.getItem("mive:ai-provider") || "{}");
+        payload.provider = providerSettings.provider || "deepseek";
+        payload.model = providerSettings.model || "deepseek-chat";
+      }
+      const result = await api.discussCritiqueSection(payload);
       setCritiqueThreadMessages((prev) => {
         const existing = prev[sectionId] || [];
         const userMsg = { id: `u_${Date.now()}`, role: "user", content: message };
@@ -1468,7 +1522,7 @@ export default function App() {
 
   const handleSendMessageDirect = async (overrideMsg) => {
     const rawMsg = overrideMsg || chatInput;
-    if (!rawMsg.trim() || isStreaming || !activeProjectId) return;
+    if (!rawMsg.trim() || activeStreamsRef.current.has(String(activeNodeId)) || !activeProjectId) return;
 
     // Detect "remember:" prefix — save as memory, don't send to AI
     const rememberMatch = rawMsg.trim().match(/^(?:remember(?:\s+that)?|recordá|acordate(?:\s+que)?)\s*[:]\s*(.+)/i);
@@ -1483,24 +1537,44 @@ export default function App() {
       return;
     }
 
-    abortRef.current = new AbortController();
     const userMsg = rawMsg.trim();
+    const targetNodeId = String(activeNodeId);
     // Build the API message with optional context
     const context = pendingContext;
     const capturedMentionedIds = [...mentionedFileIds];
     const apiUserMsg = context
       ? `[Re: "${context.text}"]\n\n${userMsg}`
       : userMsg;
-    setChatMessages((prev) => [...prev, {
+
+    const userMsgObj = {
       role: "user",
       content: userMsg,
       context: context || undefined,
       mentionedFiles: capturedMentionedIds.length > 0 ? capturedMentionedIds : undefined,
-    }]);
+    };
+
+    // Create per-node stream session
+    const session = {
+      abortController: new AbortController(),
+      chatMessages: [...chatMessages, userMsgObj],
+      streamingContent: "",
+      isEditingDocument: false,
+      conversationId: activeConversationId,
+      completed: false,
+      diffAvailable: false,
+      diffStats: null,
+      finalDocumentContent: null,
+      finalChatMessage: null,
+      pendingMemorySuggestion: null,
+    };
+    activeStreamsRef.current.set(targetNodeId, session);
+    preEditDraftsRef.current.set(targetNodeId, draft);
+    setStreamingNodeIds((prev) => new Set([...prev, targetNodeId]));
+
+    setChatMessages((prev) => [...prev, userMsgObj]);
     setChatInput("");
     setPendingContext(null);
     setMentionedFileIds([]);
-    setIsStreaming(true);
     setStreamingContent("");
     setIsEditingDocument(false);
     setDiffAvailable(false);
@@ -1510,13 +1584,10 @@ export default function App() {
       try { editorRef.current.clearAiHighlights(); } catch (_) {}
     }
 
-    // Save draft before AI edits for potential undo
-    preEditDraftRef.current = draft;
-
-    // Capture editor instance and node ID at stream start so that
-    // navigating to another document mid-stream cannot redirect writes.
-    const targetNodeId = activeNodeId;
-    const targetEditor = editorRef.current;
+    // Dynamic editor lookup — returns current editor only if target node is displayed
+    const getTargetEditor = () =>
+      activeNodeIdRef.current === targetNodeId ? editorRef.current : null;
+    const isCurrentlyViewed = () => activeNodeIdRef.current === targetNodeId;
 
     // Persist conversation + user message
     let convId = activeConversationId;
@@ -1527,6 +1598,7 @@ export default function App() {
           : userMsg;
         const conv = await api.createConversation({ node: Number(targetNodeId), title, agent_mode: agentMode });
         convId = conv.id;
+        session.conversationId = conv.id;
         setActiveConversationId(conv.id);
         setConversations((prev) => [conv, ...prev]);
       }
@@ -1537,6 +1609,8 @@ export default function App() {
       // Non-blocking: conversation persistence shouldn't block the chat
     }
 
+    let parser = null;
+    let fullContent = "";
     try {
       let config;
       let routedAgentId = null;
@@ -1767,7 +1841,7 @@ Rules for memory suggestions:
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        signal: abortRef.current?.signal,
+        signal: session.abortController.signal,
         body: JSON.stringify({
           provider: config.provider,
           model: config.model,
@@ -1784,67 +1858,100 @@ Rules for memory suggestions:
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let fullContent = "";
-      const parser = createStreamParser();
+      fullContent = "";
+      parser = createStreamParser();
       let lastApplyTime = 0;
       let appliedDocument = false;
 
       const finalize = () => {
         const finalState = parser.getState();
+        session.completed = true;
         let assistantContent = "";
+        let assistantMsg = null;
+
         if (finalState.mode === "document_edit") {
-          // Apply final document content to the captured editor (may be unmounted)
           if (finalState.documentContent) {
-            if (targetEditor) {
-              try { targetEditor.replaceContentDiff(finalState.documentContent); } catch (_) {}
+            session.finalDocumentContent = finalState.documentContent;
+            const editor = getTargetEditor();
+            if (editor) {
+              // Foreground: apply to editor directly, show diff
+              try { editor.replaceContentDiff(finalState.documentContent); } catch (_) {}
               setTimeout(() => {
-                try {
-                  targetEditor.showDiffHighlights();
-                  const stats = targetEditor.getDiffStats();
-                  setDiffStats(stats);
-                  setDiffVisible(true);
-                  setDiffAvailable(true);
-                  setCompareVersionId(null);
-                } catch (_) {}
+                const currentEditor = getTargetEditor();
+                if (currentEditor) {
+                  try {
+                    currentEditor.showDiffHighlights();
+                    const stats = currentEditor.getDiffStats();
+                    session.diffStats = stats;
+                    session.diffAvailable = true;
+                    setDiffStats(stats);
+                    setDiffVisible(true);
+                    setDiffAvailable(true);
+                    setCompareVersionId(null);
+                  } catch (_) {}
+                } else {
+                  session.diffAvailable = true;
+                }
               }, 400);
+            } else {
+              // Background: just mark diff available for later restore
+              session.diffAvailable = true;
             }
             // Publish AI suggestion to collaborators if sharing is enabled
             if (collabSession && localStorage.getItem("mive:ai-visible") === "true") {
               collabSession.publishAiSuggestion(
                 user?.id,
-                preEditDraftRef.current || "",
+                preEditDraftsRef.current.get(targetNodeId) || "",
                 finalState.documentContent
               );
             }
             // Always persist to the correct node via API, regardless of navigation
-            if (targetNodeId) {
-              api.updateNode(targetNodeId, { content_md: finalState.documentContent })
-                .then((updated) => {
-                  setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
-                })
-                .catch(() => {});
-            }
+            api.updateNode(targetNodeId, { content_md: finalState.documentContent })
+              .then((updated) => {
+                setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
+              })
+              .catch(() => {});
           }
           assistantContent = finalState.chatContent || "I've updated the document.";
-          setChatMessages((prev) => [...prev, { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName }]);
+          assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName };
         } else {
           assistantContent = fullContent;
           if (fullContent) {
-            setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent, routedAgentId, routedAgentName }]);
+            assistantMsg = { role: "assistant", content: fullContent, routedAgentId, routedAgentName };
           }
         }
+
+        // Store final message in session for background restore
+        session.finalChatMessage = assistantMsg;
+        if (assistantMsg) {
+          session.chatMessages = [...session.chatMessages, assistantMsg];
+        }
+
         // Persist assistant message
         if (convId && assistantContent) {
           api.createMessage({ conversation: convId, role: "assistant", content: assistantContent, routed_agent: routedAgentId }).catch(() => {});
         }
         // Check for memory suggestion in AI response
-        const finalParserState = parser.getState();
-        if (finalParserState.memorySuggestion) {
-          setPendingMemorySuggestion(finalParserState.memorySuggestion);
+        if (finalState.memorySuggestion) {
+          session.pendingMemorySuggestion = finalState.memorySuggestion;
         }
-        setStreamingContent("");
-        setIsStreaming(false);
-        setIsEditingDocument(false);
+
+        // Update React state only if this node is currently viewed
+        if (isCurrentlyViewed()) {
+          if (assistantMsg) setChatMessages((prev) => [...prev, assistantMsg]);
+          setStreamingContent("");
+          setIsEditingDocument(false);
+          if (finalState.memorySuggestion) {
+            setPendingMemorySuggestion(finalState.memorySuggestion);
+          }
+        }
+        // Remove from streaming indicators (session stays in map for node-switch restore,
+        // cleaned up by finally block or when user navigates back)
+        setStreamingNodeIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetNodeId);
+          return next;
+        });
       };
 
       while (true) {
@@ -1867,32 +1974,46 @@ Rules for memory suggestions:
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) {
-              setChatMessages((prev) => [
-                ...prev,
-                { role: "assistant", content: "Error: " + parsed.error },
-              ]);
-              setStreamingContent("");
-              setIsStreaming(false);
-              setIsEditingDocument(false);
-              return;
+              if (isCurrentlyViewed()) {
+                setChatMessages((prev) => [
+                  ...prev,
+                  { role: "assistant", content: "Error: " + parsed.error },
+                ]);
+                setStreamingContent("");
+                setIsEditingDocument(false);
+              }
+              return; // finally block handles cleanup
             }
             if (parsed.delta) {
               fullContent += parsed.delta;
               const state = parser.push(parsed.delta);
 
               if (state.mode === "document_edit") {
-                setIsEditingDocument(true);
-                // Typewriter: apply partial content throttled every ~200ms
+                session.isEditingDocument = true;
+                session.streamingContent = state.chatContent || "";
+                // Typewriter: apply partial content throttled
                 const now = Date.now();
-                if (state.documentContent && targetEditor && now - lastApplyTime >= 80) {
-                  try { targetEditor.replaceContentDiff(state.documentContent, { streaming: true }); } catch (_) {}
+                const editor = getTargetEditor();
+                if (state.documentContent && now - lastApplyTime >= 80) {
+                  if (editor) {
+                    try { editor.replaceContentDiff(state.documentContent, { streaming: true }); } catch (_) {}
+                  }
+                  // Update nodes state so background progress is saved
+                  setNodes((prev) => prev.map((n) =>
+                    String(n.id) === targetNodeId ? { ...n, content_md: state.documentContent } : n
+                  ));
                   lastApplyTime = now;
                   appliedDocument = true;
                 }
-                // Show chat message portion (streams in after </document>)
-                setStreamingContent(state.chatContent || "");
+                if (isCurrentlyViewed()) {
+                  setIsEditingDocument(true);
+                  setStreamingContent(state.chatContent || "");
+                }
               } else if (state.mode === "chat") {
-                setStreamingContent(fullContent);
+                session.streamingContent = fullContent;
+                if (isCurrentlyViewed()) {
+                  setStreamingContent(fullContent);
+                }
               }
               // mode === "pending": don't update streaming content yet
             }
@@ -1903,42 +2024,69 @@ Rules for memory suggestions:
       finalize();
     } catch (error) {
       if (error.name === "AbortError") {
-        // User stopped streaming — finalize partial content
-        const partial = streamingContent;
-        if (partial) {
-          setChatMessages((prev) => [...prev, { role: "assistant", content: partial }]);
+        // User stopped streaming or navigated away — persist partial document content
+        if (parser) {
+          const partialState = parser.getState();
+          if (partialState.mode === "document_edit" && partialState.documentContent) {
+            // Save partial content so it's not lost
+            setNodes((prev) => prev.map((n) =>
+              String(n.id) === targetNodeId ? { ...n, content_md: partialState.documentContent } : n
+            ));
+            api.updateNode(targetNodeId, { content_md: partialState.documentContent }).catch(() => {});
+          }
         }
-        setStreamingContent("");
-        setIsEditingDocument(false);
+        if (isCurrentlyViewed()) {
+          const partial = session.streamingContent;
+          if (partial) {
+            setChatMessages((prev) => [...prev, { role: "assistant", content: partial }]);
+          }
+          setStreamingContent("");
+          setIsEditingDocument(false);
+        }
       } else {
         let errorText = error.message;
         try {
           const parsed = JSON.parse(errorText);
           errorText = parsed.detail || parsed.error || errorText;
         } catch (_) {}
-        setChatMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Error: " + errorText },
-        ]);
-        setStreamingContent("");
-        setIsEditingDocument(false);
+        if (isCurrentlyViewed()) {
+          setChatMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "Error: " + errorText },
+          ]);
+          setStreamingContent("");
+          setIsEditingDocument(false);
+        }
       }
     } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
+      session.completed = true;
+      // Clean up streaming indicator
+      setStreamingNodeIds((prev) => {
+        const next = new Set(prev);
+        next.delete(targetNodeId);
+        return next;
+      });
+      // If user is viewing this node or an error occurred, clean up session immediately.
+      // Otherwise keep session in map so node-switch effect can restore completed state.
+      if (isCurrentlyViewed() || !session.finalDocumentContent) {
+        activeStreamsRef.current.delete(targetNodeId);
+      }
       if (collabSession) collabSession.setAiMode("idle");
     }
   };
 
   const handleStopStreaming = () => {
-    abortRef.current?.abort();
+    const session = activeStreamsRef.current.get(String(activeNodeId));
+    if (session) session.abortController.abort();
   };
 
   const handleSendMessage = () => handleSendMessageDirect();
 
   const handleUndoEdit = () => {
-    if (preEditDraftRef.current != null && editorRef.current) {
-      editorRef.current.replaceContent(preEditDraftRef.current);
+    const nodeKey = String(activeNodeId);
+    const preEditDraft = preEditDraftsRef.current.get(nodeKey);
+    if (preEditDraft != null && editorRef.current) {
+      editorRef.current.replaceContent(preEditDraft);
       editorRef.current.clearAiHighlights();
       setDiffVisible(false);
       setDiffAvailable(false);
@@ -1946,9 +2094,9 @@ Rules for memory suggestions:
       setCompareVersionId(null);
       // Persist undo
       if (activeNodeId) {
-        api.updateNode(activeNodeId, { content_md: preEditDraftRef.current }).catch(() => {});
+        api.updateNode(activeNodeId, { content_md: preEditDraft }).catch(() => {});
       }
-      preEditDraftRef.current = null;
+      preEditDraftsRef.current.delete(nodeKey);
     }
   };
 
@@ -1960,7 +2108,7 @@ Rules for memory suggestions:
     setDiffAvailable(false);
     setDiffStats(null);
     setCompareVersionId(null);
-    preEditDraftRef.current = null;
+    preEditDraftsRef.current.delete(String(activeNodeId));
   };
 
 
@@ -1974,11 +2122,26 @@ Rules for memory suggestions:
   };
 
   const handleSummarize = async () => {
-    if (isStreaming || !activeNode || activeNode.type !== "file" || !draft.trim()) return;
+    if (isStreamingCurrentNode || !activeNode || activeNode.type !== "file" || !draft.trim()) return;
     setIsAssistantOpen(true);
     const userMsg = `Summarize the chapter "${activeNode.title}"`;
+    const targetNodeId = String(activeNodeId);
+    const session = {
+      abortController: new AbortController(),
+      chatMessages: [...chatMessages, { role: "user", content: userMsg }],
+      streamingContent: "",
+      isEditingDocument: false,
+      conversationId: activeConversationId,
+      completed: false,
+      diffAvailable: false,
+      diffStats: null,
+      finalDocumentContent: null,
+      finalChatMessage: null,
+      pendingMemorySuggestion: null,
+    };
+    activeStreamsRef.current.set(targetNodeId, session);
+    setStreamingNodeIds((prev) => new Set([...prev, targetNodeId]));
     setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    setIsStreaming(true);
     setStreamingContent("");
 
     // Create conversation for summarize action
@@ -1987,6 +2150,7 @@ Rules for memory suggestions:
       if (!convId) {
         const conv = await api.createConversation({ node: Number(activeNode.id), title: userMsg });
         convId = conv.id;
+        session.conversationId = conv.id;
         setActiveConversationId(conv.id);
         setConversations((prev) => [conv, ...prev]);
       }
@@ -1995,10 +2159,13 @@ Rules for memory suggestions:
       }
     } catch { /* non-blocking */ }
 
+    const isCurrentlyViewed = () => activeNodeIdRef.current === targetNodeId;
+
     try {
       const response = await fetch(`${API_BASE}/api/ai/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        signal: session.abortController.signal,
         body: JSON.stringify({
           provider: defaultAgent.provider,
           model: defaultAgent.model,
@@ -2042,39 +2209,61 @@ Rules for memory suggestions:
           if (!dataLines.length) continue;
           const data = dataLines.join("\n");
           if (data === "[DONE]") {
-            setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+            const assistantMsg = { role: "assistant", content: fullContent };
+            session.chatMessages = [...session.chatMessages, assistantMsg];
             if (convId && fullContent) {
               api.createMessage({ conversation: convId, role: "assistant", content: fullContent }).catch(() => {});
             }
-            setStreamingContent("");
-            setIsStreaming(false);
+            if (isCurrentlyViewed()) {
+              setChatMessages((prev) => [...prev, assistantMsg]);
+              setStreamingContent("");
+            }
             return;
           }
           try {
             const parsed = JSON.parse(data);
             if (parsed.delta) {
               fullContent += parsed.delta;
-              setStreamingContent(fullContent);
+              session.streamingContent = fullContent;
+              if (isCurrentlyViewed()) {
+                setStreamingContent(fullContent);
+              }
             }
           } catch (_) {}
         }
       }
 
       if (fullContent) {
-        setChatMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
+        const assistantMsg = { role: "assistant", content: fullContent };
+        session.chatMessages = [...session.chatMessages, assistantMsg];
         if (convId) {
           api.createMessage({ conversation: convId, role: "assistant", content: fullContent }).catch(() => {});
         }
+        if (isCurrentlyViewed()) {
+          setChatMessages((prev) => [...prev, assistantMsg]);
+        }
       }
-      setStreamingContent("");
+      if (isCurrentlyViewed()) {
+        setStreamingContent("");
+      }
     } catch (error) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Error: " + error.message },
-      ]);
-      setStreamingContent("");
+      if (isCurrentlyViewed()) {
+        if (error.name !== "AbortError") {
+          setChatMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "Error: " + error.message },
+          ]);
+        }
+        setStreamingContent("");
+      }
     } finally {
-      setIsStreaming(false);
+      session.completed = true;
+      activeStreamsRef.current.delete(targetNodeId);
+      setStreamingNodeIds((prev) => {
+        const next = new Set(prev);
+        next.delete(targetNodeId);
+        return next;
+      });
     }
   };
 
@@ -2678,6 +2867,7 @@ Rules for memory suggestions:
                   dropPosition={dropPosition}
                   draggingId={draggingId}
                   agentNodeIds={agentNodeIds}
+                  streamingNodeIds={streamingNodeIds}
                   focusedNodeId={focusedNodeId}
                   onFocusNode={setFocusedNodeId}
                   onExpandNode={handleExpandNode}
@@ -2915,7 +3105,7 @@ Rules for memory suggestions:
           currentInput={chatInput}
           onInputChange={setChatInput}
           onSend={handleSendMessage}
-          isStreaming={isStreaming}
+          isStreaming={isStreamingCurrentNode}
           agents={agents}
           resolvedAgent={resolvedAgent}
           nodeDirectConfig={nodeDirectConfig}

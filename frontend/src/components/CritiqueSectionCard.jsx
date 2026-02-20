@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import { AgentMentionPicker } from "./AgentMentionPicker";
 
 function scoreColor(score) {
   if (score >= 8) return "var(--green-text, #2d7d46)";
@@ -19,10 +20,20 @@ export default function CritiqueSectionCard({
   onDiscuss,
   onApplyMessage,
   isDiscussing,
+  agents,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const filteredAgents = useMemo(() => {
+    if (mentionQuery === null || !agents) return [];
+    const q = mentionQuery.toLowerCase();
+    return agents.filter((a) => a.name.toLowerCase().startsWith(q));
+  }, [agents, mentionQuery]);
 
   useEffect(() => {
     if (isOpen && bottomRef.current) {
@@ -33,11 +44,55 @@ export default function CritiqueSectionCard({
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
+
+    let mentionedAgent = null;
+    if (agents && agents.length) {
+      for (const a of agents) {
+        if (text.includes(`@${a.name}`)) {
+          mentionedAgent = a;
+          break;
+        }
+      }
+    }
+
     setInput("");
-    onDiscuss(section.id, text);
+    setMentionQuery(null);
+    onDiscuss(section.id, text, mentionedAgent?.id);
+  };
+
+  const handleSelectAgent = (agent) => {
+    const textarea = inputRef.current;
+    const cursorPos = textarea?.selectionStart || input.length;
+    const textBeforeCursor = input.slice(0, cursorPos);
+    const textAfterCursor = input.slice(cursorPos);
+    const newBefore = textBeforeCursor.replace(/@\w*$/, `@${agent.name} `);
+    setInput(newBefore + textAfterCursor);
+    setMentionQuery(null);
   };
 
   const handleKeyDown = (e) => {
+    if (mentionQuery !== null && filteredAgents.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => Math.min(i + 1, filteredAgents.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSelectAgent(filteredAgents[mentionIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -98,12 +153,37 @@ export default function CritiqueSectionCard({
           )}
           <div ref={bottomRef} />
           <div className="critique-section-composer">
+            {mentionQuery !== null && filteredAgents.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <div style={{ position: "absolute", bottom: "100%", left: 0, zIndex: 10, width: "100%" }}>
+                  <AgentMentionPicker
+                    agents={filteredAgents}
+                    selectedIndex={mentionIndex}
+                    onSelect={handleSelectAgent}
+                    onHoverIndex={setMentionIndex}
+                  />
+                </div>
+              </div>
+            )}
             <textarea
+              ref={inputRef}
               className="critique-section-input"
               rows={2}
               placeholder="Ask about this section…"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setInput(val);
+                const cursorPos = e.target.selectionStart;
+                const textBeforeCursor = val.slice(0, cursorPos);
+                const atMatch = textBeforeCursor.match(/@(\w*)$/);
+                if (atMatch) {
+                  setMentionQuery(atMatch[1]);
+                  setMentionIndex(0);
+                } else {
+                  setMentionQuery(null);
+                }
+              }}
               onKeyDown={handleKeyDown}
             />
             <button
