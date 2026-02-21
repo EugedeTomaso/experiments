@@ -185,6 +185,21 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
           return applySuggestion(view, quotedText, suggestedText, hintFrom);
         });
       },
+      getSelection() {
+        try {
+          let sel = null;
+          get().action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const { from, to } = view.state.selection;
+            if (from === to) return;
+            const text = view.state.doc.textBetween(from, to, " ");
+            if (text.trim()) sel = { from, to, text };
+          });
+          return sel;
+        } catch {
+          return null;
+        }
+      },
       compareWithVersion(markdown) {
         get().action((ctx) => {
           const view = ctx.get(editorViewCtx);

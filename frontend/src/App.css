@@ -2313,7 +2313,7 @@
 /* The pane */
 
 .agent-pane {
-  width: 380px;
+  width: 440px;
   flex-shrink: 0;
   background: var(--surface);
   display: flex;
@@ -3049,35 +3049,28 @@
   cursor: not-allowed;
 }
 
-/* Context block above composer */
+/* Context block inside composer */
 
 .agent-context-block {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  flex-shrink: 0;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
-.agent-context-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-4);
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-  padding-top: 1px;
+.agent-context-quote {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--accent);
+  background: var(--surface-inset);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .agent-context-text {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  font-style: italic;
-  color: var(--text-3);
-  line-height: 1.4;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -3095,6 +3088,7 @@
   cursor: pointer;
   color: var(--text-4);
   flex-shrink: 0;
+  margin-top: 4px;
   transition: background var(--duration-fast) var(--ease),
               color var(--duration-fast) var(--ease);
 }
@@ -3121,10 +3115,7 @@
 }
 
 .agent-composer.with-context {
-  margin-top: 0;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top-color: var(--border-subtle);
+  /* context block is now inside the composer */
 }
 
 .agent-composer:focus-within {
@@ -3574,6 +3565,18 @@
   flex-shrink: 0;
 }
 
+.mention-picker-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 2px 0;
+}
+
+/* Portal-rendered picker — override absolute positioning */
+.mention-picker-portal .mention-picker {
+  position: static;
+  margin-bottom: 0;
+}
+
 /* --- Mention Chips --- */
 
 .mention-chips {
@@ -3634,6 +3637,15 @@
 .mention-chip-readonly {
   cursor: default;
   padding: 2px 6px;
+}
+
+.mention-chip-agent {
+  border-color: rgba(59, 130, 246, 0.15);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.mention-chip-agent svg {
+  color: var(--accent);
 }
 
 .agent-msg-mentions {

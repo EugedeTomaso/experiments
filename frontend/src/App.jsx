@@ -229,6 +229,7 @@ export default function App() {
 
   // --- @ mention context ---
   const [mentionedFileIds, setMentionedFileIds] = useState([]);
+  const [mentionedAgentId, setMentionedAgentId] = useState(null);
 
   // --- Agent state ---
   const [agents, setAgents] = useState([]);
@@ -862,6 +863,23 @@ export default function App() {
           }
           return !prev;
         });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // --- Cmd+K: send selection to AI composer ---
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        const sel = editorRef.current?.getSelection();
+        if (sel) {
+          setPendingContext({ text: sel.text, from: sel.from, to: sel.to });
+        }
+        setAssistantTab("chat");
+        setIsAssistantOpen(true);
       }
     };
     document.addEventListener("keydown", handler);
@@ -1575,6 +1593,7 @@ export default function App() {
     setChatInput("");
     setPendingContext(null);
     setMentionedFileIds([]);
+    setMentionedAgentId(null);
     setStreamingContent("");
     setIsEditingDocument(false);
     setDiffAvailable(false);
@@ -1616,7 +1635,17 @@ export default function App() {
       let routedAgentId = null;
       let routedAgentName = null;
 
-      if (agentMode === "auto" && agents.length >= 2) {
+      // If user @mentioned a specific agent, use it directly
+      if (mentionedAgentId) {
+        const overrideAgent = agents.find((a) => a.id === mentionedAgentId);
+        if (overrideAgent) {
+          routedAgentId = overrideAgent.id;
+          routedAgentName = overrideAgent.name;
+          config = { ...defaultAgent, ...(overrideAgent.config || {}) };
+        }
+      }
+
+      if (!config && agentMode === "auto" && agents.length >= 2) {
         // Auto mode: ask backend to route
         try {
           const routed = await api.routeAgent({
@@ -3135,6 +3164,8 @@ Rules for memory suggestions:
           nodes={nodes}
           mentionedFileIds={mentionedFileIds}
           onMentionedFilesChange={setMentionedFileIds}
+          mentionedAgentId={mentionedAgentId}
+          onMentionedAgentChange={setMentionedAgentId}
           memories={memories}
           onCreateMemory={handleCreateMemory}
           onDeleteMemory={handleDeleteMemory}

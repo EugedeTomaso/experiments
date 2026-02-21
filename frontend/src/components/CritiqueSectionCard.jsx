@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
-import { AgentMentionPicker } from "./AgentMentionPicker";
+import { PortalMentionPicker } from "./PortalMentionPicker";
 
 function scoreColor(score) {
   if (score >= 8) return "var(--green-text, #2d7d46)";
@@ -28,6 +28,7 @@ export default function CritiqueSectionCard({
   const [mentionIndex, setMentionIndex] = useState(0);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const composerRef = useRef(null);
 
   const filteredAgents = useMemo(() => {
     if (mentionQuery === null || !agents) return [];
@@ -152,18 +153,15 @@ export default function CritiqueSectionCard({
             </div>
           )}
           <div ref={bottomRef} />
-          <div className="critique-section-composer">
+          <div className="critique-section-composer" ref={composerRef}>
             {mentionQuery !== null && filteredAgents.length > 0 && (
-              <div style={{ position: "relative" }}>
-                <div style={{ position: "absolute", bottom: "100%", left: 0, zIndex: 10, width: "100%" }}>
-                  <AgentMentionPicker
-                    agents={filteredAgents}
-                    selectedIndex={mentionIndex}
-                    onSelect={handleSelectAgent}
-                    onHoverIndex={setMentionIndex}
-                  />
-                </div>
-              </div>
+              <PortalMentionPicker
+                triggerRef={composerRef}
+                agents={filteredAgents}
+                selectedIndex={mentionIndex}
+                onSelect={handleSelectAgent}
+                onHoverIndex={setMentionIndex}
+              />
             )}
             <textarea
               ref={inputRef}

@@ -14,7 +14,7 @@ Three-column flex layout, all collapsible:
 |------------------|----------|----------|---------------------------------------------|
 | Outline Rail     | 220px    | Left     | File tree only. Collapsible via topbar. Canvas bg (`--canvas`). |
 | Editor Area      | Fluid    | Center   | Document header + editor. Max-width 720px. White surface bg. No card around editor — content is borderless. |
-| Assistant Pane   | 380px    | Right    | White surface pane, integrated with editor. Thread + composer. Toggle via topbar. |
+| Assistant Pane   | 440px    | Right    | White surface pane, integrated with editor. Thread + composer. Toggle via topbar. |
 | Topbar           | 48px h   | Top      | Brand + project switcher (left), toggles (right) |
 
 ### Topbar Structure
