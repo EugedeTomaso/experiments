@@ -29,6 +29,7 @@ import { createCollabSession } from "./collabPlugin";
 import PresenceIndicator from "./components/PresenceIndicator";
 import ConnectionBanner from "./components/ConnectionBanner";
 import AiSuggestionBanner from "./components/AiSuggestionBanner";
+import InlinePrompt from "./components/InlinePrompt";
 import "./App.css";
 
 const NEW_DOC_TEMPLATE = `\
@@ -281,6 +282,26 @@ export default function App() {
     localStorage.setItem('mive:ai-intensity', aiIntensity);
   }, [aiIntensity]);
 
+  // --- Ghost text handler ---
+  const ghostAbortRef = useRef(null);
+  const handleRequestGhostText = useCallback(async (context, cursorPos) => {
+    if (aiIntensity === "silent") return;
+    // Abort any in-flight ghost text request
+    if (ghostAbortRef.current) { ghostAbortRef.current.abort(); ghostAbortRef.current = null; }
+    const controller = new AbortController();
+    ghostAbortRef.current = controller;
+    try {
+      const data = await api.autocomplete(context, "ghost_inline");
+      if (controller.signal.aborted) return;
+      const completion = data.completion || "";
+      if (completion) {
+        editorRef.current?.showGhostText?.(completion, cursorPos);
+      }
+    } catch {
+      // Silently fail — ghost text is non-critical
+    }
+  }, [aiIntensity]);
+
   // --- Memory state ---
   const [memories, setMemories] = useState([]);
   const [resolvedMemories, setResolvedMemories] = useState(null);
@@ -289,6 +310,8 @@ export default function App() {
 
   // --- Inline comment state ---
   const [commentInputState, setCommentInputState] = useState(null);
+  // --- Inline AI prompt (Cmd+J) ---
+  const [inlinePrompt, setInlinePrompt] = useState(null); // null or { top, left, from, to, selectedText }
   const editorRef = useRef(null);
   const editorWrapperRef = useRef(null);
 
@@ -896,17 +919,26 @@ export default function App() {
     };
   }, [handleHighlightClick]);
 
-  // --- Cmd+J: toggle assistant pane ---
+  // --- Cmd+J: inline AI prompt ---
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
         e.preventDefault();
-        setIsAssistantOpen((prev) => {
-          if (prev) {
-            // Closing — return focus to editor
-            requestAnimationFrame(() => editorRef.current?.focus());
-          }
-          return !prev;
+        const view = editorRef.current?.getView?.();
+        if (!view) return;
+
+        const { from, to } = view.state.selection;
+        const coords = view.coordsAtPos(from);
+        const selectedText = from !== to
+          ? view.state.doc.textBetween(from, to, '\n')
+          : '';
+
+        setInlinePrompt({
+          top: coords.bottom + 8,
+          left: Math.max(32, Math.min(coords.left, window.innerWidth - 500)),
+          from,
+          to,
+          selectedText,
         });
       }
     };
@@ -2210,6 +2242,91 @@ Rules for memory suggestions:
 
   const handleSendMessage = () => handleSendMessageDirect();
 
+  // --- Inline AI prompt (Cmd+J) submission ---
+  const handleInlinePromptSubmit = useCallback(async (instruction) => {
+    if (!inlinePrompt) return;
+    const { from, to, selectedText } = inlinePrompt;
+    setInlinePrompt(null); // Close prompt immediately
+
+    const prompt = selectedText
+      ? `Apply this instruction to the selected text. Return ONLY the modified text, nothing else. No markdown fences, no explanation.\n\nInstruction: ${instruction}\n\nSelected text:\n${selectedText}`
+      : `${instruction}\n\nReturn ONLY the text to insert, nothing else. No markdown fences, no explanation.`;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/ai/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          provider: defaultAgent.provider,
+          model: defaultAgent.model,
+          temperature: 0.3,
+          messages: [
+            { role: "system", content: "You are a precise writing assistant. Follow the user's instruction exactly. Output only the requested text with no extra commentary, no markdown fences, and no labels." },
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+
+      if (!response.ok || !response.body) throw new Error("Inline prompt failed");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullOutput = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const event of events) {
+          const dataLines = event.split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim());
+          if (!dataLines.length) continue;
+          const data = dataLines.join("\n");
+          if (data === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.delta) fullOutput += parsed.delta;
+          } catch (_) {}
+        }
+      }
+
+      const result = fullOutput.trim();
+      if (!result) return;
+
+      if (selectedText) {
+        // Save pre-edit state for undo, then replace entire doc with the AI version
+        preEditDraftsRef.current.set(String(activeNodeId), draft);
+        const newDraft = draft.replace(selectedText, result);
+        editorRef.current?.replaceContentDiff?.(newDraft);
+        // Show diff highlights after content settles
+        setTimeout(() => {
+          try {
+            editorRef.current?.showDiffHighlights?.();
+            const stats = editorRef.current?.getDiffStats?.();
+            if (stats) {
+              setDiffStats(stats);
+              setDiffVisible(true);
+              setDiffAvailable(true);
+              setCompareVersionId(null);
+            }
+          } catch (_) {}
+        }, 400);
+      } else {
+        // No selection -- insert at cursor position
+        const view = editorRef.current?.getView?.();
+        if (view) {
+          view.dispatch(view.state.tr.insertText(result, from));
+        }
+      }
+    } catch (err) {
+      console.error("Inline prompt failed:", err);
+    }
+  }, [inlinePrompt, activeNodeId, draft, defaultAgent]);
+
   const handleUndoEdit = () => {
     const nodeKey = String(activeNodeId);
     const preEditDraft = preEditDraftsRef.current.get(nodeKey);
@@ -3189,6 +3306,7 @@ Rules for memory suggestions:
                   currentRole={currentRole}
                   collabSession={collabSession}
                   aiIntensity={aiIntensity}
+                  onRequestGhostText={handleRequestGhostText}
                 />
               </section>
 
@@ -3425,6 +3543,13 @@ Rules for memory suggestions:
         />
       )}
 
+      {inlinePrompt && (
+        <InlinePrompt
+          position={{ top: inlinePrompt.top, left: inlinePrompt.left }}
+          onSubmit={handleInlinePromptSubmit}
+          onClose={() => setInlinePrompt(null)}
+        />
+      )}
 
       <HelpModal
         isOpen={isHelpOpen}

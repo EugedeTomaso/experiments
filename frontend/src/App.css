@@ -2995,6 +2995,14 @@
   to   { opacity: 1; }
 }
 
+.ai-ghost-text {
+  color: var(--text-4);
+  opacity: 0.5;
+  font-style: italic;
+  pointer-events: none;
+  user-select: none;
+}
+
 .ai-cursor {
   display: inline-block;
   width: 2px;
@@ -6767,6 +6775,47 @@ button.ghost:focus-visible {
 .editor-commenter .fmt-separator,
 .editor-commenter .fmt-btn-ai {
   display: none;
+}
+
+/* ===========================
+   Inline Prompt (Cmd+J)
+   =========================== */
+
+.inline-prompt {
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: 4px 8px;
+  min-width: 320px;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fadeInUp 150ms ease-out;
+}
+
+.inline-prompt-icon {
+  color: var(--text-4);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.inline-prompt input {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--text-1);
+  background: transparent;
+  padding: 6px 4px;
+  font-family: inherit;
+}
+
+.inline-prompt input::placeholder {
+  color: var(--text-4);
 }
 
 /* ===========================

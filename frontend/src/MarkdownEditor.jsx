@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, editorViewOptionsCtx, parserCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
@@ -23,10 +23,12 @@ import { mermaidPlugin } from "./mermaidPlugin";
 import { createMarginAvatarPlugin } from "./marginAvatarPlugin";
 import "@milkdown/theme-nord/style.css";
 
-function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession }) {
+function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, aiIntensity, onRequestGhostText }) {
   const pluginViewFactory = usePluginViewFactory();
   const [loading, get] = useInstance();
   const shellRef = useRef(null);
+  const ghostTimerRef = useRef(null);
+  const ghostAbortRef = useRef(null);
 
   useEditor(
     (root) => {
@@ -129,6 +131,15 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
           view.focus();
         });
       },
+      getView() {
+        try {
+          let view = null;
+          get().action((ctx) => { view = ctx.get(editorViewCtx); });
+          return view;
+        } catch {
+          return null;
+        }
+      },
       replaceContent(markdown) {
         get().action(replaceAll(markdown));
       },
@@ -214,8 +225,117 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
           view.dispatch(tr2);
         });
       },
+      showGhostText(text, pos) {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(aiTextPluginKey, {
+            action: "show-ghost",
+            text,
+            pos,
+          }));
+        });
+      },
+      clearGhostText() {
+        get().action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setMeta(aiTextPluginKey, { action: "clear-ghost" }));
+        });
+      },
     };
   }, [loading, get, editorRef]);
+
+  // Helper to get the ProseMirror EditorView safely
+  const getView = useCallback(() => {
+    if (loading) return null;
+    let view = null;
+    try {
+      get().action((ctx) => { view = ctx.get(editorViewCtx); });
+    } catch { /* editor not ready */ }
+    return view;
+  }, [loading, get]);
+
+  // Ghost text: pause detection — fires after 2s of inactivity
+  useEffect(() => {
+    if (aiIntensity === "silent" || readOnly) return;
+    const view = getView();
+    if (!view) return;
+
+    const handleKeyUp = (e) => {
+      // Don't trigger on modifier keys, navigation, or Tab/Escape
+      if (e.key === "Tab" || e.key === "Escape" || e.key === "Shift" ||
+          e.key === "Control" || e.key === "Alt" || e.key === "Meta" ||
+          e.key.startsWith("Arrow")) return;
+
+      if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
+      if (ghostAbortRef.current) { ghostAbortRef.current.abort(); ghostAbortRef.current = null; }
+
+      ghostTimerRef.current = setTimeout(() => {
+        const { state } = view;
+        const { from, to } = state.selection;
+        // Only trigger on cursor (not range selection)
+        if (from !== to) return;
+        // Get context: up to 500 chars before cursor
+        const textBefore = state.doc.textBetween(
+          Math.max(0, from - 500), from, "\n"
+        );
+        // Only suggest if there's meaningful content
+        if (textBefore.trim().length > 20) {
+          onRequestGhostText?.(textBefore, from);
+        }
+      }, 2000);
+    };
+
+    const clearGhost = (e) => {
+      // Don't clear on Tab (handled separately for accept) or Escape
+      if (e.key === "Tab" || e.key === "Escape") return;
+      if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
+      if (ghostAbortRef.current) { ghostAbortRef.current.abort(); ghostAbortRef.current = null; }
+    };
+
+    view.dom.addEventListener("keyup", handleKeyUp);
+    view.dom.addEventListener("keydown", clearGhost);
+
+    return () => {
+      view.dom.removeEventListener("keyup", handleKeyUp);
+      view.dom.removeEventListener("keydown", clearGhost);
+      if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
+      if (ghostAbortRef.current) { ghostAbortRef.current.abort(); ghostAbortRef.current = null; }
+    };
+  }, [getView, aiIntensity, readOnly, onRequestGhostText]);
+
+  // Ghost text: Tab to accept, Escape to dismiss
+  useEffect(() => {
+    const view = getView();
+    if (!view) return;
+
+    const handleKeyDown = (e) => {
+      const pluginState = aiTextPluginKey.getState(view.state);
+      if (!pluginState?.ghostText) return;
+
+      if (e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        const { text, pos } = pluginState.ghostText;
+        // insertText changes the doc, which auto-clears ghost in the plugin's apply
+        const tr = view.state.tr.insertText(text, pos);
+        view.dispatch(tr);
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        view.dispatch(view.state.tr.setMeta(aiTextPluginKey, { action: "clear-ghost" }));
+        return;
+      }
+    };
+
+    // Use capture phase to intercept before ProseMirror/Milkdown Tab handling
+    view.dom.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      view.dom.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [getView]);
 
   return (
     <div
