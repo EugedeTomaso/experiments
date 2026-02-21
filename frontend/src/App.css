@@ -22,7 +22,7 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  transition: var(--theme-transition);
+  transition: var(--theme-transition), opacity 250ms ease-out, transform 250ms ease-out;
 }
 
 .topbar-left {
@@ -717,6 +717,7 @@
   padding: 12px 0;
   gap: 4px;
   flex-shrink: 0;
+  transition: opacity 250ms ease-out, width 250ms ease-out;
 }
 
 .sidebar-rail .rail-icon {
@@ -948,6 +949,7 @@
   flex-direction: column;
   gap: 16px;
   box-sizing: border-box;
+  transition: max-width 300ms ease;
 }
 
 /* ===========================
@@ -2324,6 +2326,7 @@
   position: relative;
   margin: 0 -4px;
   z-index: 2;
+  transition: opacity 250ms ease-out, width 250ms ease-out;
 }
 
 /* Drag handle indicator on hover */
@@ -10073,4 +10076,48 @@ button.ghost:focus-visible {
 }
 .critique-history-score {
   font-weight: 600;
+}
+
+/* ===========================
+   Focus Mode — all panels fade away
+   =========================== */
+
+.focus-mode .topbar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-100%);
+}
+
+.focus-mode .sidebar-rail {
+  opacity: 0;
+  pointer-events: none;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden;
+}
+
+.focus-mode .outline-rail {
+  opacity: 0;
+  pointer-events: none;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden;
+}
+
+.focus-mode .agent-pane,
+.focus-mode .pane-divider {
+  opacity: 0;
+  pointer-events: none;
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+/* Editor breathes in focus mode */
+.focus-mode .editor-content {
+  max-width: 780px;
 }

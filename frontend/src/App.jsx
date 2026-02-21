@@ -199,6 +199,8 @@ export default function App() {
   // --- Layout state ---
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const focusTimerRef = useRef(null);
   const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
     const saved = localStorage.getItem("mive:assistant-width");
@@ -941,6 +943,60 @@ export default function App() {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // --- Focus mode: auto-activate after 3s of typing ---
+  useEffect(() => {
+    if (!activeNodeId) return;
+
+    const editorEl = document.querySelector('.editor-area');
+    if (!editorEl) return;
+
+    const handleTyping = (e) => {
+      // Only count actual character input, not shortcuts
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = setTimeout(() => {
+        setIsFocusMode(true);
+      }, 3000);
+    };
+
+    editorEl.addEventListener('keydown', handleTyping);
+    return () => {
+      editorEl.removeEventListener('keydown', handleTyping);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
+  }, [activeNodeId]);
+
+  // --- Focus mode: reveal on edge hover ---
+  useEffect(() => {
+    if (!isFocusMode) return;
+
+    const handleMouseMove = (e) => {
+      if (e.clientX < 24) {
+        setIsFocusMode(false);
+      } else if (e.clientX > window.innerWidth - 24) {
+        setIsFocusMode(false);
+      } else if (e.clientY < 12) {
+        setIsFocusMode(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [isFocusMode]);
+
+  // --- Cmd+Shift+F: toggle focus mode ---
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault();
+        setIsFocusMode((prev) => !prev);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
   }, []);
 
   // --- Helpers ---
@@ -2623,7 +2679,7 @@ Rules for memory suggestions:
 
   // --- Render ---
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isFocusMode ? ' focus-mode' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
           <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Mive</button>
