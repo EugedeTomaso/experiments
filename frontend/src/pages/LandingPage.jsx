@@ -282,28 +282,29 @@ export function LandingPage() {
         </div>
       </div>
 
-      {/* ── Showcase 3: Project overview ── */}
+      {/* ── Showcase 3: Smart Agents ── */}
       <div className="landing-showcase landing-animate" ref={addRef}>
         <div className="landing-showcase-content">
-          <div className="landing-showcase-eyebrow">Project Home</div>
+          <div className="landing-showcase-eyebrow">Smart Agents</div>
           <h2 className="landing-showcase-heading">
-            Not a blank page. A command center.
+            Your team of AI specialists.
           </h2>
           <p className="landing-showcase-desc">
-            Each project has its own dashboard with word counts, recent documents,
-            and settings. Add reference materials, configure custom writing rules,
-            and set up AI agents tailored to your project.
+            Create custom AI personas — a strict editor, a creative writing coach,
+            a fact-checking researcher. Each agent has its own voice, system prompt,
+            and model configuration. Switch between them with @mentions.
           </p>
           <p className="landing-showcase-detail">
-            Built for novels, screenplays, articles, academic papers — anything
-            worth writing well.
+            Agents respond from their unique perspective. Ask your editor to tighten
+            prose, then ask your coach to brainstorm alternatives — all in the same
+            conversation.
           </p>
         </div>
         <div className="landing-showcase-media">
           <div className="landing-screenshot-frame">
             <img
-              src="/screenshots/project-home.png"
-              alt="Project home with document stats and recent files"
+              src="/screenshots/smart-agents.png"
+              alt="Agent configuration panel with name, voice, and engine settings"
               loading="lazy"
             />
           </div>
