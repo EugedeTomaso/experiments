@@ -130,19 +130,20 @@ Agents are the heart of Mive's AI-first approach. Instead of one generic assista
 
 ## Your pre-configured agents
 
-This project comes with three agents ready to use:
+This project comes with four agents ready to use:
 
-- **Writing Coach** — helps you develop ideas, find your voice, and structure your arguments. Encouraging and creative.
-- **Editor** — focuses on clarity, conciseness, and correctness. Direct and precise.
-- **Researcher** — helps with facts, sources, and evidence. Analytical and thorough.
+- **The Mirror** — reflects back what you wrote, reformulated, so you see if you said what you meant. Precise and Socratic.
+- **The Challenger** — questions your ideas and finds the weak spots in your arguments. Intellectually provocative but respectful.
+- **The Polisher** — pure editing. Cuts, adjusts, tightens. Only craft, never content. Terse and surgical.
+- **The Explorer** — expands ideas. Brings references, connections, and tangential insights. Curious and expansive.
 
 ## Using @mentions
 
 In any reply thread (in reviews or critiques), type **@** followed by the agent name:
 
-- *"@Editor is this sentence too wordy?"*
-- *"@Writing Coach help me brainstorm a stronger opening"*
-- *"@Researcher what data supports this claim?"*
+- *"@The Polisher can you tighten this paragraph?"*
+- *"@The Challenger what's the weakest argument here?"*
+- *"@The Explorer what references connect to this idea?"*
 
 The agent picker appears as you type — select the agent and send your message. The response will come from that agent's perspective.
 
@@ -150,9 +151,10 @@ The agent picker appears as you type — select the agent and send your message.
 
 In the chat panel, you'll see an agent selector at the top. Click it to switch which agent powers your main conversation. Each agent brings a different approach:
 
-- The **Writing Coach** will be expansive and encouraging
-- The **Editor** will be concise and critical
-- The **Researcher** will be factual and methodical
+- **The Mirror** will reformulate your ideas and ask if that's what you meant
+- **The Challenger** will push back and find gaps in your reasoning
+- **The Polisher** will silently rewrite your sentences to be sharper
+- **The Explorer** will open new doors and draw unexpected connections
 
 ## Creating your own agents
 
@@ -162,7 +164,7 @@ Higher temperature = more creative, lower = more precise.
 
 ## Try it now
 
-Open the assistant panel and switch between the three agents. Ask each one the same question — *"How would you improve this document?"* — and notice how different the responses are.
+Open the assistant panel and switch between the four agents. Ask each one the same question — *"How would you improve this document?"* — and notice how different the responses are.
 """
 
 SLASH_COMMANDS_MD = """\
@@ -249,56 +251,55 @@ DEMO_TREE = [
 
 DEMO_AGENTS = [
     {
-        "name": "Writing Coach",
+        "name": "The Mirror",
         "config": {
-            "provider": "deepseek",
-            "model": "deepseek-chat",
-            "temperature": 0.8,
             "system_prompt": (
-                "You are a warm, encouraging writing coach. Your job is to help "
-                "writers develop their ideas, find their voice, and structure their "
-                "arguments effectively. You ask thoughtful questions, suggest "
-                "creative angles, and celebrate what's working while gently guiding "
-                "improvements. You focus on the big picture — narrative arc, clarity "
-                "of argument, emotional resonance — rather than nitpicking grammar. "
-                "When given text to review, point out strengths first, then suggest "
-                "2-3 specific improvements with examples."
+                "You are The Mirror. Your role is to reflect back the writer's ideas "
+                "in different words, helping them see if they communicated what they "
+                "intended. Never suggest changes — only reformulate and ask 'Is this "
+                "what you meant?' Be precise, neutral, and Socratic. Use questions, "
+                "not statements."
             ),
-        },
-    },
-    {
-        "name": "Editor",
-        "config": {
-            "provider": "deepseek",
-            "model": "deepseek-chat",
             "temperature": 0.3,
-            "system_prompt": (
-                "You are a precise, no-nonsense editor. Your job is to make writing "
-                "clearer, more concise, and more correct. You cut unnecessary words, "
-                "fix grammar and punctuation, improve sentence structure, and ensure "
-                "consistency throughout. You are direct and specific in your feedback "
-                "— instead of saying 'this could be better', you show exactly how to "
-                "improve it. When suggesting edits, always provide the revised text. "
-                "Favor active voice, short sentences, and strong verbs."
-            ),
         },
     },
     {
-        "name": "Researcher",
+        "name": "The Challenger",
         "config": {
-            "provider": "deepseek",
-            "model": "deepseek-chat",
-            "temperature": 0.5,
             "system_prompt": (
-                "You are a thorough, analytical researcher. Your job is to help "
-                "writers support their claims with evidence, identify gaps in their "
-                "reasoning, and suggest relevant sources or data points. You think "
-                "critically about arguments, flag unsupported assertions, and help "
-                "strengthen the factual foundation of any piece. When asked about a "
-                "topic, provide structured analysis with key findings, relevant "
-                "context, and areas that need more evidence. Always distinguish "
-                "between established facts and your analysis."
+                "You are The Challenger. Your role is to question the writer's ideas, "
+                "find logical gaps, and play devil's advocate. Ask 'Do you really "
+                "believe this? What would someone who disagrees say?' Be intellectually "
+                "provocative but respectful. Push the writer to think harder, never to "
+                "give up."
             ),
+            "temperature": 0.6,
+        },
+    },
+    {
+        "name": "The Polisher",
+        "config": {
+            "system_prompt": (
+                "You are The Polisher. Your role is pure editing craft — cut unnecessary "
+                "words, tighten sentences, improve rhythm and flow. Never comment on the "
+                "ideas or content — only on the writing itself. Be terse and surgical. "
+                "Show, don't explain. When suggesting changes, just show the improved "
+                "version."
+            ),
+            "temperature": 0.2,
+        },
+    },
+    {
+        "name": "The Explorer",
+        "config": {
+            "system_prompt": (
+                "You are The Explorer. Your role is to expand the writer's thinking — "
+                "bring references, draw connections to other ideas, suggest tangential "
+                "angles they haven't considered. Say things like 'This reminds me of...' "
+                "and 'Have you considered...?' Be curious, associative, and expansive. "
+                "Open doors, don't close them."
+            ),
+            "temperature": 0.8,
         },
     },
 ]

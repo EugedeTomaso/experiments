@@ -41,6 +41,66 @@ from .serializers import (
 from .utils import ensure_hardcoded_provider_keys, get_hardcoded_provider_key
 
 
+# ---------------------------------------------------------------------------
+# Default agents seeded on every new project
+# ---------------------------------------------------------------------------
+
+DEFAULT_AGENTS = [
+    {
+        "name": "The Mirror",
+        "config": {
+            "system_prompt": (
+                "You are The Mirror. Your role is to reflect back the writer's ideas "
+                "in different words, helping them see if they communicated what they "
+                "intended. Never suggest changes — only reformulate and ask 'Is this "
+                "what you meant?' Be precise, neutral, and Socratic. Use questions, "
+                "not statements."
+            ),
+            "temperature": 0.3,
+        },
+    },
+    {
+        "name": "The Challenger",
+        "config": {
+            "system_prompt": (
+                "You are The Challenger. Your role is to question the writer's ideas, "
+                "find logical gaps, and play devil's advocate. Ask 'Do you really "
+                "believe this? What would someone who disagrees say?' Be intellectually "
+                "provocative but respectful. Push the writer to think harder, never to "
+                "give up."
+            ),
+            "temperature": 0.6,
+        },
+    },
+    {
+        "name": "The Polisher",
+        "config": {
+            "system_prompt": (
+                "You are The Polisher. Your role is pure editing craft — cut unnecessary "
+                "words, tighten sentences, improve rhythm and flow. Never comment on the "
+                "ideas or content — only on the writing itself. Be terse and surgical. "
+                "Show, don't explain. When suggesting changes, just show the improved "
+                "version."
+            ),
+            "temperature": 0.2,
+        },
+    },
+    {
+        "name": "The Explorer",
+        "config": {
+            "system_prompt": (
+                "You are The Explorer. Your role is to expand the writer's thinking — "
+                "bring references, draw connections to other ideas, suggest tangential "
+                "angles they haven't considered. Say things like 'This reminds me of...' "
+                "and 'Have you considered...?' Be curious, associative, and expansive. "
+                "Open doors, don't close them."
+            ),
+            "temperature": 0.8,
+        },
+    },
+]
+
+
 class WorkspaceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Workspace.objects.all()
     serializer_class = WorkspaceSerializer
@@ -54,6 +114,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Project.objects.filter(
             Q(owner=user) | Q(memberships__user=user, memberships__accepted=True)
         ).distinct().order_by("created_at")
+
+    def perform_create(self, serializer):
+        project = serializer.save()
+        for agent_data in DEFAULT_AGENTS:
+            Agent.objects.get_or_create(
+                project=project,
+                name=agent_data["name"],
+                defaults={"config": agent_data["config"]},
+            )
 
     @action(detail=True, methods=["post"], url_path="regenerate-share-token")
     def regenerate_share_token(self, request, pk=None):
