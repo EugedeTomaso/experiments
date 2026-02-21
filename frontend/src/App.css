@@ -1683,6 +1683,27 @@
   min-height: 100%;
 }
 
+/* Document open animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.doc-entering .document-header {
+  animation: fadeInUp 200ms ease-out forwards;
+}
+
+.doc-entering .editor-section {
+  animation: fadeInUp 300ms ease-out 100ms forwards;
+  opacity: 0;
+}
+
 .editor-shell .milkdown {
   min-height: 360px;
 }

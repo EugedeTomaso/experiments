@@ -200,6 +200,7 @@ export default function App() {
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isDocEntering, setIsDocEntering] = useState(false);
   const focusTimerRef = useRef(null);
   const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
@@ -464,6 +465,15 @@ export default function App() {
 
   // --- Effects ---
   useEffect(() => { activeNodeIdRef.current = activeNodeId; }, [activeNodeId]);
+
+  // Document open animation
+  useEffect(() => {
+    if (activeNodeId) {
+      setIsDocEntering(true);
+      const timer = setTimeout(() => setIsDocEntering(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [activeNodeId]);
 
   useEffect(() => {
     api.listProjects().then((data) => {
@@ -3058,7 +3068,7 @@ Rules for memory suggestions:
 
         <main className={`editor-area${isAssistantOpen ? ' with-assistant' : ''}`}>
           {activeNode?.type === "file" && (
-            <div className="editor-content" ref={editorWrapperRef}>
+            <div className={`editor-content${isDocEntering ? ' doc-entering' : ''}`} ref={editorWrapperRef}>
               <div className="document-header">
                 <h1
                   className="editable-title"
