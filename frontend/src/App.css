@@ -22,6 +22,7 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  transition: var(--theme-transition);
 }
 
 .topbar-left {
@@ -900,6 +901,7 @@
   overflow-y: auto;
   background: var(--surface);
   min-width: 0;
+  transition: var(--theme-transition);
 }
 
 .editor-content {
@@ -6384,18 +6386,18 @@ button.ghost:focus-visible {
 }
 
 .comment-thread-verdict--verified {
-  background: rgba(5, 150, 105, 0.1);
-  color: #059669;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .comment-thread-verdict--dubious {
-  background: rgba(217, 119, 6, 0.1);
-  color: #d97706;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .comment-thread-verdict--false {
-  background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  background: var(--error-soft);
+  color: var(--error);
 }
 
 /* Fact-check sources */
@@ -7200,9 +7202,9 @@ button.ghost:focus-visible {
   align-self: flex-start;
 }
 
-.review-card-verdict--verified { background: #e8f5e9; color: #2e7d32; }
-.review-card-verdict--dubious  { background: #fff8e1; color: #f57f17; }
-.review-card-verdict--false    { background: #fce4ec; color: #c62828; }
+.review-card-verdict--verified { background: var(--success-soft); color: var(--success); }
+.review-card-verdict--dubious  { background: var(--warning-soft); color: var(--warning); }
+.review-card-verdict--false    { background: var(--error-soft); color: var(--error); }
 
 /* ── Review Panel: Reply thread ─────────────── */
 .review-card-thread {
@@ -8771,8 +8773,8 @@ button.ghost:focus-visible {
 }
 
 .welcome-mock-btn--approve {
-  background: rgba(34, 197, 94, 0.1);
-  color: #16a34a;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .welcome-mock-btn--dismiss {
