@@ -200,14 +200,14 @@ export function LandingPage() {
       <section className="landing-hero">
         <div className="landing-hero-eyebrow">
           <span className="landing-hero-eyebrow-dot" />
-          AI-powered writing studio
+          A writing studio
         </div>
         <h1 className="landing-hero-heading">
-          Where structure meets intelligence.
+          Think deeper. Write better.
         </h1>
         <p className="landing-hero-sub">
-          Mive gives your writing a home — with outlines that organize your thinking,
-          and an AI assistant that reads everything you've written.
+          Mive is the space where serious writing happens — with a thinking partner
+          that reads everything you've written and helps you see what you can't.
         </p>
         <div className="landing-hero-actions">
           <Link to="/register" className="landing-hero-cta">
@@ -230,7 +230,7 @@ export function LandingPage() {
         <div className="landing-showcase-content">
           <div className="landing-showcase-eyebrow">AI Assistant</div>
           <h2 className="landing-showcase-heading">
-            A writing partner that knows your project.
+            A thinking partner. Not a chatbot.
           </h2>
           <p className="landing-showcase-desc">
             The assistant doesn't just see your current paragraph — it reads your brief,
@@ -258,7 +258,7 @@ export function LandingPage() {
         <div className="landing-showcase-content">
           <div className="landing-showcase-eyebrow">Review & Critique</div>
           <h2 className="landing-showcase-heading">
-            An editor that never sleeps.
+            Honest feedback. Anytime.
           </h2>
           <p className="landing-showcase-desc">
             Run targeted reviews on grammar, style, or clarity — or let the AI scan
@@ -318,7 +318,7 @@ export function LandingPage() {
 
       {/* ── Small features grid ── */}
       <section className="landing-section landing-animate" ref={addRef} id="features">
-        <h2 className="landing-section-heading">And everything else you need</h2>
+        <h2 className="landing-section-heading">Everything a writer needs.</h2>
         <p className="landing-section-sub">
           The details that make the difference between a tool and a studio.
         </p>
@@ -376,10 +376,9 @@ export function LandingPage() {
 
       {/* ── Final CTA ── */}
       <div className="landing-cta-band landing-animate" ref={addRef}>
-        <h2 className="landing-cta-heading">Ready to write something great?</h2>
+        <h2 className="landing-cta-heading">Your studio is waiting.</h2>
         <p className="landing-cta-sub">
-          Join writers who use Mive to turn ideas into finished work.
-          Free forever for personal projects.
+          Join writers who think deeper and write better with Mive.
         </p>
         <Link to="/register" className="landing-hero-cta">
           Get started — it's free
@@ -395,7 +394,7 @@ export function LandingPage() {
               <MiveLogo size={20} />
               Mive
             </div>
-            <p className="landing-footer-tagline">Your AI writing studio.</p>
+            <p className="landing-footer-tagline">Think deeper. Write better.</p>
           </div>
           <div className="landing-footer-columns">
             <div>

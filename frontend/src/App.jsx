@@ -3058,12 +3058,12 @@ Rules for memory suggestions:
               ))}
               {tree.length === 0 && (
                 <div className="tree-empty-state">
-                  <p>No documents yet</p>
+                  <p>Your studio is ready.</p>
                   <button
                     className="tree-empty-action"
                     onClick={() => handleCreateNode("file")}
                   >
-                    Create your first document
+                    What are you working on?
                   </button>
                 </div>
               )}

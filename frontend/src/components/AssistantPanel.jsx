@@ -449,7 +449,7 @@ export function AssistantPanel({
                     </button>
                   ))
                 ) : (
-                  <div className="agent-history-empty">No conversations yet</div>
+                  <div className="agent-history-empty">Start a conversation with your writing partner.</div>
                 )}
               </div>
             )}
