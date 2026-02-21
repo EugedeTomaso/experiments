@@ -34,6 +34,8 @@ export function SettingsModal({
   collabSession,
   theme,
   onThemeChange,
+  aiIntensity,
+  onAiIntensityChange,
 }) {
   const [activeSection, setActiveSection] = useState("appearance");
   const [keyForm, setKeyForm] = useState({ provider: "openai", api_key: "" });
@@ -108,6 +110,15 @@ export function SettingsModal({
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
                   <option value="system">System</option>
+                </select>
+              </div>
+
+              <div className="settings-field" style={{ marginTop: 16 }}>
+                <label className="settings-label">AI Presence</label>
+                <select value={aiIntensity} onChange={(e) => onAiIntensityChange(e.target.value)}>
+                  <option value="silent">Silent — only when asked</option>
+                  <option value="active">Active — subtle suggestions</option>
+                  <option value="coauthor">Co-author — maximum collaboration</option>
                 </select>
               </div>
             </div>
