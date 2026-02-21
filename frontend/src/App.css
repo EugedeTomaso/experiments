@@ -3642,8 +3642,8 @@
 }
 
 .mention-chip-agent {
-  border-color: rgba(59, 130, 246, 0.15);
-  background: rgba(59, 130, 246, 0.06);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
 }
 
 .mention-chip-agent svg {
@@ -8778,7 +8778,7 @@ button.ghost:focus-visible {
 }
 
 .welcome-mock-btn--dismiss {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--surface-inset);
   color: var(--text-3);
 }
 

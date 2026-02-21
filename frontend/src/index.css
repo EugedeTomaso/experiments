@@ -272,13 +272,13 @@ select {
 }
 
 .connection-banner.warning {
-  background: #fef3cd;
-  color: #856404;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .connection-banner.error {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--error-soft);
+  color: var(--error);
 }
 
 .connection-retry-btn {
@@ -305,8 +305,8 @@ select {
   gap: 12px;
   padding: 6px 16px;
   font-size: 13px;
-  background: #e8f0fe;
-  color: #1a56db;
+  background: var(--accent-soft);
+  color: var(--accent);
   position: sticky;
   top: 0;
   z-index: 49;
