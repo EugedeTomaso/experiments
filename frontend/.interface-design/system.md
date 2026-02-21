@@ -12,10 +12,27 @@ Three-column flex layout, all collapsible:
 
 | Zone             | Width    | Position | Content                                     |
 |------------------|----------|----------|---------------------------------------------|
-| Outline Rail     | 220px    | Left     | File tree only. Collapsible via topbar. Canvas bg (`--canvas`). |
+| Outline Rail     | 220px    | Left     | File tree only. Collapsible via topbar. Canvas bg (`--canvas`). Default state: collapsed to sidebar rail. |
 | Editor Area      | Fluid    | Center   | Document header + editor. Max-width 720px. White surface bg. No card around editor — content is borderless. |
-| Assistant Pane   | 440px    | Right    | White surface pane, integrated with editor. Thread + composer. Toggle via topbar. |
+| Assistant Pane   | 440px    | Right    | White surface pane, integrated with editor. Thread + composer. Toggle via topbar. Default state: open. |
 | Topbar           | 48px h   | Top      | Brand + project switcher (left), toggles (right) |
+
+### Sidebar Rail (Collapsed State)
+
+Default sidebar state is collapsed to an icon rail. Click to expand to full 220px outline.
+
+```css
+.sidebar-rail {
+  width: 48px;
+  background: var(--canvas);
+  border-right: 1px solid var(--border-subtle);
+}
+```
+
+- 48px wide, shows folder icon centered
+- Click anywhere on rail to expand sidebar to full width
+- Topbar outline toggle also expands/collapses
+- Smooth transition: 250ms ease-out for width change
 
 ### Topbar Structure
 - **Left**: Brand name → divider → ProjectSwitcher dropdown
@@ -65,8 +82,9 @@ Defined in `src/index.css` `:root`.
 
 ### Typography
 
-- Font: Inter, -apple-system, system-ui, sans-serif
-- Monospace: SF Mono, Menlo, Monaco (slash menu icons, shortcuts)
+- Font: `--font-sans` — Inter, -apple-system, system-ui, sans-serif
+- Monospace: `--font-mono` — SF Mono, Menlo, Monaco (slash menu icons, shortcuts)
+- Display: `--font-display` — 'Instrument Serif', Georgia, serif (brand moments only)
 
 | Role           | Size  | Weight | Tracking  |
 |----------------|-------|--------|-----------|
@@ -78,9 +96,21 @@ Defined in `src/index.css` `:root`.
 | Brand          | 14px  | 600    | -0.01em   |
 | Document title | 40px  | 700    | -0.03em   |
 
+**Display font usage (`--font-display`):**
+- Use for: logo wordmark, landing page headings, welcome/onboarding headings, empty state titles
+- Never use for: editor content, UI labels, buttons, navigation, form inputs, chat messages
+
+**Editor font picker:** Users can choose between three font families for editor content. Stored in `mive:editor-font` in localStorage. Applied as a class on `.editor-shell`.
+
+| Option | Class            | Stack                                            |
+|--------|------------------|--------------------------------------------------|
+| Sans   | `.font-sans`     | Inter, -apple-system, system-ui, sans-serif      |
+| Serif  | `.font-serif`    | 'Source Serif 4', Georgia, 'Times New Roman', serif |
+| Mono   | `.font-mono`     | 'JetBrains Mono', 'SF Mono', Menlo, monospace    |
+
 ### Colors
 
-All via CSS variables. No hardcoded hex/rgba in components.
+All via CSS variables. No hardcoded hex/rgba in components. Supports light and dark themes via `[data-theme]` selector on `:root`.
 
 **Surfaces:** `--canvas`, `--surface`, `--surface-inset`
 **Text:** `--text-1` (primary), `--text-2`, `--text-3`, `--text-4` (muted)
@@ -89,6 +119,58 @@ All via CSS variables. No hardcoded hex/rgba in components.
 **Primary:** `--primary`, `--primary-hover`, `--on-primary`
 **Semantic:** `--success`/`-soft`/`-border`, `--warning`, `--error`/`-soft`
 **Controls:** `--control-bg`, `--control-border`, `--control-focus`
+
+#### Light Mode (default)
+
+| Token              | Value       |
+|--------------------|-------------|
+| `--canvas`         | `#f7f7f5`   |
+| `--surface`        | `#ffffff`   |
+| `--surface-inset`  | `#f3f3f1`   |
+| `--text-1`         | `#1a1a1a`   |
+| `--text-2`         | `#444`      |
+| `--text-3`         | `#666`      |
+| `--text-4`         | `#999`      |
+| `--border`         | `#e5e5e3`   |
+| `--border-subtle`  | `#eeeeec`   |
+| `--border-strong`  | `#d0d0ce`   |
+
+#### Dark Mode (`[data-theme="dark"]`)
+
+Warm deep gray palette — not pure black. All the same CSS variable names, remapped.
+
+| Token              | Value       |
+|--------------------|-------------|
+| `--canvas`         | `#1a1a1a`   |
+| `--surface`        | `#232323`   |
+| `--surface-inset`  | `#2a2a2a`   |
+| `--text-1`         | `#e8e8e6`   |
+| `--text-2`         | `#b0b0ae`   |
+| `--text-3`         | `#888886`   |
+| `--text-4`         | `#666664`   |
+| `--border`         | `#333331`   |
+| `--border-subtle`  | `#2c2c2a`   |
+| `--border-strong`  | `#444442`   |
+| `--accent`         | `#6ea1f7`   |
+| `--accent-soft`    | `rgba(110,161,247,0.1)` |
+| `--shadow-float`   | `0 4px 16px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15)` |
+| `--error`          | `#f87171`   |
+| `--success`        | `#6ee7a0`   |
+| `--warning`        | `#fbbf24`   |
+
+**Theme transition:** All themed properties transition smoothly on toggle.
+
+```css
+* {
+  transition: background-color var(--theme-transition),
+              color var(--theme-transition),
+              border-color var(--theme-transition),
+              box-shadow var(--theme-transition);
+}
+--theme-transition: 300ms ease;
+```
+
+**Theme persistence:** Stored in `mive:theme` in localStorage. Values: `light`, `dark`, `system`. The `system` option follows `prefers-color-scheme` media query.
 
 ### Depth
 
@@ -104,7 +186,18 @@ Borders-only for static elements. Single `--shadow-float` token for floating UI.
 |--------------------|--------|------------------------|
 | `--duration-fast`  | 150ms  | Hover, color, bg       |
 | `--duration-normal`| 200ms  | Slide-over, panels     |
+| `--theme-transition` | 300ms | Theme switch (bg, color, border, shadow) |
 | `--ease`           | cubic-bezier(0.25, 0.1, 0.25, 1) | All transitions |
+
+#### Transition Standards
+
+| Duration | Easing    | Usage                                            |
+|----------|-----------|--------------------------------------------------|
+| 150ms    | ease      | Micro-interactions: hover states, button feedback, color changes |
+| 200ms    | ease-out  | Document open: title fade-in                     |
+| 250ms    | ease-out  | Panel show/hide: sidebar, assistant pane          |
+| 300ms    | ease      | Theme switch, editor width change, focus mode     |
+| 300ms    | ease + 100ms stagger | Document open: content blocks fade-in  |
 
 ## Patterns
 
@@ -241,6 +334,128 @@ box-shadow: var(--shadow-float);
 padding: 4-8px;
 z-index: 100;
 ```
+
+## Focus Mode
+
+Distraction-free writing mode that hides all UI chrome to let the writer focus on the document.
+
+### Activation
+
+- **Auto-activate:** Triggers after 3 seconds of continuous typing
+- **Manual toggle:** `Cmd+Shift+F` (Mac) / `Ctrl+Shift+F` (Windows)
+- **Exit:** Move mouse to screen edges, press `Cmd+Shift+F` again, or stop typing and move mouse
+
+### Edge Hover Reveal
+
+Moving the cursor to screen edges reveals hidden UI elements:
+
+| Edge   | Zone     | Reveals           |
+|--------|----------|-------------------|
+| Left   | 24px     | Sidebar rail      |
+| Right  | 24px     | Assistant pane    |
+| Top    | 12px     | Topbar            |
+
+### CSS
+
+`.focus-mode` class is applied to `.app-shell` when active.
+
+```css
+.app-shell.focus-mode .sidebar,
+.app-shell.focus-mode .sidebar-rail {
+  opacity: 0;
+  width: 0;
+  transition: opacity 250ms ease-out, width 250ms ease-out;
+}
+.app-shell.focus-mode .assistant-pane {
+  opacity: 0;
+  width: 0;
+  transition: opacity 250ms ease-out, width 250ms ease-out;
+}
+.app-shell.focus-mode .topbar {
+  opacity: 0;
+  transition: opacity 250ms ease-out;
+}
+.app-shell.focus-mode .editor-section {
+  max-width: 780px; /* breathes from 720px */
+  transition: max-width 300ms ease;
+}
+```
+
+Panels fade to 0 opacity and collapse to 0 width. Editor max-width expands from 720px to 780px to use reclaimed space. All transitions use 250ms ease-out for panels, 300ms ease for editor width.
+
+## AI Integration
+
+Three-tier AI intensity system that lets writers control how proactive the AI assistant is.
+
+### Intensity Levels
+
+| Level    | Behavior                                                      |
+|----------|---------------------------------------------------------------|
+| Silent   | AI responds only when explicitly asked. No proactive suggestions. |
+| Active   | Ghost text suggestions after pauses. Contextual chip suggestions in assistant. |
+| Coauthor | Maximum assistance. Continuous ghost text, inline prompts, proactive review suggestions. |
+
+Stored in `mive:ai-intensity` in localStorage. Shown as indicator in topbar.
+
+### Ghost Text
+
+AI-generated continuation suggestions that appear inline as the writer pauses.
+
+```css
+.ai-ghost-text {
+  color: var(--text-4);
+  opacity: 0.6;
+  font-style: italic;
+  pointer-events: none;
+  user-select: none;
+}
+```
+
+- Appears as a ProseMirror decoration after detecting a typing pause
+- `Tab` to accept the suggestion (inserts text)
+- `Escape` to dismiss
+- Continuing to type also dismisses
+- Only active at `active` and `coauthor` intensity levels
+
+### Inline Prompt
+
+Floating input that lets writers give AI instructions without leaving the editor.
+
+- **Trigger:** `Cmd+J` (Mac) / `Ctrl+J` (Windows)
+- **Behavior:** Small floating input appears near the cursor position
+- **With selection:** Prompt applies to selected text, response shows as inline diff
+- **Without selection:** Prompt generates new text at cursor position
+
+```css
+.inline-prompt {
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: 8px 12px;
+  font-size: 13px;
+  min-width: 280px;
+}
+.inline-prompt:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--control-focus);
+}
+```
+
+## Agent Personalities
+
+Four pre-installed AI agent personalities, each tuned for a different writing assistance style.
+
+| Agent          | Role         | Temperature | Description                                    |
+|----------------|--------------|-------------|------------------------------------------------|
+| The Mirror     | Reflect      | 0.3         | Echoes back what you wrote, surfaces patterns and themes |
+| The Challenger | Question     | 0.6         | Asks probing questions, challenges assumptions  |
+| The Polisher   | Edit         | 0.2         | Precise line-editing, grammar, clarity, concision |
+| The Explorer   | Expand       | 0.8         | Generates alternatives, explores tangents, brainstorms |
+
+### Visual Indicator
+
+Each agent has a subtle visual indicator in the assistant panel header (agent selector pill). The indicator reflects the active agent personality. Agent color is derived from the agent's accent — no additional color tokens needed.
 
 ## Components
 
@@ -412,12 +627,15 @@ Borderless forms floating on canvas background — no card container. Pen-on-pap
 
 ## Rules
 
-1. All colors via CSS variables — no hardcoded values
+1. All colors via CSS variables — no hardcoded values. Both light and dark themes must be supported.
 2. All shadows via `--shadow-float` — no inline shadow definitions
 3. All transitions use `--duration-fast` or `--duration-normal` with `--ease`
 4. All radius via tokens — no arbitrary pixel values
 5. Spacing on 4px grid (4, 8, 12, 16, 24, 32, 48)
 6. Every interactive element needs `:hover`, `:focus-visible`, and `:disabled` (where applicable)
 7. Borders-only depth for static elements — shadows reserved for floating UI
-8. Editor content centered with 720px max-width
+8. Editor content centered with 720px max-width (780px in focus mode)
 9. Assistant uses chat pattern (conversation thread), not prompt+output
+10. Dark mode uses `[data-theme="dark"]` selector — never `@media (prefers-color-scheme)` directly for styling
+11. Display font (`--font-display`) is reserved for brand moments — never in editor content or UI chrome
+12. AI features respect the current intensity level — check `mive:ai-intensity` before showing proactive suggestions
