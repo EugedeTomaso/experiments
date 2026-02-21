@@ -277,10 +277,17 @@ export default function App() {
   const [aiIntensity, setAiIntensity] = useState(
     () => localStorage.getItem('mive:ai-intensity') || 'active'
   );
+  const [editorFont, setEditorFont] = useState(
+    () => localStorage.getItem('mive:editor-font') || 'sans'
+  );
 
   useEffect(() => {
     localStorage.setItem('mive:ai-intensity', aiIntensity);
   }, [aiIntensity]);
+
+  useEffect(() => {
+    localStorage.setItem('mive:editor-font', editorFont);
+  }, [editorFont]);
 
   // --- Ghost text handler ---
   const ghostAbortRef = useRef(null);
@@ -3307,6 +3314,7 @@ Rules for memory suggestions:
                   collabSession={collabSession}
                   aiIntensity={aiIntensity}
                   onRequestGhostText={handleRequestGhostText}
+                  editorFont={editorFont}
                 />
               </section>
 
@@ -3526,6 +3534,8 @@ Rules for memory suggestions:
         onThemeChange={setTheme}
         aiIntensity={aiIntensity}
         onAiIntensityChange={setAiIntensity}
+        editorFont={editorFont}
+        onEditorFontChange={setEditorFont}
       />
 
       <ShareDialog

@@ -32,9 +32,9 @@
 }
 
 .brand-name-btn {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   color: var(--text-1);
   border: none;
   background: transparent;
@@ -42,7 +42,7 @@
   margin: -4px -8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-family: inherit;
+  font-family: var(--font-display);
   transition: background var(--duration-fast) var(--ease);
 }
 
@@ -1741,6 +1741,11 @@
   color: var(--text-1);
   letter-spacing: -0.01em;
 }
+
+/* Editor font picker variants */
+.editor-shell.font-sans .ProseMirror { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+.editor-shell.font-serif .ProseMirror { font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif; }
+.editor-shell.font-mono .ProseMirror { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 15px; }
 
 .editor-shell .ProseMirror > * + * {
   margin-top: 0.75em;
@@ -8236,9 +8241,10 @@ button.ghost:focus-visible {
 /* Typography */
 
 .welcome-heading {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   line-height: 1.2;
   color: var(--text-1);
   margin: 0;

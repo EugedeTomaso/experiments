@@ -36,6 +36,8 @@ export function SettingsModal({
   onThemeChange,
   aiIntensity,
   onAiIntensityChange,
+  editorFont,
+  onEditorFontChange,
 }) {
   const [activeSection, setActiveSection] = useState("appearance");
   const [keyForm, setKeyForm] = useState({ provider: "openai", api_key: "" });
@@ -119,6 +121,15 @@ export function SettingsModal({
                   <option value="silent">Silent — only when asked</option>
                   <option value="active">Active — subtle suggestions</option>
                   <option value="coauthor">Co-author — maximum collaboration</option>
+                </select>
+              </div>
+
+              <div className="settings-field" style={{ marginTop: 16 }}>
+                <label className="settings-label">Editor Font</label>
+                <select value={editorFont} onChange={(e) => onEditorFontChange(e.target.value)}>
+                  <option value="sans">Sans-serif (default)</option>
+                  <option value="serif">Serif</option>
+                  <option value="mono">Monospace</option>
                 </select>
               </div>
             </div>

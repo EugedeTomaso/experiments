@@ -68,6 +68,7 @@
   --theme-transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
 
   /* Typography */
+  --font-display: 'Instrument Serif', Georgia, serif;
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;

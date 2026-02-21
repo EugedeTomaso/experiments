@@ -23,7 +23,7 @@ import { mermaidPlugin } from "./mermaidPlugin";
 import { createMarginAvatarPlugin } from "./marginAvatarPlugin";
 import "@milkdown/theme-nord/style.css";
 
-function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, aiIntensity, onRequestGhostText }) {
+function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, aiIntensity, onRequestGhostText, editorFont = 'sans' }) {
   const pluginViewFactory = usePluginViewFactory();
   const [loading, get] = useInstance();
   const shellRef = useRef(null);
@@ -339,7 +339,7 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
 
   return (
     <div
-      className={`editor-shell${readOnly ? " editor-readonly" : ""}${currentRole === "commenter" ? " editor-commenter" : ""}`}
+      className={`editor-shell font-${editorFont}${readOnly ? " editor-readonly" : ""}${currentRole === "commenter" ? " editor-commenter" : ""}`}
       ref={shellRef}
     >
       <Milkdown />
