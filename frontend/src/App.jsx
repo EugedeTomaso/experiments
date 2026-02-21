@@ -269,6 +269,7 @@ export default function App() {
       return INITIAL_DEFAULT_AGENT;
     }
   });
+  const [theme, setTheme] = useState(() => localStorage.getItem('mive:theme') || 'system');
 
   // --- Memory state ---
   const [memories, setMemories] = useState([]);
@@ -328,6 +329,31 @@ export default function App() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [handleNavNext, handleNavPrev]);
+
+  // Apply theme to document
+  useEffect(() => {
+    localStorage.setItem('mive:theme', theme);
+    if (theme === 'system') {
+      document.documentElement.removeAttribute('data-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
+
+  // Listen for system preference changes when in 'system' mode
+  useEffect(() => {
+    if (theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => {
+      document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [theme]);
 
   // --- Drag & drop ---
   const [draggingId, setDraggingId] = useState(null);
@@ -2662,6 +2688,29 @@ Rules for memory suggestions:
           {collabSession && <PresenceIndicator awareness={collabSession.awareness} />}
           <button
             className="topbar-icon-btn"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+          </button>
+          <button
+            className="topbar-icon-btn"
             onClick={() => setIsHelpOpen(true)}
             aria-label="Help"
             title="Help"
@@ -3254,6 +3303,8 @@ Rules for memory suggestions:
           try { await api.updateMemory(id, payload); refreshMemories(); } catch {}
         }}
         collabSession={collabSession}
+        theme={theme}
+        onThemeChange={setTheme}
       />
 
       <ShareDialog

@@ -10,6 +10,7 @@ const PROVIDERS = [
 ];
 
 const SECTIONS = [
+  { id: "appearance", label: "Appearance" },
   { id: "providers", label: "Provider Keys" },
   { id: "editor", label: "Editor" },
   { id: "ai", label: "AI Defaults" },
@@ -31,8 +32,10 @@ export function SettingsModal({
   onDeleteMemory,
   onUpdateMemory,
   collabSession,
+  theme,
+  onThemeChange,
 }) {
-  const [activeSection, setActiveSection] = useState("providers");
+  const [activeSection, setActiveSection] = useState("appearance");
   const [keyForm, setKeyForm] = useState({ provider: "openai", api_key: "" });
   const [keyMessage, setKeyMessage] = useState("");
   const [newMemoryText, setNewMemoryText] = useState("");
@@ -92,6 +95,23 @@ export function SettingsModal({
               </svg>
             </button>
           </div>
+
+          {activeSection === "appearance" && (
+            <div className="settings-section">
+              <p className="settings-description">
+                Choose your writing environment.
+              </p>
+
+              <div className="settings-field">
+                <label className="settings-label">Theme</label>
+                <select value={theme} onChange={(e) => onThemeChange(e.target.value)}>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {activeSection === "providers" && (
             <div className="settings-section">
