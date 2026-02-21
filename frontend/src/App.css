@@ -706,6 +706,40 @@
   pointer-events: none;
 }
 
+/* Sidebar icon rail (collapsed state) */
+.sidebar-rail {
+  width: 48px;
+  background: var(--canvas);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-rail .rail-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 13px;
+  border: none;
+  background: none;
+  padding: 0;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-rail .rail-icon:hover {
+  background: var(--surface-inset);
+  color: var(--text-1);
+}
+
 /* Resize divider for outline rail */
 .outline-divider {
   width: 8px;
@@ -7439,6 +7473,10 @@ button.ghost:focus-visible {
   }
 
   .outline-divider {
+    display: none;
+  }
+
+  .sidebar-rail {
     display: none;
   }
 

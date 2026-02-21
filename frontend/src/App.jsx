@@ -197,7 +197,7 @@ export default function App() {
   const preEditDraftsRef = useRef(new Map()); // Map<nodeId, preEditDraft>
 
   // --- Layout state ---
-  const [isOutlineOpen, setIsOutlineOpen] = useState(true);
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
   const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
@@ -2789,6 +2789,19 @@ Rules for memory suggestions:
         />
       ) : (
       <div className="app">
+        {!isOutlineOpen && activeProjectId && (
+          <div className="sidebar-rail">
+            <button
+              className="rail-icon"
+              onClick={() => setIsOutlineOpen(true)}
+              title="Open sidebar"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </button>
+          </div>
+        )}
         <aside
           className={`outline-rail ${isOutlineOpen && activeProjectId ? "" : "collapsed"}`}
           style={isOutlineOpen && activeProjectId ? { width: `${outlineWidth}px` } : undefined}
