@@ -902,25 +902,18 @@ export default function App() {
       setIsAssistantOpen(true);
     };
 
-    const handleFactCheckSelection = (e) => {
-      const { from, to } = e.detail;
-      handleFactCheckRef.current?.(from, to);
-    };
-
     const onSlashReview = () => handleRequestReview("all");
     const onSlashFactCheck = () => handleFactCheckRef.current?.();
 
     el.addEventListener("comment-selection-request", onSelectionRequest);
     el.addEventListener("comment-highlight-click", onHighlightClick);
     el.addEventListener("ai-selection-request", onAiRequest);
-    el.addEventListener("fact-check-selection-request", handleFactCheckSelection);
     el.addEventListener("slash-review-request", onSlashReview);
     el.addEventListener("slash-factcheck-request", onSlashFactCheck);
     return () => {
       el.removeEventListener("comment-selection-request", onSelectionRequest);
       el.removeEventListener("comment-highlight-click", onHighlightClick);
       el.removeEventListener("ai-selection-request", onAiRequest);
-      el.removeEventListener("fact-check-selection-request", handleFactCheckSelection);
       el.removeEventListener("slash-review-request", onSlashReview);
       el.removeEventListener("slash-factcheck-request", onSlashFactCheck);
     };
@@ -1032,7 +1025,7 @@ export default function App() {
     const handleMouseMove = (e) => {
       if (e.clientX < 24) {
         setIsFocusMode(false);
-      } else if (e.clientX > window.innerWidth - 24) {
+      } else if (e.clientX > window.innerWidth - 60) {
         setIsFocusMode(false);
       } else if (e.clientY < 12) {
         setIsFocusMode(false);
@@ -2249,90 +2242,78 @@ Rules for memory suggestions:
 
   const handleSendMessage = () => handleSendMessageDirect();
 
-  // --- Inline AI prompt (Cmd+J) submission ---
-  const handleInlinePromptSubmit = useCallback(async (instruction) => {
-    if (!inlinePrompt) return;
-    const { from, to, selectedText } = inlinePrompt;
-    setInlinePrompt(null); // Close prompt immediately
+  // --- Inline AI prompt (Cmd+J) ---
+  const inlinePromptStreamAI = useCallback(async (systemMsg, conversationMessages, onDelta, agentOverride) => {
+    const agent = agentOverride || defaultAgent;
+    const response = await fetch(`${API_BASE}/api/ai/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({
+        provider: agent.provider,
+        model: agent.model,
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: systemMsg },
+          ...conversationMessages,
+        ],
+      }),
+    });
 
-    const prompt = selectedText
-      ? `Apply this instruction to the selected text. Return ONLY the modified text, nothing else. No markdown fences, no explanation.\n\nInstruction: ${instruction}\n\nSelected text:\n${selectedText}`
-      : `${instruction}\n\nReturn ONLY the text to insert, nothing else. No markdown fences, no explanation.`;
+    if (!response.ok || !response.body) throw new Error("Inline prompt failed");
 
-    try {
-      const response = await fetch(`${API_BASE}/api/ai/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({
-          provider: defaultAgent.provider,
-          model: defaultAgent.model,
-          temperature: 0.3,
-          messages: [
-            { role: "system", content: "You are a precise writing assistant. Follow the user's instruction exactly. Output only the requested text with no extra commentary, no markdown fences, and no labels." },
-            { role: "user", content: prompt },
-          ],
-        }),
-      });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-      if (!response.ok || !response.body) throw new Error("Inline prompt failed");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullOutput = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-        for (const event of events) {
-          const dataLines = event.split("\n")
-            .filter((line) => line.startsWith("data:"))
-            .map((line) => line.slice(5).trim());
-          if (!dataLines.length) continue;
-          const data = dataLines.join("\n");
-          if (data === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.delta) fullOutput += parsed.delta;
-          } catch (_) {}
-        }
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) {
+        const dataLines = event.split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim());
+        if (!dataLines.length) continue;
+        const data = dataLines.join("\n");
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.delta) onDelta(parsed.delta);
+        } catch (_) {}
       }
-
-      const result = fullOutput.trim();
-      if (!result) return;
-
-      if (selectedText) {
-        // Save pre-edit state for undo, then replace entire doc with the AI version
-        preEditDraftsRef.current.set(String(activeNodeId), draft);
-        const newDraft = draft.replace(selectedText, result);
-        editorRef.current?.replaceContentDiff?.(newDraft);
-        // Show diff highlights after content settles
-        setTimeout(() => {
-          try {
-            editorRef.current?.showDiffHighlights?.();
-            const stats = editorRef.current?.getDiffStats?.();
-            if (stats) {
-              setDiffStats(stats);
-              setDiffVisible(true);
-              setDiffAvailable(true);
-              setCompareVersionId(null);
-            }
-          } catch (_) {}
-        }, 400);
-      } else {
-        // No selection -- insert at cursor position
-        const view = editorRef.current?.getView?.();
-        if (view) {
-          view.dispatch(view.state.tr.insertText(result, from));
-        }
-      }
-    } catch (err) {
-      console.error("Inline prompt failed:", err);
     }
-  }, [inlinePrompt, activeNodeId, draft, defaultAgent]);
+  }, [defaultAgent]);
+
+  const handleInlinePromptAccept = useCallback((result) => {
+    if (!inlinePrompt || !result) return;
+    const { from, selectedText } = inlinePrompt;
+    setInlinePrompt(null);
+
+    if (selectedText) {
+      preEditDraftsRef.current.set(String(activeNodeId), draft);
+      const newDraft = draft.replace(selectedText, result);
+      editorRef.current?.replaceContentDiff?.(newDraft);
+      setTimeout(() => {
+        try {
+          editorRef.current?.showDiffHighlights?.();
+          const stats = editorRef.current?.getDiffStats?.();
+          if (stats) {
+            setDiffStats(stats);
+            setDiffVisible(true);
+            setDiffAvailable(true);
+            setCompareVersionId(null);
+          }
+        } catch (_) {}
+      }, 400);
+    } else {
+      const view = editorRef.current?.getView?.();
+      if (view) {
+        view.dispatch(view.state.tr.insertText(result, from));
+      }
+    }
+  }, [inlinePrompt, activeNodeId, draft]);
 
   const handleUndoEdit = () => {
     const nodeKey = String(activeNodeId);
@@ -3556,8 +3537,12 @@ Rules for memory suggestions:
       {inlinePrompt && (
         <InlinePrompt
           position={{ top: inlinePrompt.top, left: inlinePrompt.left }}
-          onSubmit={handleInlinePromptSubmit}
+          selectedText={inlinePrompt.selectedText}
+          agents={agents}
+          defaultAgent={defaultAgent}
+          onAccept={handleInlinePromptAccept}
           onClose={() => setInlinePrompt(null)}
+          streamAI={inlinePromptStreamAI}
         />
       )}
 

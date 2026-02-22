@@ -6783,22 +6783,113 @@ button.ghost:focus-visible {
 }
 
 /* ===========================
-   Inline Prompt (Cmd+J)
+   Inline Prompt — Mini Chat (Cmd+J)
    =========================== */
 
 .inline-prompt {
   z-index: 100;
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg, 12px);
   box-shadow: var(--shadow-float);
+  min-width: 380px;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  animation: fadeInUp 150ms ease-out;
+  overflow: hidden;
+}
+
+/* Selected text context */
+.inline-prompt-context {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inline-prompt-context-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-4);
+}
+
+.inline-prompt-context-text {
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Messages area */
+.inline-prompt-messages {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-prompt-msg {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.inline-prompt-msg-user {
+  color: var(--text-3);
   padding: 4px 8px;
-  min-width: 320px;
-  max-width: 480px;
+  background: var(--surface-inset);
+  border-radius: var(--radius-sm, 6px);
+  align-self: flex-end;
+  max-width: 90%;
+}
+
+.inline-prompt-msg-assistant {
+  color: var(--text-1);
+}
+
+/* Typing indicator */
+.inline-prompt-typing {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+}
+
+.inline-prompt-typing span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-4);
+  animation: inlineTypingBounce 1.2s ease-in-out infinite;
+}
+
+.inline-prompt-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.inline-prompt-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes inlineTypingBounce {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Input row */
+.inline-prompt-input-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  animation: fadeInUp 150ms ease-out;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
 }
 
 .inline-prompt-icon {
@@ -6808,19 +6899,205 @@ button.ghost:focus-visible {
   align-items: center;
 }
 
-.inline-prompt input {
+.inline-prompt-input-row input {
   width: 100%;
   border: none;
   outline: none;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-1);
   background: transparent;
   padding: 6px 4px;
   font-family: inherit;
 }
 
-.inline-prompt input::placeholder {
+.inline-prompt-input-row input::placeholder {
   color: var(--text-4);
+}
+
+.inline-prompt-input-row input:disabled {
+  opacity: 0.5;
+}
+
+/* Footer: agent picker + actions */
+.inline-prompt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+}
+
+/* Agent picker */
+.inline-prompt-agent-picker {
+  position: relative;
+}
+
+.inline-prompt-agent-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+
+.inline-prompt-agent-btn:hover {
+  background: var(--surface-inset);
+  border-color: var(--border-strong);
+}
+
+.inline-prompt-agent-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.inline-prompt-agent-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: 4px;
+  z-index: 110;
+  animation: fadeInUp 100ms ease-out;
+}
+
+.inline-prompt-agent-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-2);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  gap: 8px;
+}
+
+.inline-prompt-agent-option:hover {
+  background: var(--surface-inset);
+}
+
+.inline-prompt-agent-option.active {
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.inline-prompt-agent-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.inline-prompt-agent-option-model {
+  font-size: 10px;
+  color: var(--text-4);
+  font-weight: 400;
+}
+
+/* Action buttons */
+.inline-prompt-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.inline-prompt-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm, 6px);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms ease;
+}
+
+.inline-prompt-btn-accept {
+  background: var(--text-1);
+  color: var(--surface);
+}
+
+.inline-prompt-btn-accept:hover {
+  opacity: 0.85;
+}
+
+.inline-prompt-btn-dismiss {
+  background: transparent;
+  color: var(--text-3);
+}
+
+.inline-prompt-btn-dismiss:hover {
+  background: var(--surface-inset);
+}
+
+/* Markdown in assistant messages */
+.inline-prompt-msg-assistant p {
+  margin: 0 0 6px;
+}
+
+.inline-prompt-msg-assistant p:last-child {
+  margin-bottom: 0;
+}
+
+.inline-prompt-msg-assistant code {
+  font-size: 12px;
+  background: var(--surface-inset);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.inline-prompt-msg-assistant pre {
+  background: var(--surface-inset);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+  overflow-x: auto;
+  margin: 4px 0;
+  font-size: 12px;
+}
+
+.inline-prompt-msg-assistant pre code {
+  background: none;
+  padding: 0;
+}
+
+.inline-prompt-msg-assistant ul,
+.inline-prompt-msg-assistant ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.inline-prompt-msg-assistant strong {
+  font-weight: 600;
+}
+
+.inline-prompt-msg-assistant em {
+  font-style: italic;
+}
+
+.inline-prompt-msg-assistant blockquote {
+  border-left: 2px solid var(--border-strong);
+  margin: 4px 0;
+  padding-left: 10px;
+  color: var(--text-3);
 }
 
 /* ===========================
