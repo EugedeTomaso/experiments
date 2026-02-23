@@ -5,6 +5,7 @@ import { CombinedMentionPicker } from "./CombinedMentionPicker";
 import { ReviewTab } from "./ReviewTab";
 import { VerifyTab } from "./VerifyTab";
 import CritiqueTab from "./CritiqueTab";
+import CreateFileCard from "./CreateFileCard";
 
 function truncate(str, max) {
   if (str.length <= max) return str;
@@ -166,6 +167,9 @@ export function AssistantPanel({
   onDiscussSection,
   onApplyCritiqueMessage,
   onSelectCritique,
+  streamingCreateBlocks,
+  onCreateFile,
+  onCreateFolder,
 }) {
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
@@ -654,7 +658,17 @@ export function AssistantPanel({
                 )}
                 <div className={`agent-msg-content${msg.role === "assistant" ? " chat-content-md" : ""}`}>
                   {msg.role === "assistant" ? (
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <>
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      {msg.createBlocks?.map((block, j) => (
+                        <CreateFileCard
+                          key={j}
+                          block={block}
+                          onCreateFile={onCreateFile}
+                          onCreateFolder={onCreateFolder}
+                        />
+                      ))}
+                    </>
                   ) : (
                     msg.content
                   )}
@@ -694,6 +708,14 @@ export function AssistantPanel({
                 {streamingContent && (
                   <div className="agent-msg-content chat-content-md">
                     <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                    {streamingCreateBlocks?.map((block, j) => (
+                      <CreateFileCard
+                        key={j}
+                        block={block}
+                        onCreateFile={onCreateFile}
+                        onCreateFolder={onCreateFolder}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
