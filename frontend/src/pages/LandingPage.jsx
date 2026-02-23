@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MiveLogo } from "../components/MiveLogo";
-import { ConvergingLines } from "../components/svg/ConvergingLines";
+import ConvergingLines from "../components/svg/ConvergingLines";
 
 /* ── Inline SVG icons ── */
 
@@ -202,7 +202,7 @@ export function LandingPage() {
           <p className="hero-transition">
             What if everything lived in one place — and it understood what you're writing?
           </p>
-          <a href="/register" className="hero-cta">Try Mive</a>
+          <Link to="/register" className="hero-cta">Try Mive</Link>
         </div>
       </section>
 
