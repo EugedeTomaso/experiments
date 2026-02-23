@@ -137,21 +137,6 @@
   background: var(--primary-hover);
 }
 
-.landing-screenshot-frame {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.landing-screenshot-frame img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
 /* Section basics */
 .landing-section {
   padding: 96px 32px;
@@ -179,122 +164,180 @@
   margin-right: auto;
 }
 
-/* Feature showcase — alternating image+text rows */
-.landing-showcase {
-  display: flex;
-  align-items: center;
-  gap: 64px;
-  padding: 80px 32px;
+/* Product reveal — Act 2 */
+.landing-product {
+  padding: 96px 32px;
   max-width: 1100px;
   margin: 0 auto;
 }
 
-.landing-showcase.reverse {
-  flex-direction: row-reverse;
+.product-frame {
+  max-width: 960px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
 }
 
-.landing-showcase-content {
-  flex: 1;
-  min-width: 0;
+.product-mockup {
+  display: grid;
+  grid-template-columns: 48px 1fr 280px;
+  height: 400px;
 }
 
-.landing-showcase-eyebrow {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+/* Mockup — sidebar icon rail */
+.mockup-sidebar {
+  background: var(--canvas);
+  border-right: 1px solid var(--border);
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.mockup-sidebar-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
   color: var(--text-4);
-  margin: 0 0 12px;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.landing-showcase-heading {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+.mockup-sidebar-icon span {
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.mockup-sidebar:hover .mockup-sidebar-icon span {
+  opacity: 1;
+}
+
+.mockup-sidebar-icon.active {
   color: var(--text-1);
-  margin: 0 0 12px;
-  line-height: 1.2;
+  background: var(--surface-inset);
 }
 
-.landing-showcase-desc {
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--text-3);
+.mockup-sidebar-icon svg {
+  flex-shrink: 0;
+}
+
+/* Mockup — editor */
+.mockup-editor {
+  background: var(--surface);
+  padding: 32px 40px;
+  overflow: hidden;
+}
+
+.mockup-editor-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
   margin: 0 0 20px;
 }
 
-.landing-showcase-detail {
-  font-size: 13px;
-  line-height: 1.6;
+.mockup-editor-body {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-2);
+}
+
+.mockup-editor-body p {
+  margin: 0 0 14px;
+}
+
+.mockup-editor-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Mockup — assistant panel */
+.mockup-assistant {
+  background: var(--canvas);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mockup-assistant-header {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-4);
-  margin: 0;
-  padding-left: 16px;
-  border-left: 2px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
 }
 
-.landing-showcase-media {
-  flex: 1.2;
-  min-width: 0;
+.mockup-assistant-messages {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
 }
 
-.landing-showcase-media .landing-screenshot-frame {
-  border-radius: 10px;
+.mockup-msg {
+  font-size: 12px;
+  line-height: 1.55;
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 
-/* Separator */
-.landing-divider {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 32px;
+.mockup-msg-user {
+  background: var(--surface-inset);
+  color: var(--text-2);
+  align-self: flex-end;
+  max-width: 90%;
 }
 
-.landing-divider-line {
-  height: 1px;
-  background: var(--border);
-}
-
-/* Small features grid */
-.landing-features-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 32px;
-  padding-top: 0;
-}
-
-.landing-feature-card {
-  padding: 24px;
+.mockup-msg-ai {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  text-align: left;
+  color: var(--text-2);
+  max-width: 95%;
 }
 
-.landing-feature-card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
-  background: var(--canvas);
-  border: 1px solid var(--border);
+/* Product points */
+.product-points {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  color: var(--text-3);
-  margin-bottom: 16px;
+  gap: 48px;
+  max-width: 560px;
+  margin: 80px auto 0;
 }
 
-.landing-feature-card-title {
-  font-size: 14px;
-  font-weight: 600;
+.product-point {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.product-point h3 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   color: var(--text-1);
-  margin: 0 0 6px;
-  letter-spacing: -0.01em;
+  margin: 0 0 8px;
 }
 
-.landing-feature-card-desc {
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-3);
+.product-point p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-2);
   margin: 0;
+  max-width: 440px;
 }
 
 /* Pricing */
@@ -943,24 +986,6 @@
 
 /* Responsive */
 @media (max-width: 900px) {
-  .landing-showcase {
-    flex-direction: column;
-    gap: 40px;
-    padding: 48px 20px;
-  }
-
-  .landing-showcase.reverse {
-    flex-direction: column;
-  }
-
-  .landing-showcase-content {
-    text-align: center;
-  }
-
-  .landing-showcase-detail {
-    text-align: left;
-  }
-
   .demo-sidebar {
     display: none;
   }
@@ -977,11 +1002,6 @@
 @media (max-width: 768px) {
   .landing-section {
     padding: 56px 20px;
-  }
-
-  .landing-features-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
   }
 
   .landing-pricing {
@@ -1007,10 +1027,6 @@
     font-size: 15px;
   }
 
-  .landing-showcase-heading {
-    font-size: 24px;
-  }
-
   .landing-cta-heading {
     font-size: 26px;
   }
@@ -1026,5 +1042,38 @@
   .demo-tab {
     padding: 6px 14px;
     font-size: 12px;
+  }
+
+  /* Product mockup — mobile: editor only */
+  .landing-product {
+    padding: 64px 20px;
+  }
+
+  .product-mockup {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .mockup-sidebar,
+  .mockup-assistant {
+    display: none;
+  }
+
+  .mockup-editor {
+    padding: 24px 20px;
+    min-height: 240px;
+  }
+
+  .product-points {
+    margin-top: 48px;
+    gap: 36px;
+  }
+
+  .product-point h3 {
+    font-size: 20px;
+  }
+
+  .product-point p {
+    font-size: 15px;
   }
 }

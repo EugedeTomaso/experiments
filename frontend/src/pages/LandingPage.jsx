@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MiveLogo } from "../components/MiveLogo";
 import ConvergingLines from "../components/svg/ConvergingLines";
+import ConnectorLines from "../components/svg/ConnectorLines";
 
 /* ── Inline SVG icons ── */
 
@@ -9,60 +10,6 @@ function IconCheck() {
   return (
     <svg className="landing-price-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 6L9 17l-5-5" />
-    </svg>
-  );
-}
-
-function IconFolder() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-    </svg>
-  );
-}
-
-function IconHistory() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-function IconDownload() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function IconUsers() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 00-3-3.87" />
-      <path d="M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  );
-}
-
-function IconSlash() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="7" y1="20" x2="17" y2="4" />
-    </svg>
-  );
-}
-
-function IconZap() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
   );
 }
@@ -75,41 +22,6 @@ function IconArrowRight() {
     </svg>
   );
 }
-
-/* ── Data ── */
-
-const SMALL_FEATURES = [
-  {
-    icon: IconFolder,
-    title: "Project structure",
-    desc: "Hierarchical trees with folders, documents, and nested outlines. Drag to reorganize.",
-  },
-  {
-    icon: IconHistory,
-    title: "Version history",
-    desc: "Every save is a snapshot. Browse, compare, and restore any previous version.",
-  },
-  {
-    icon: IconDownload,
-    title: "Export anywhere",
-    desc: "One-click export to PDF, DOCX, or EPUB. Publish directly to platforms.",
-  },
-  {
-    icon: IconZap,
-    title: "Smart agents",
-    desc: "Create custom AI personas — a strict editor, a creative partner, a researcher. Switch with @mentions.",
-  },
-  {
-    icon: IconUsers,
-    title: "Real-time collaboration",
-    desc: "Write together with live cursors, presence indicators, and shared conversations.",
-  },
-  {
-    icon: IconSlash,
-    title: "Slash commands",
-    desc: "Type / to insert headings, lists, code blocks, dividers — keyboard-first workflow.",
-  },
-];
 
 const PLANS = [
   {
@@ -150,6 +62,8 @@ const PLANS = [
 export function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const animateRefs = useRef([]);
+  const pointsRef = useRef(null);
+  const [pointsVisible, setPointsVisible] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -169,6 +83,15 @@ export function LandingPage() {
       { threshold: 0.08 }
     );
     animateRefs.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setPointsVisible(true); },
+      { threshold: 0.3 }
+    );
+    if (pointsRef.current) observer.observe(pointsRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -206,124 +129,103 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Showcase 1: AI Assistant ── */}
-      <div className="landing-showcase landing-animate" ref={addRef}>
-        <div className="landing-showcase-content">
-          <div className="landing-showcase-eyebrow">AI Assistant</div>
-          <h2 className="landing-showcase-heading">
-            A thinking partner. Not a chatbot.
-          </h2>
-          <p className="landing-showcase-desc">
-            The assistant doesn't just see your current paragraph — it reads your brief,
-            your documents, and your structure. Ask it to brainstorm, rewrite, expand,
-            or critique. It understands the full picture.
-          </p>
-          <p className="landing-showcase-detail">
-            Every conversation is saved per document. Come back tomorrow and your chat
-            is still there. Start new threads for different topics.
-          </p>
-        </div>
-        <div className="landing-showcase-media">
-          <div className="landing-screenshot-frame">
-            <img
-              src="/screenshots/chat-assistant.png"
-              alt="AI chat assistant panel alongside the editor"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Showcase 2: Review & Critique ── */}
-      <div className="landing-showcase reverse landing-animate" ref={addRef}>
-        <div className="landing-showcase-content">
-          <div className="landing-showcase-eyebrow">Review & Critique</div>
-          <h2 className="landing-showcase-heading">
-            Honest feedback. Anytime.
-          </h2>
-          <p className="landing-showcase-desc">
-            Run targeted reviews on grammar, style, or clarity — or let the AI scan
-            everything at once. Each suggestion appears as a card you can accept,
-            dismiss, or discuss.
-          </p>
-          <p className="landing-showcase-detail">
-            Click a suggestion to highlight the relevant text in context.
-            Reply to discuss alternatives with the AI. Your draft gets sharper with
-            every pass.
-          </p>
-        </div>
-        <div className="landing-showcase-media">
-          <div className="landing-screenshot-frame">
-            <img
-              src="/screenshots/ai-review.png"
-              alt="AI review interface with inline suggestions"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Showcase 3: Smart Agents ── */}
-      <div className="landing-showcase landing-animate" ref={addRef}>
-        <div className="landing-showcase-content">
-          <div className="landing-showcase-eyebrow">Smart Agents</div>
-          <h2 className="landing-showcase-heading">
-            Your team of AI specialists.
-          </h2>
-          <p className="landing-showcase-desc">
-            Create custom AI personas — a strict editor, a creative writing coach,
-            a fact-checking researcher. Each agent has its own voice, system prompt,
-            and model configuration. Switch between them with @mentions.
-          </p>
-          <p className="landing-showcase-detail">
-            Agents respond from their unique perspective. Ask your editor to tighten
-            prose, then ask your coach to brainstorm alternatives — all in the same
-            conversation.
-          </p>
-        </div>
-        <div className="landing-showcase-media">
-          <div className="landing-screenshot-frame">
-            <img
-              src="/screenshots/smart-agents.png"
-              alt="Agent configuration panel with name, voice, and engine settings"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Divider ── */}
-      <div className="landing-divider">
-        <div className="landing-divider-line" />
-      </div>
-
-      {/* ── Small features grid ── */}
-      <section className="landing-section landing-animate" ref={addRef} id="features">
-        <h2 className="landing-section-heading">Everything a writer needs.</h2>
-        <p className="landing-section-sub">
-          The details that make the difference between a tool and a studio.
-        </p>
-        <div className="landing-features-grid">
-          {SMALL_FEATURES.map((f, i) => (
-            <div
-              key={f.title}
-              className={`landing-feature-card landing-animate landing-animate-delay-${(i % 3) + 1}`}
-              ref={addRef}
-            >
-              <div className="landing-feature-card-icon">
-                <f.icon />
+      {/* ── Act 2: Product Reveal ── */}
+      <section className="landing-product landing-animate" ref={addRef}>
+        <div className="product-frame">
+          <div className="product-mockup">
+            {/* Sidebar — collapsed icon rail */}
+            <div className="mockup-sidebar">
+              <div className="mockup-sidebar-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                </svg>
+                <span>Research</span>
               </div>
-              <h3 className="landing-feature-card-title">{f.title}</h3>
-              <p className="landing-feature-card-desc">{f.desc}</p>
+              <div className="mockup-sidebar-icon active">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                <span>Chapter 3</span>
+              </div>
+              <div className="mockup-sidebar-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span>Outline</span>
+              </div>
+              <div className="mockup-sidebar-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span>Notes</span>
+              </div>
+              <div className="mockup-sidebar-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <span>Search</span>
+              </div>
             </div>
-          ))}
+
+            {/* Editor — real text content */}
+            <div className="mockup-editor">
+              <h3 className="mockup-editor-title">The Limits of Attention</h3>
+              <div className="mockup-editor-body">
+                <p>
+                  We treat focus as a resource to be optimized, but the metaphor is wrong.
+                  Attention is not a battery. It is a lens — and what matters is not how long
+                  you hold it, but what you choose to aim it at.
+                </p>
+                <p>
+                  The most productive writers don't write more. They decide faster what not to
+                  write. They prune early, restructure often, and trust that clarity comes from
+                  revision, not from first drafts.
+                </p>
+              </div>
+            </div>
+
+            {/* Assistant — chat bubbles */}
+            <div className="mockup-assistant">
+              <div className="mockup-assistant-header">Assistant</div>
+              <div className="mockup-assistant-messages">
+                <div className="mockup-msg mockup-msg-user">
+                  Is the lens metaphor too abstract for an opening?
+                </div>
+                <div className="mockup-msg mockup-msg-ai">
+                  It works — but ground it faster. Consider adding a concrete example
+                  right after "aim it at." A reader choosing between two tabs, a writer
+                  staring at an outline. Something physical.
+                </div>
+                <div className="mockup-msg mockup-msg-user">
+                  Good call. And the second paragraph?
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="product-points" ref={pointsRef}>
+          <ConnectorLines visible={pointsVisible} />
+          <div className="product-point landing-animate" ref={addRef}>
+            <h3>Structure</h3>
+            <p>Your project isn't a single file. It's a tree of ideas, chapters, sections — all connected.</p>
+          </div>
+          <div className="product-point landing-animate landing-animate-delay-1" ref={addRef}>
+            <h3>Context</h3>
+            <p>The AI has read everything. It doesn't ask you to paste — it already knows.</p>
+          </div>
+          <div className="product-point landing-animate landing-animate-delay-2" ref={addRef}>
+            <h3>Revision</h3>
+            <p>Inline review, comments, versioning. Your thinking has a history.</p>
+          </div>
         </div>
       </section>
-
-      {/* ── Divider ── */}
-      <div className="landing-divider">
-        <div className="landing-divider-line" />
-      </div>
 
       {/* ── Pricing ── */}
       <section className="landing-section landing-animate" ref={addRef} id="pricing">
