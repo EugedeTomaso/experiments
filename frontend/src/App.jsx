@@ -1367,6 +1367,76 @@ export default function App() {
     }
   };
 
+  const handleAICreateFile = async (block) => {
+    if (!activeProjectId) return;
+    // Resolve parent folder
+    let parentId = null;
+    if (block.folder) {
+      const folder = nodes.find(
+        (n) => n.type === "folder" && n.title === block.folder && n.project === activeProjectId
+      );
+      if (folder) parentId = folder.id;
+    }
+    if (!parentId && activeNode?.type === "folder") {
+      parentId = activeNode.id;
+    } else if (!parentId && activeNode?.parent) {
+      parentId = activeNode.parent;
+    }
+
+    const node = await api.createNode({
+      project: activeProjectId,
+      parent: parentId,
+      type: "file",
+      title: block.title,
+      order: getNextOrder(parentId),
+      content_md: block.content || "",
+    });
+    setNodes((prev) => [...prev, node]);
+    setActiveNodeId(String(node.id));
+    return node;
+  };
+
+  const handleAICreateFolder = async (block) => {
+    if (!activeProjectId) return;
+    let parentId = null;
+    if (activeNode?.type === "folder") {
+      parentId = activeNode.id;
+    } else if (activeNode?.parent) {
+      parentId = activeNode.parent;
+    }
+
+    // Create the folder first
+    const folder = await api.createNode({
+      project: activeProjectId,
+      parent: parentId,
+      type: "folder",
+      title: block.title,
+      order: getNextOrder(parentId),
+      content_md: "",
+    });
+    setNodes((prev) => [...prev, folder]);
+
+    // Create files inside the folder
+    let firstFileId = null;
+    for (let i = 0; i < block.files.length; i++) {
+      const f = block.files[i];
+      const fileNode = await api.createNode({
+        project: activeProjectId,
+        parent: folder.id,
+        type: "file",
+        title: f.title,
+        order: i,
+        content_md: f.content || "",
+      });
+      setNodes((prev) => [...prev, fileNode]);
+      if (i === 0) firstFileId = fileNode.id;
+    }
+
+    // Navigate to first file
+    if (firstFileId) setActiveNodeId(String(firstFileId));
+    return folder;
+  };
+
   const handleRenameNode = async (nodeId, newTitle) => {
     if (!newTitle.trim()) return;
     const updated = await api.updateNode(nodeId, { title: newTitle.trim() });
@@ -3453,6 +3523,8 @@ Rules for memory suggestions:
           messages={chatMessages}
           streamingContent={streamingContent}
           streamingCreateBlocks={streamingCreateBlocks}
+          onCreateFile={handleAICreateFile}
+          onCreateFolder={handleAICreateFolder}
           currentInput={chatInput}
           onInputChange={setChatInput}
           onSend={handleSendMessage}
