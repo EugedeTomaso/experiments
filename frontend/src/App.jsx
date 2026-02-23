@@ -246,6 +246,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
+  const [streamingCreateBlocks, setStreamingCreateBlocks] = useState([]);
   const [streamingNodeIds, setStreamingNodeIds] = useState(new Set());
   const [isEditingDocument, setIsEditingDocument] = useState(false);
   const [diffVisible, setDiffVisible] = useState(false);
@@ -2129,11 +2130,13 @@ Rules for memory suggestions:
               .catch(() => {});
           }
           assistantContent = finalState.chatContent || "I've updated the document.";
-          assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName };
+          const finalCreateBlocks = finalState.createBlocks || [];
+          assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
         } else {
           assistantContent = fullContent;
+          const finalCreateBlocks = finalState.createBlocks || [];
           if (fullContent) {
-            assistantMsg = { role: "assistant", content: fullContent, routedAgentId, routedAgentName };
+            assistantMsg = { role: "assistant", content: fullContent, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
           }
         }
 
@@ -2156,6 +2159,7 @@ Rules for memory suggestions:
         if (isCurrentlyViewed()) {
           if (assistantMsg) setChatMessages((prev) => [...prev, assistantMsg]);
           setStreamingContent("");
+          setStreamingCreateBlocks([]);
           setIsEditingDocument(false);
           if (finalState.memorySuggestion) {
             setPendingMemorySuggestion(finalState.memorySuggestion);
@@ -2224,11 +2228,14 @@ Rules for memory suggestions:
                 if (isCurrentlyViewed()) {
                   setIsEditingDocument(true);
                   setStreamingContent(state.chatContent || "");
+                  setStreamingCreateBlocks(state.createBlocks || []);
                 }
               } else if (state.mode === "chat") {
-                session.streamingContent = fullContent;
+                session.streamingContent = state.chatContent || fullContent;
+                session.streamingCreateBlocks = state.createBlocks || [];
                 if (isCurrentlyViewed()) {
-                  setStreamingContent(fullContent);
+                  setStreamingContent(state.chatContent || fullContent);
+                  setStreamingCreateBlocks(state.createBlocks || []);
                 }
               }
               // mode === "pending": don't update streaming content yet
@@ -2257,6 +2264,7 @@ Rules for memory suggestions:
             setChatMessages((prev) => [...prev, { role: "assistant", content: partial }]);
           }
           setStreamingContent("");
+          setStreamingCreateBlocks([]);
           setIsEditingDocument(false);
         }
       } else {
@@ -2271,6 +2279,7 @@ Rules for memory suggestions:
             { role: "assistant", content: "Error: " + errorText },
           ]);
           setStreamingContent("");
+          setStreamingCreateBlocks([]);
           setIsEditingDocument(false);
         }
       }
@@ -3443,6 +3452,7 @@ Rules for memory suggestions:
           onClose={() => setIsAssistantOpen(false)}
           messages={chatMessages}
           streamingContent={streamingContent}
+          streamingCreateBlocks={streamingCreateBlocks}
           currentInput={chatInput}
           onInputChange={setChatInput}
           onSend={handleSendMessage}
