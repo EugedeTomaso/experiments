@@ -4,59 +4,6 @@ import { MiveLogo } from "../components/MiveLogo";
 import ConvergingLines from "../components/svg/ConvergingLines";
 import ConnectorLines from "../components/svg/ConnectorLines";
 
-/* ── Inline SVG icons ── */
-
-function IconCheck() {
-  return (
-    <svg className="landing-price-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  );
-}
-
-function IconArrowRight() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="5" y1="12" x2="19" y2="12" />
-      <polyline points="12 5 19 12 12 19" />
-    </svg>
-  );
-}
-
-const PLANS = [
-  {
-    name: "Free",
-    price: "$0",
-    period: "",
-    desc: "For personal writing projects.",
-    features: ["3 projects", "Basic AI assistant", "Community support", "Export to PDF & DOCX"],
-    cta: "Get started",
-    ctaStyle: "ghost",
-    href: "/register",
-  },
-  {
-    name: "Pro",
-    price: "$12",
-    period: "/mo",
-    desc: "For serious writers who need more.",
-    features: ["Unlimited projects", "Advanced AI models", "Priority support", "Version history", "Publishing integrations"],
-    cta: "Start free trial",
-    ctaStyle: "primary",
-    featured: true,
-    href: "/register",
-  },
-  {
-    name: "Team",
-    price: "$24",
-    period: "/user/mo",
-    desc: "For writing teams and studios.",
-    features: ["Everything in Pro", "Real-time collaboration", "Shared AI agents", "Team management", "Custom workflows"],
-    cta: "Contact us",
-    ctaStyle: "ghost",
-    href: "/register",
-  },
-];
-
 /* ── Component ── */
 
 export function LandingPage() {
@@ -227,84 +174,29 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Pricing ── */}
-      <section className="landing-section landing-animate" ref={addRef} id="pricing">
-        <h2 className="landing-section-heading">Simple pricing</h2>
-        <p className="landing-section-sub">Start free. Upgrade when you need more.</p>
-        <div className="landing-pricing">
-          {PLANS.map((plan) => (
-            <div key={plan.name} className={`landing-price-card${plan.featured ? " featured" : ""}`}>
-              {plan.featured && <div className="landing-price-badge">Popular</div>}
-              <div className="landing-price-name">{plan.name}</div>
-              <div className="landing-price-amount">
-                {plan.price}
-                {plan.period && <span>{plan.period}</span>}
-              </div>
-              <p className="landing-price-desc">{plan.desc}</p>
-              <ul className="landing-price-features">
-                {plan.features.map((feat) => (
-                  <li key={feat}>
-                    <IconCheck />
-                    {feat}
-                  </li>
-                ))}
-              </ul>
-              <Link to={plan.href} className={`landing-price-cta ${plan.ctaStyle}`}>
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
-        </div>
+      {/* ── Act 3: Close ── */}
+      <section className="landing-close landing-animate" ref={addRef}>
+        <h2 className="close-heading">
+          Word processors were designed for printers.<br />
+          <span>This one was designed for thinking.</span>
+        </h2>
+        <Link to="/register" className="hero-cta">Start for free</Link>
       </section>
-
-      {/* ── Final CTA ── */}
-      <div className="landing-cta-band landing-animate" ref={addRef}>
-        <h2 className="landing-cta-heading">Your studio is waiting.</h2>
-        <p className="landing-cta-sub">
-          Join writers who think deeper and write better with Mive.
-        </p>
-        <Link to="/register" className="landing-hero-cta">
-          Get started — it's free
-          <IconArrowRight />
-        </Link>
-      </div>
 
       {/* ── Footer ── */}
       <footer className="landing-footer">
-        <div className="landing-footer-top">
-          <div>
-            <div className="landing-footer-brand">
-              <MiveLogo size={20} />
-              Mive
-            </div>
-            <p className="landing-footer-tagline">Think deeper. Write better.</p>
+        <div className="landing-footer-inner">
+          <div className="landing-footer-brand">
+            <MiveLogo size={20} />
+            Mive
           </div>
-          <div className="landing-footer-columns">
-            <div>
-              <div className="landing-footer-col-title">Product</div>
-              <ul className="landing-footer-col-links">
-                <li><a href="#features">Features</a></li>
-                <li><a href="#pricing">Pricing</a></li>
-              </ul>
-            </div>
-            <div>
-              <div className="landing-footer-col-title">Company</div>
-              <ul className="landing-footer-col-links">
-                <li><a href="#features">About</a></li>
-                <li><a href="#features">Blog</a></li>
-              </ul>
-            </div>
-            <div>
-              <div className="landing-footer-col-title">Legal</div>
-              <ul className="landing-footer-col-links">
-                <li><a href="#features">Privacy</a></li>
-                <li><a href="#features">Terms</a></li>
-              </ul>
-            </div>
+          <div className="landing-footer-links">
+            <Link to="/login">Sign in</Link>
+            <Link to="/register">Get started</Link>
           </div>
         </div>
         <div className="landing-footer-bottom">
-          &copy; {new Date().getFullYear()} Mive. All rights reserved.
+          &copy; {new Date().getFullYear()} Mive
         </div>
       </footer>
     </div>
