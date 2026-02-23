@@ -10432,6 +10432,10 @@ button.ghost:focus-visible {
 .create-file-card-btn:hover {
   opacity: 0.85;
 }
+.create-file-card-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .create-file-card-status {
   font-size: 12px;

@@ -206,6 +206,8 @@ function stripCreateBlocks(text) {
   return result.trim();
 }
 
+export { parseCreateBlocks, stripCreateBlocks };
+
 export function createStreamParser() {
   let fullText = "";
 

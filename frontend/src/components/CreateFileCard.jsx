@@ -60,7 +60,7 @@ export default function CreateFileCard({ block, onCreateFile, onCreateFolder }) 
         )}
         <div className="create-file-card-actions">
           {status === "pending" && (
-            <button className="create-file-card-btn" onClick={handleCreate}>
+            <button className="create-file-card-btn" onClick={handleCreate} disabled={!(block.complete && block.files.every(f => f.complete))}>
               Create all
             </button>
           )}
@@ -89,7 +89,7 @@ export default function CreateFileCard({ block, onCreateFile, onCreateFolder }) 
       <div className="create-file-card-meta">{words} words</div>
       <div className="create-file-card-actions">
         {status === "pending" && (
-          <button className="create-file-card-btn" onClick={handleCreate}>
+          <button className="create-file-card-btn" onClick={handleCreate} disabled={!block.complete}>
             Create & open
           </button>
         )}

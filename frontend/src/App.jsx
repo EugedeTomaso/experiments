@@ -23,7 +23,7 @@ import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
 import { SpotlightTour } from "./components/SpotlightTour";
 import { HelpModal } from "./components/HelpModal";
 import { useComments } from "./hooks/useComments";
-import { createStreamParser } from "./streamParser";
+import { createStreamParser, parseCreateBlocks, stripCreateBlocks } from "./streamParser";
 import { buildSnippet, wordCount } from "./utils";
 import { createCollabSession } from "./collabPlugin";
 import PresenceIndicator from "./components/PresenceIndicator";
@@ -1709,12 +1709,25 @@ export default function App() {
     if (conv) setAgentMode(conv.agent_mode || "auto");
     try {
       const msgs = await api.listMessages(convId);
-      setChatMessages(msgs.map((m) => ({
-        role: m.role,
-        content: m.content,
-        routedAgentId: m.routed_agent || null,
-        routedAgentName: m.routed_agent_name || null,
-      })));
+      setChatMessages(msgs.map((m) => {
+        if (m.role === "assistant") {
+          const blocks = parseCreateBlocks(m.content);
+          const stripped = stripCreateBlocks(m.content);
+          return {
+            role: m.role,
+            content: stripped || m.content,
+            routedAgentId: m.routed_agent || null,
+            routedAgentName: m.routed_agent_name || null,
+            createBlocks: blocks.length > 0 ? blocks : undefined,
+          };
+        }
+        return {
+          role: m.role,
+          content: m.content,
+          routedAgentId: m.routed_agent || null,
+          routedAgentName: m.routed_agent_name || null,
+        };
+      }));
     } catch {
       setChatMessages([]);
     }
@@ -2203,10 +2216,10 @@ Rules for memory suggestions:
           const finalCreateBlocks = finalState.createBlocks || [];
           assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
         } else {
-          assistantContent = fullContent;
+          assistantContent = finalState.chatContent || fullContent;
           const finalCreateBlocks = finalState.createBlocks || [];
           if (fullContent) {
-            assistantMsg = { role: "assistant", content: fullContent, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
+            assistantMsg = { role: "assistant", content: assistantContent, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
           }
         }
 
