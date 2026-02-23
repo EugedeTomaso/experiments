@@ -1,768 +1,212 @@
 import { useState, useRef, useEffect } from "react";
-import { api, getAuthHeader } from "../api";
+import { getAuthHeader } from "../api";
 import { GhostTextarea } from "./GhostTextarea";
 
-// Template prefills — clicking a template pre-fills the description textarea
-const TEMPLATE_PREFILLS = {
-  product: "A product brief for ",
-  marketing: "Marketing copy for ",
-  article: "An article about ",
-  newsletter: "A newsletter about ",
-  academic: "A research paper on ",
-  legal: "A legal document for ",
-  novel: "A novel about ",
-  "short-story": "A short story about ",
-  screenplay: "A screenplay about ",
-  "tv-series": "A TV series about ",
-  youtube: "A video about ",
-  podcast: "A podcast episode about ",
-  "social-media": "Social media content about ",
-};
+/* ── Shapes ── */
 
-const TEMPLATE_LABELS = [
-  { id: "product", label: "Product / Work" },
-  { id: "marketing", label: "Marketing" },
-  { id: "article", label: "Article / Essay" },
-  { id: "newsletter", label: "Newsletter" },
-  { id: "academic", label: "Academic" },
-  { id: "legal", label: "Legal" },
-  { id: "novel", label: "Novel" },
-  { id: "short-story", label: "Short Story" },
-  { id: "screenplay", label: "Screenplay" },
-  { id: "tv-series", label: "TV Series" },
-  { id: "youtube", label: "YouTube / Video" },
-  { id: "podcast", label: "Podcast" },
-  { id: "social-media", label: "Social Media" },
+const PROJECT_SHAPES = [
+  {
+    id: 'document',
+    name: 'Document',
+    description: 'A single text, start to finish',
+    examples: 'Essays, specs, memos, posts',
+    hasStructure: false,
+  },
+  {
+    id: 'project',
+    name: 'Project',
+    description: 'Multiple documents organized in a tree',
+    examples: 'Books, documentation, courses',
+    hasStructure: true,
+  },
+  {
+    id: 'research',
+    name: 'Research',
+    description: 'Collect, analyze, synthesize sources',
+    examples: 'Papers, investigations, analysis',
+    hasStructure: true,
+  },
+  {
+    id: 'script',
+    name: 'Script',
+    description: 'Structured format with scenes and acts',
+    examples: 'Screenplays, podcasts, videos',
+    hasStructure: false,
+  },
+  {
+    id: 'freeform',
+    name: 'Freeform',
+    description: 'Blank space, no predefined structure',
+    examples: 'Brainstorms, notes, journals',
+    hasStructure: false,
+  },
 ];
 
-// --- Data constants (used by structure generation prompts) ---
-
-const EXTENSION_SIZES = {
-  flash: "small", "short-video": "small", blog: "small", "academic-essay": "small",
-  short: "small", "short-film": "small", brief: "small",
-  novella: "medium", standard: "medium", feature: "medium", limited: "medium",
-  "standard-video": "medium", essay: "medium", paper: "medium", novelette: "medium",
-  season: "medium", "full-product": "medium", monograph: "medium",
-  saga: "large", series: "large", "multi-season": "large",
-  "long-video": "large", longform: "large", thesis: "large", "research-project": "large",
-  "single-issue": "small", digest: "small", "newsletter-series": "medium",
-  "solo-episode": "small", interview: "small", "podcast-series": "medium",
-  thread: "small", campaign: "medium", "content-calendar": "medium",
-  "landing-page": "small", "campaign-brief": "small", "brand-guidelines": "medium",
-  contract: "medium", "legal-brief": "small", "policy-doc": "medium",
-};
-
-const EXTENSION_PROMPTS = {
-  // Novel
-  novella: "Flat chapter list — no parts or sections. A novella is compact, typically 5-8 chapters. Include an outline and character notes at the top.",
-  standard: "Use a Part I / Part II / Part III structure. Each part is a folder containing 3-5 chapters. Include planning documents (outline, characters, world building) before the parts.",
-  saga: "Structure as multiple books (Book 1, Book 2, Book 3). Each book is a folder with its own outline and chapters. Include a series bible, world building, and characters at the top level.",
-  // Short Story
-  flash: "Minimal — just a single Draft document. Flash fiction is one scene, no outline needed.",
-  short: "Keep it simple: a Notes file for planning and a Draft file. No folders.",
-  novelette: "Use a part or scene-based structure with 2-3 parts as folders, each containing 2-3 scenes. Include an outline and character notes.",
-  // Screenplay
-  "short-film": "Flat structure — logline, characters, and a single script document. No act folders. Short films don't need formal act breaks.",
-  feature: "Three-act structure. Put the script in a folder with Act I, Act II, and Act III as separate documents. Include logline/synopsis, treatment, and characters.",
-  series: "Structure around a pilot episode. Include a show bible, characters, and season overview. Create folders for the Pilot and 2-3 subsequent episode outlines.",
-  // TV Series
-  limited: "Create a folder per episode (4-6 episodes). Each folder has an outline document. Include show bible, characters, and season arc at the top.",
-  season: "Single season with 8-10 episodes. Group episodes under a Season 1 folder. Include show bible, characters, and season arc.",
-  "multi-season": "Multiple season folders (Season 1, 2, 3). Each season has a season arc and episode outlines. Include show bible, characters, and a master arc document.",
-  // YouTube
-  "short-video": "Minimal: a hook/script file and thumbnail notes. Shorts are under 60 seconds — no elaborate structure.",
-  "standard-video": "Three documents: hook & outline, script, and production notes.",
-  "long-video": "Documentary style. Include research/sources, a Script folder with introduction + sections + conclusion, production notes, and thumbnail options.",
-  // Article
-  blog: "Keep it flat: notes and a draft document. Blog posts don't need folders.",
-  essay: "Three documents: research notes, outline, and draft. Essays need a clear thesis plan.",
-  longform: "Create a Draft folder with sections (Introduction, Section 1-4, Conclusion). Include research notes, source list, and outline at the top level.",
-  // Academic
-  "academic-essay": "Simple flat structure: research notes, outline, draft, and references.",
-  paper: "Follow IMRAD structure: abstract, introduction, literature review, methodology, results, discussion, conclusion, and references. All as separate flat documents.",
-  monograph: "Chapter-based structure. Each chapter is a folder containing a draft document. Include abstract, preface, conclusion, bibliography, and appendices.",
-  thesis: "Formal thesis structure. Literature review as a folder with sub-topics. Results as a folder with data analysis and findings. Include abstract, methodology, discussion, conclusion, references, and appendices.",
-  // Product
-  brief: "Flat structure: problem statement, proposed solution, requirements, and success metrics.",
-  "full-product": "Organized into Research, Strategy, and Specs folders. Include overview at top and launch plan at bottom.",
-  "research-project": "Include a Data Collection folder (interviews, surveys, competitive analysis) and a Synthesis folder (findings, recommendations). Add research plan, methodology, and final report.",
-  // Newsletter
-  "single-issue": "Flat structure: a single issue draft and notes document. Keep it simple — one issue at a time.",
-  "newsletter-series": "Create an Issues folder with Issue 1, Issue 2, Issue 3 as documents. Include a series overview and subscriber notes at the top level.",
-  digest: "Flat structure: a curated links document and a commentary draft. Digests are compact — no folders needed.",
-  // Podcast
-  "solo-episode": "Three documents: episode outline, script, and show notes. Solo episodes need a clear monologue structure.",
-  interview: "Include guest research, question list, episode outline, and show notes. Keep the interview prep front and center.",
-  "podcast-series": "Create an Episodes folder with Episode 1-3 outlines. Include a series overview, recurring segments doc, and show notes template at the top level.",
-  // Social Media
-  thread: "Flat structure: a thread outline and draft document. Threads are sequential — no folders.",
-  campaign: "Create a Content folder with platform-specific drafts (Twitter, LinkedIn, Instagram). Include a campaign brief and content calendar at the top level.",
-  "content-calendar": "Create weekly folders (Week 1, Week 2, Week 3) each containing post drafts. Include a content strategy and themes document at the top level.",
-  // Marketing
-  "landing-page": "Flat structure: hero copy, body sections, and CTA variations. Landing pages are single-page — no complex hierarchy.",
-  "campaign-brief": "Include campaign goals, target audience, channel strategy, creative brief, and timeline. All flat documents.",
-  "brand-guidelines": "Organized into Voice & Tone, Visual Identity, and Messaging folders. Include a brand overview at the top and usage examples at the bottom.",
-  // Legal
-  contract: "Include a terms overview, main contract draft, schedules/exhibits folder, and revision notes.",
-  "legal-brief": "Flat structure: case summary, arguments, supporting citations, and conclusion. Legal briefs follow a strict linear format.",
-  "policy-doc": "Include a policy overview, main policy draft, definitions document, and compliance notes.",
-};
-
 const FALLBACK_STRUCTURES = {
-  // --- Novel ---
-  "novel:novella": {
-    suggestedName: "Untitled Novella",
-    structure: [
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Chapter 1" },
-      { type: "file", title: "Chapter 2" },
-      { type: "file", title: "Chapter 3" },
-      { type: "file", title: "Chapter 4" },
-      { type: "file", title: "Chapter 5" },
-    ],
-  },
-  novel: {
-    suggestedName: "Untitled Novel",
-    structure: [
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "World Building" },
-      { type: "folder", title: "Part I", children: [
-        { type: "file", title: "Chapter 1" },
-        { type: "file", title: "Chapter 2" },
-        { type: "file", title: "Chapter 3" },
-      ]},
-      { type: "folder", title: "Part II", children: [
-        { type: "file", title: "Chapter 4" },
-        { type: "file", title: "Chapter 5" },
-      ]},
-    ],
-  },
-  "novel:standard": {
-    suggestedName: "Untitled Novel",
-    structure: [
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "World Building" },
-      { type: "folder", title: "Part I", children: [
-        { type: "file", title: "Chapter 1" },
-        { type: "file", title: "Chapter 2" },
-        { type: "file", title: "Chapter 3" },
-      ]},
-      { type: "folder", title: "Part II", children: [
-        { type: "file", title: "Chapter 4" },
-        { type: "file", title: "Chapter 5" },
-      ]},
-    ],
-  },
-  "novel:saga": {
-    suggestedName: "Untitled Saga",
-    structure: [
-      { type: "file", title: "Series Bible" },
-      { type: "file", title: "World Building" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "folder", title: "Book 1", children: [
-        { type: "file", title: "Outline" },
-        { type: "file", title: "Chapter 1" },
-        { type: "file", title: "Chapter 2" },
-        { type: "file", title: "Chapter 3" },
-      ]},
-      { type: "folder", title: "Book 2", children: [
-        { type: "file", title: "Outline" },
-      ]},
-      { type: "folder", title: "Book 3", children: [
-        { type: "file", title: "Outline" },
-      ]},
-    ],
-  },
-  // --- Short Story ---
-  "short-story:flash": {
-    suggestedName: "Untitled Flash Fiction",
-    structure: [
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "short-story": {
-    suggestedName: "Untitled Story",
-    structure: [
-      { type: "file", title: "Notes" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "short-story:short": {
-    suggestedName: "Untitled Story",
-    structure: [
-      { type: "file", title: "Notes" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "short-story:novelette": {
-    suggestedName: "Untitled Novelette",
-    structure: [
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "folder", title: "Part I", children: [
-        { type: "file", title: "Scene 1" },
-        { type: "file", title: "Scene 2" },
-      ]},
-      { type: "folder", title: "Part II", children: [
-        { type: "file", title: "Scene 3" },
-        { type: "file", title: "Scene 4" },
-      ]},
-      { type: "folder", title: "Part III", children: [
-        { type: "file", title: "Scene 5" },
-      ]},
-    ],
-  },
-  // --- Screenplay ---
-  "screenplay:short-film": {
-    suggestedName: "Untitled Short Film",
-    structure: [
-      { type: "file", title: "Logline & Synopsis" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Script" },
-    ],
-  },
-  screenplay: {
-    suggestedName: "Untitled Screenplay",
-    structure: [
-      { type: "file", title: "Logline & Synopsis" },
-      { type: "file", title: "Treatment" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "folder", title: "Script", children: [
-        { type: "file", title: "Act I" },
-        { type: "file", title: "Act II" },
-        { type: "file", title: "Act III" },
-      ]},
-    ],
-  },
-  "screenplay:feature": {
-    suggestedName: "Untitled Screenplay",
-    structure: [
-      { type: "file", title: "Logline & Synopsis" },
-      { type: "file", title: "Treatment" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "folder", title: "Script", children: [
-        { type: "file", title: "Act I" },
-        { type: "file", title: "Act II" },
-        { type: "file", title: "Act III" },
-      ]},
-    ],
-  },
-  "screenplay:series": {
-    suggestedName: "Untitled Series",
-    structure: [
-      { type: "file", title: "Show Bible" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Season Overview" },
-      { type: "folder", title: "Pilot", children: [
-        { type: "file", title: "Outline" },
-        { type: "file", title: "Script" },
-      ]},
-      { type: "folder", title: "Episode 2", children: [
-        { type: "file", title: "Outline" },
-      ]},
-      { type: "folder", title: "Episode 3", children: [
-        { type: "file", title: "Outline" },
-      ]},
-    ],
-  },
-  // --- TV Series ---
-  "tv-series:limited": {
-    suggestedName: "Untitled Limited Series",
-    structure: [
-      { type: "file", title: "Show Bible" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Season Arc" },
-      { type: "folder", title: "Episode 1", children: [
-        { type: "file", title: "Outline" },
-      ]},
-      { type: "folder", title: "Episode 2", children: [
-        { type: "file", title: "Outline" },
-      ]},
-      { type: "folder", title: "Episode 3", children: [
-        { type: "file", title: "Outline" },
-      ]},
-      { type: "folder", title: "Episode 4", children: [
-        { type: "file", title: "Outline" },
-      ]},
-    ],
-  },
-  "tv-series": {
-    suggestedName: "Untitled Series",
-    structure: [
-      { type: "file", title: "Show Bible" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Season Arc" },
-      { type: "folder", title: "Season 1", children: [
-        { type: "file", title: "Pilot Outline" },
-        { type: "file", title: "Episode 2" },
-        { type: "file", title: "Episode 3" },
-      ]},
-    ],
-  },
-  "tv-series:season": {
-    suggestedName: "Untitled Series",
-    structure: [
-      { type: "file", title: "Show Bible" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Season Arc" },
-      { type: "folder", title: "Season 1", children: [
-        { type: "file", title: "Pilot Outline" },
-        { type: "file", title: "Episode 2" },
-        { type: "file", title: "Episode 3" },
-        { type: "file", title: "Episode 4" },
-        { type: "file", title: "Episode 5" },
-        { type: "file", title: "Episode 6" },
-      ]},
-    ],
-  },
-  "tv-series:multi-season": {
-    suggestedName: "Untitled Series",
-    structure: [
-      { type: "file", title: "Show Bible" },
-      { type: "file", title: "Characters", content_md: "## Characters\n\n| Name | Role | Arc | Notes |\n|------|------|-----|-------|\n| | Protagonist | | |\n| | Antagonist | | |\n| | Supporting | | |\n" },
-      { type: "file", title: "Master Arc" },
-      { type: "folder", title: "Season 1", children: [
-        { type: "file", title: "Season Arc" },
-        { type: "file", title: "Pilot Outline" },
-        { type: "file", title: "Episode 2" },
-        { type: "file", title: "Episode 3" },
-      ]},
-      { type: "folder", title: "Season 2", children: [
-        { type: "file", title: "Season Arc" },
-        { type: "file", title: "Episode 1" },
-      ]},
-      { type: "folder", title: "Season 3", children: [
-        { type: "file", title: "Season Arc" },
-      ]},
-    ],
-  },
-  // --- YouTube ---
-  "youtube:short-video": {
-    suggestedName: "Untitled Short",
-    structure: [
-      { type: "file", title: "Hook & Script" },
-      { type: "file", title: "Thumbnail Notes" },
-    ],
-  },
-  youtube: {
-    suggestedName: "Untitled Video",
-    structure: [
-      { type: "file", title: "Hook & Outline" },
-      { type: "file", title: "Script" },
-      { type: "file", title: "Production Notes" },
-    ],
-  },
-  "youtube:standard-video": {
-    suggestedName: "Untitled Video",
-    structure: [
-      { type: "file", title: "Hook & Outline" },
-      { type: "file", title: "Script" },
-      { type: "file", title: "Production Notes" },
-    ],
-  },
-  "youtube:long-video": {
-    suggestedName: "Untitled Documentary",
-    structure: [
-      { type: "file", title: "Research & Sources" },
-      { type: "file", title: "Outline" },
-      { type: "folder", title: "Script", children: [
-        { type: "file", title: "Introduction" },
-        { type: "file", title: "Section 1" },
-        { type: "file", title: "Section 2" },
-        { type: "file", title: "Section 3" },
-        { type: "file", title: "Conclusion" },
-      ]},
-      { type: "file", title: "Production Notes" },
-      { type: "file", title: "Thumbnail & Title Options" },
-    ],
-  },
-  // --- Article ---
-  "article:blog": {
-    suggestedName: "Untitled Blog Post",
-    structure: [
-      { type: "file", title: "Notes" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  article: {
-    suggestedName: "Untitled Article",
-    structure: [
-      { type: "file", title: "Research Notes" },
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "article:essay": {
-    suggestedName: "Untitled Essay",
-    structure: [
-      { type: "file", title: "Research Notes" },
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "article:longform": {
-    suggestedName: "Untitled Feature",
-    structure: [
-      { type: "file", title: "Research Notes" },
-      { type: "file", title: "Source List", content_md: "## Sources\n\n| Source | URL | Key takeaway | Used in |\n|-------|-----|-------------|----------|\n| | | | |\n| | | | |\n" },
-      { type: "file", title: "Outline" },
-      { type: "folder", title: "Draft", children: [
-        { type: "file", title: "Introduction" },
-        { type: "file", title: "Section 1" },
-        { type: "file", title: "Section 2" },
-        { type: "file", title: "Section 3" },
-        { type: "file", title: "Section 4" },
-        { type: "file", title: "Conclusion" },
-      ]},
-    ],
-  },
-  // --- Academic ---
-  "academic:academic-essay": {
-    suggestedName: "Untitled Academic Essay",
-    structure: [
-      { type: "file", title: "Research Notes" },
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Draft" },
-      { type: "file", title: "References", content_md: "## References\n\n| # | Author(s) | Year | Title | Source | Notes |\n|---|-----------|------|-------|--------|-------|\n| 1 | | | | | |\n| 2 | | | | | |\n" },
-    ],
-  },
-  academic: {
-    suggestedName: "Untitled Academic Work",
-    structure: [
-      { type: "file", title: "Research Question" },
-      { type: "file", title: "Literature Review" },
-      { type: "file", title: "Outline" },
-      { type: "file", title: "Draft" },
-      { type: "file", title: "References", content_md: "## References\n\n| # | Author(s) | Year | Title | Source | Notes |\n|---|-----------|------|-------|--------|-------|\n| 1 | | | | | |\n| 2 | | | | | |\n" },
-    ],
-  },
-  "academic:paper": {
-    suggestedName: "Untitled Research Paper",
-    structure: [
-      { type: "file", title: "Abstract" },
-      { type: "file", title: "Introduction" },
-      { type: "file", title: "Literature Review" },
-      { type: "file", title: "Methodology", content_md: "## Methodology\n\n| Aspect | Detail |\n|--------|--------|\n| **Approach** | |\n| **Method** | |\n| **Sample** | |\n| **Data collection** | |\n| **Analysis** | |\n" },
-      { type: "file", title: "Results" },
-      { type: "file", title: "Discussion" },
-      { type: "file", title: "Conclusion" },
-      { type: "file", title: "References", content_md: "## References\n\n| # | Author(s) | Year | Title | Source | Notes |\n|---|-----------|------|-------|--------|-------|\n| 1 | | | | | |\n| 2 | | | | | |\n" },
-    ],
-  },
-  "academic:monograph": {
-    suggestedName: "Untitled Monograph",
-    structure: [
-      { type: "file", title: "Abstract" },
-      { type: "file", title: "Preface" },
-      { type: "folder", title: "Chapter 1: Introduction", children: [
-        { type: "file", title: "Draft" },
-      ]},
-      { type: "folder", title: "Chapter 2: Background", children: [
-        { type: "file", title: "Draft" },
-      ]},
-      { type: "folder", title: "Chapter 3: Analysis", children: [
-        { type: "file", title: "Draft" },
-      ]},
-      { type: "folder", title: "Chapter 4: Discussion", children: [
-        { type: "file", title: "Draft" },
-      ]},
-      { type: "file", title: "Conclusion" },
-      { type: "file", title: "Bibliography", content_md: "## Bibliography\n\n| # | Author(s) | Year | Title | Source | Notes |\n|---|-----------|------|-------|--------|-------|\n| 1 | | | | | |\n| 2 | | | | | |\n" },
-      { type: "file", title: "Appendices" },
-    ],
-  },
-  "academic:thesis": {
-    suggestedName: "Untitled Thesis",
-    structure: [
-      { type: "file", title: "Abstract" },
-      { type: "file", title: "Research Question & Hypothesis" },
-      { type: "folder", title: "Literature Review", children: [
-        { type: "file", title: "Theoretical Framework" },
-        { type: "file", title: "Previous Research" },
-      ]},
-      { type: "file", title: "Methodology", content_md: "## Methodology\n\n| Aspect | Detail |\n|--------|--------|\n| **Approach** | |\n| **Method** | |\n| **Sample** | |\n| **Data collection** | |\n| **Analysis** | |\n" },
-      { type: "folder", title: "Results", children: [
-        { type: "file", title: "Data Analysis" },
-        { type: "file", title: "Findings" },
-      ]},
-      { type: "file", title: "Discussion" },
-      { type: "file", title: "Conclusion" },
-      { type: "file", title: "References", content_md: "## References\n\n| # | Author(s) | Year | Title | Source | Notes |\n|---|-----------|------|-------|--------|-------|\n| 1 | | | | | |\n| 2 | | | | | |\n" },
-      { type: "file", title: "Appendices" },
-    ],
-  },
-  // --- Product ---
-  "product:brief": {
-    suggestedName: "Untitled Brief",
-    structure: [
-      { type: "file", title: "Problem Statement" },
-      { type: "file", title: "Proposed Solution" },
-      { type: "file", title: "Requirements" },
-      { type: "file", title: "Success Metrics", content_md: "## Success Metrics\n\n| Metric | Target | Current | Method |\n|--------|--------|---------|--------|\n| | | | |\n| | | | |\n" },
-    ],
-  },
-  product: {
-    suggestedName: "Untitled Project",
-    structure: [
-      { type: "file", title: "Brief" },
-      { type: "file", title: "Research" },
-      { type: "file", title: "Roadmap", content_md: "## Roadmap\n\n| Phase | Milestone | Status | Target |\n|-------|-----------|--------|--------|\n| Discovery | Research complete | | |\n| Definition | Spec finalized | | |\n| Build | MVP ready | | |\n| Launch | Public release | | |\n" },
-      { type: "file", title: "Specs" },
-    ],
-  },
-  "product:full-product": {
-    suggestedName: "Untitled Product",
-    structure: [
-      { type: "file", title: "Overview", content_md: "## Overview\n\n| | Detail |\n|---|---|\n| **Problem** | |\n| **Solution** | |\n| **Target audience** | |\n| **Success metrics** | |\n\n## Key decisions\n\n| Decision | Status | Date | Notes |\n|----------|--------|------|-------|\n| | | | |\n" },
-      { type: "folder", title: "Research", children: [
-        { type: "file", title: "User Research" },
-        { type: "file", title: "Market Analysis", content_md: "## Market Analysis\n\n### Competitive landscape\n\n| Competitor | Strengths | Weaknesses | Differentiation |\n|------------|-----------|------------|------------------|\n| | | | |\n| | | | |\n\n### Market size\n\n| Segment | TAM | SAM | SOM |\n|---------|-----|-----|-----|\n| | | | |\n" },
-      ]},
-      { type: "folder", title: "Strategy", children: [
-        { type: "file", title: "Vision & Goals" },
-        { type: "file", title: "Roadmap", content_md: "## Roadmap\n\n| Phase | Milestone | Status | Target |\n|-------|-----------|--------|--------|\n| Discovery | Research complete | | |\n| Definition | Spec finalized | | |\n| Build | MVP ready | | |\n| Launch | Public release | | |\n" },
-      ]},
-      { type: "folder", title: "Specs", children: [
-        { type: "file", title: "Feature Spec" },
-        { type: "file", title: "Technical Requirements" },
-      ]},
-      { type: "file", title: "Launch Plan" },
-    ],
-  },
-  "product:research-project": {
-    suggestedName: "Untitled Research Project",
-    structure: [
-      { type: "file", title: "Research Plan" },
-      { type: "file", title: "Methodology", content_md: "## Methodology\n\n| Aspect | Detail |\n|--------|--------|\n| **Approach** | |\n| **Method** | |\n| **Sample** | |\n| **Data collection** | |\n| **Analysis** | |\n" },
-      { type: "folder", title: "Data Collection", children: [
-        { type: "file", title: "Interview Notes" },
-        { type: "file", title: "Survey Results", content_md: "## Survey Results\n\n### Demographics\n\n| Segment | Count | % |\n|---------|-------|----||\n| | | |\n\n### Key findings\n\n| Question | Top response | % | Notes |\n|----------|-------------|---|-------|\n| | | | |\n" },
-        { type: "file", title: "Competitive Analysis", content_md: "## Competitive Analysis\n\n| Product | Category | Pricing | Key features | Gaps |\n|---------|----------|---------|-------------|------|\n| | | | | |\n| | | | | |\n" },
-      ]},
-      { type: "folder", title: "Synthesis", children: [
-        { type: "file", title: "Key Findings" },
-        { type: "file", title: "Recommendations" },
-      ]},
-      { type: "file", title: "Final Report" },
-    ],
-  },
-  // --- Marketing ---
-  "marketing:landing-page": {
-    suggestedName: "Untitled Landing Page",
-    structure: [
-      { type: "file", title: "Hero Copy" },
-      { type: "file", title: "Body Sections" },
-      { type: "file", title: "CTA Variations" },
-    ],
-  },
-  marketing: {
-    suggestedName: "Untitled Marketing Project",
-    structure: [
-      { type: "file", title: "Brief" },
-      { type: "file", title: "Copy Draft" },
-      { type: "file", title: "Assets List" },
-    ],
-  },
-  "marketing:campaign-brief": {
-    suggestedName: "Untitled Campaign Brief",
-    structure: [
-      { type: "file", title: "Campaign Goals" },
-      { type: "file", title: "Target Audience" },
-      { type: "file", title: "Channel Strategy" },
-      { type: "file", title: "Creative Brief" },
-      { type: "file", title: "Timeline" },
-    ],
-  },
-  "marketing:brand-guidelines": {
-    suggestedName: "Untitled Brand Guidelines",
-    structure: [
-      { type: "file", title: "Brand Overview" },
-      { type: "folder", title: "Voice & Tone", children: [
-        { type: "file", title: "Writing Style" },
-        { type: "file", title: "Dos and Don'ts" },
-      ]},
-      { type: "folder", title: "Visual Identity", children: [
-        { type: "file", title: "Colors & Typography" },
-        { type: "file", title: "Logo Usage" },
-      ]},
-      { type: "folder", title: "Messaging", children: [
-        { type: "file", title: "Key Messages" },
-        { type: "file", title: "Taglines" },
-      ]},
-      { type: "file", title: "Usage Examples" },
-    ],
-  },
-  // --- Newsletter ---
-  "newsletter:single-issue": {
-    suggestedName: "Untitled Issue",
-    structure: [
-      { type: "file", title: "Issue Draft" },
-      { type: "file", title: "Notes" },
-    ],
-  },
-  newsletter: {
-    suggestedName: "Untitled Newsletter",
-    structure: [
-      { type: "file", title: "Issue Draft" },
-      { type: "file", title: "Notes" },
-    ],
-  },
-  "newsletter:newsletter-series": {
-    suggestedName: "Untitled Newsletter Series",
-    structure: [
-      { type: "file", title: "Series Overview" },
-      { type: "file", title: "Subscriber Notes" },
-      { type: "folder", title: "Issues", children: [
-        { type: "file", title: "Issue 1" },
-        { type: "file", title: "Issue 2" },
-        { type: "file", title: "Issue 3" },
-      ]},
-    ],
-  },
-  "newsletter:digest": {
-    suggestedName: "Untitled Digest",
-    structure: [
-      { type: "file", title: "Curated Links" },
-      { type: "file", title: "Commentary Draft" },
-    ],
-  },
-  // --- Legal ---
-  "legal:contract": {
-    suggestedName: "Untitled Contract",
-    structure: [
-      { type: "file", title: "Terms Overview" },
-      { type: "file", title: "Contract Draft" },
-      { type: "folder", title: "Schedules & Exhibits", children: [
-        { type: "file", title: "Schedule A" },
-        { type: "file", title: "Schedule B" },
-      ]},
-      { type: "file", title: "Revision Notes" },
-    ],
-  },
-  legal: {
-    suggestedName: "Untitled Legal Document",
-    structure: [
-      { type: "file", title: "Draft" },
-      { type: "file", title: "Notes" },
-      { type: "file", title: "References" },
-    ],
-  },
-  "legal:legal-brief": {
-    suggestedName: "Untitled Legal Brief",
-    structure: [
-      { type: "file", title: "Case Summary" },
-      { type: "file", title: "Arguments" },
-      { type: "file", title: "Supporting Citations" },
-      { type: "file", title: "Conclusion" },
-    ],
-  },
-  "legal:policy-doc": {
-    suggestedName: "Untitled Policy Document",
-    structure: [
-      { type: "file", title: "Policy Overview" },
-      { type: "file", title: "Policy Draft" },
-      { type: "file", title: "Definitions" },
-      { type: "file", title: "Compliance Notes" },
-    ],
-  },
-  // --- Podcast ---
-  "podcast:solo-episode": {
-    suggestedName: "Untitled Episode",
-    structure: [
-      { type: "file", title: "Episode Outline" },
-      { type: "file", title: "Script" },
-      { type: "file", title: "Show Notes" },
-    ],
-  },
-  podcast: {
-    suggestedName: "Untitled Podcast",
-    structure: [
-      { type: "file", title: "Episode Outline" },
-      { type: "file", title: "Script" },
-      { type: "file", title: "Show Notes" },
-    ],
-  },
-  "podcast:interview": {
-    suggestedName: "Untitled Interview Episode",
-    structure: [
-      { type: "file", title: "Guest Research" },
-      { type: "file", title: "Question List" },
-      { type: "file", title: "Episode Outline" },
-      { type: "file", title: "Show Notes" },
-    ],
-  },
-  "podcast:podcast-series": {
-    suggestedName: "Untitled Podcast Series",
-    structure: [
-      { type: "file", title: "Series Overview" },
-      { type: "file", title: "Recurring Segments" },
-      { type: "folder", title: "Episodes", children: [
-        { type: "file", title: "Episode 1 Outline" },
-        { type: "file", title: "Episode 2 Outline" },
-        { type: "file", title: "Episode 3 Outline" },
-      ]},
-      { type: "file", title: "Show Notes Template" },
-    ],
-  },
-  // --- Social Media ---
-  "social-media:thread": {
-    suggestedName: "Untitled Thread",
-    structure: [
-      { type: "file", title: "Thread Outline" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "social-media": {
-    suggestedName: "Untitled Social Content",
-    structure: [
-      { type: "file", title: "Content Brief" },
-      { type: "file", title: "Draft" },
-    ],
-  },
-  "social-media:campaign": {
-    suggestedName: "Untitled Campaign",
-    structure: [
-      { type: "file", title: "Campaign Brief" },
-      { type: "file", title: "Content Calendar" },
-      { type: "folder", title: "Content", children: [
-        { type: "file", title: "Twitter Drafts" },
-        { type: "file", title: "LinkedIn Drafts" },
-        { type: "file", title: "Instagram Drafts" },
-      ]},
-    ],
-  },
-  "social-media:content-calendar": {
-    suggestedName: "Untitled Content Calendar",
-    structure: [
-      { type: "file", title: "Content Strategy" },
-      { type: "file", title: "Themes" },
-      { type: "folder", title: "Week 1", children: [
-        { type: "file", title: "Post Drafts" },
-      ]},
-      { type: "folder", title: "Week 2", children: [
-        { type: "file", title: "Post Drafts" },
-      ]},
-      { type: "folder", title: "Week 3", children: [
-        { type: "file", title: "Post Drafts" },
-      ]},
-    ],
-  },
-  // --- Freeform ---
-  freeform: {
-    suggestedName: "",
-    structure: [],
-  },
+  project: [
+    { type: 'folder', title: 'Outline', children: [] },
+    { type: 'folder', title: 'Draft', children: [
+      { type: 'file', title: 'Introduction' },
+      { type: 'file', title: 'Section 1' },
+      { type: 'file', title: 'Section 2' },
+    ]},
+    { type: 'file', title: 'Notes' },
+  ],
+  research: [
+    { type: 'file', title: 'Literature Review' },
+    { type: 'file', title: 'Methodology' },
+    { type: 'file', title: 'Analysis' },
+    { type: 'file', title: 'Findings' },
+    { type: 'file', title: 'References' },
+  ],
 };
 
-function getFallbackStructure(type, extension) {
-  const compoundKey = extension ? `${type}:${extension}` : null;
-  if (compoundKey && FALLBACK_STRUCTURES[compoundKey]) {
-    return FALLBACK_STRUCTURES[compoundKey];
-  }
-  return FALLBACK_STRUCTURES[type] || FALLBACK_STRUCTURES.freeform;
+/* ── Helpers ── */
+
+let _nextId = 0;
+
+function assignIds(items) {
+  return items.map((item) => ({
+    ...item,
+    _id: _nextId++,
+    enabled: true,
+    children: item.children ? assignIds(item.children) : undefined,
+  }));
+}
+
+function flattenItems(items, depth = 0) {
+  const result = [];
+  const walk = (list, d) => {
+    list.forEach((item) => {
+      result.push({ ...item, depth: d, flatIndex: result.length });
+      if (item.children) walk(item.children, d + 1);
+    });
+  };
+  walk(items, depth);
+  return result;
+}
+
+function filterEnabled(items) {
+  if (!items) return [];
+  return items
+    .filter((item) => item.enabled)
+    .map((item) => ({
+      type: item.type,
+      title: item.title,
+      children: item.children ? filterEnabled(item.children) : undefined,
+    }))
+    .filter((item) => item.type === "file" || (item.children && item.children.length > 0));
+}
+
+function updateItem(items, id, updater) {
+  return items.map((item) => {
+    if (item._id === id) return updater(item);
+    if (item.children) return { ...item, children: updateItem(item.children, id, updater) };
+    return item;
+  });
+}
+
+/* ── Icons ── */
+
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path
+        d="M1.5 3.5a1 1 0 0 1 1-1h3.586a1 1 0 0 1 .707.293L8.5 4.5h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1Z"
+        fill="none" stroke="currentColor" strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+/* ── Structure Components ── */
+
+function StructurePill({ item, onToggle, onRename, delay = 0 }) {
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const handleRenameSubmit = () => {
+    const val = inputRef.current?.value.trim();
+    if (val && val !== item.title) onRename(item._id, val);
+    setEditing(false);
+  };
+
+  return (
+    <button
+      className={`scaffold-pill${item.enabled ? "" : " disabled"}`}
+      style={{ animationDelay: `${delay}ms` }}
+      onClick={() => onToggle(item._id)}
+      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="scaffold-pill-rename"
+          defaultValue={item.title}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={handleRenameSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleRenameSubmit();
+            if (e.key === "Escape") setEditing(false);
+            e.stopPropagation();
+          }}
+        />
+      ) : (
+        <span className="scaffold-pill-text">{item.title}</span>
+      )}
+    </button>
+  );
+}
+
+function StructureCards({ structure, onToggle, onRename }) {
+  if (!structure) return null;
+  let delayCounter = 0;
+  return (
+    <div className="scaffold-cards">
+      {structure.map((item) => {
+        if (item.type === "folder") {
+          const groupDelay = delayCounter * 60;
+          delayCounter++;
+          return (
+            <div key={item._id} className="scaffold-group" style={{ animationDelay: `${groupDelay}ms` }}>
+              <div className="scaffold-group-header">
+                <FolderIcon />
+                <span className="scaffold-group-title">{item.title}</span>
+                <button
+                  className={`scaffold-group-toggle${item.enabled ? "" : " off"}`}
+                  onClick={() => onToggle(item._id)}
+                  aria-label={item.enabled ? "Disable group" : "Enable group"}
+                >
+                  {item.enabled ? "On" : "Off"}
+                </button>
+              </div>
+              {item.children && item.children.length > 0 && (
+                <div className="scaffold-group-pills">
+                  {item.children.map((child) => {
+                    const d = delayCounter * 40;
+                    delayCounter++;
+                    return (
+                      <StructurePill key={child._id} item={child} onToggle={onToggle} onRename={onRename} delay={d} />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+        const d = delayCounter * 40;
+        delayCounter++;
+        return <StructurePill key={item._id} item={item} onToggle={onToggle} onRename={onRename} delay={d} />;
+      })}
+    </div>
+  );
 }
 
 // --- SSE stream reader helper ---
@@ -802,25 +246,28 @@ async function readSSEStream(response) {
 
 // --- Main Component ---
 
+/*
+  Screens:
+  "shape"     — Pick a project shape
+  "context"   — Name + description
+  "structure" — Structure generation/editing (only for hasStructure shapes)
+*/
+
 export function ProjectWizard({ onComplete, onCancel, defaultAgent, apiBase }) {
-  // Screen state machine
-  const [screen, setScreen] = useState("describe");
+  const [screen, setScreen] = useState("shape");
   const [direction, setDirection] = useState("forward");
 
   // Data
-  const [description, setDescription] = useState("");
-  const [followUps, setFollowUps] = useState([]);        // AI-generated questions
-  const [followUpAnswers, setFollowUpAnswers] = useState({});
+  const [selectedShape, setSelectedShape] = useState(null);
   const [projectName, setProjectName] = useState("");
-  const [nameSuggestion, setNameSuggestion] = useState(""); // ghost text for name input
+  const [description, setDescription] = useState("");
+  const [structure, setStructure] = useState(null);
 
   // Loading states
-  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Background structure generation
-  const structurePromiseRef = useRef(null);
   const nameInputRef = useRef(null);
 
   const goForward = (s) => { setDirection("forward"); setScreen(s); };
@@ -830,72 +277,45 @@ export function ProjectWizard({ onComplete, onCancel, defaultAgent, apiBase }) {
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape") {
-        if (screen === "describe") onCancel();
-        else if (screen === "name") {
-          goBackward(followUps.length > 0 ? `followup-${followUps.length - 1}` : "describe");
-        } else if (screen.startsWith("followup-")) {
-          const idx = parseInt(screen.split("-")[1]);
-          goBackward(idx === 0 ? "describe" : `followup-${idx - 1}`);
-        }
+        if (screen === "shape") onCancel();
+        else if (screen === "context") goBackward("shape");
+        else if (screen === "structure") goBackward("context");
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [screen, followUps, onCancel]);
+  }, [screen, onCancel]);
 
-  // Focus name input when reaching name screen
+  // Focus name input when reaching context screen
   useEffect(() => {
-    if (screen === "name" && nameInputRef.current) {
+    if (screen === "context" && nameInputRef.current) {
       setTimeout(() => nameInputRef.current?.focus(), 260);
     }
   }, [screen]);
 
-  // --- AI Helper: Evaluate Follow-ups ---
-  const evaluateFollowUps = async () => {
-    const systemPrompt = `You are helping someone set up a new writing project. They've described what they want to create.
+  // --- Shape selection ---
+  const handleShapeSelect = (shape) => {
+    setSelectedShape(shape);
+    setStructure(null);
+    goForward("context");
+  };
 
-Analyze their description. Do you have enough information to create a good file/folder structure for their project?
-
-If the description is detailed enough (mentions type, scope, subject matter), respond:
-{"needsFollowUp": false}
-
-If you need more information, generate 1-2 targeted follow-up questions and respond:
-{"needsFollowUp": true, "questions": [{"question": "...", "type": "choice", "options": ["A", "B", "C"]}, {"question": "...", "type": "text", "placeholder": "..."}]}
-
-Rules:
-- Maximum 2 questions
-- Prefer "choice" type with 2-4 short options
-- Use "text" type only when you need specific details the user must provide
-- Questions should uncover scope, organization, or specific content the user has in mind
-- Output ONLY valid JSON — no markdown fences, no explanation`;
-
-    const response = await fetch(`${apiBase}/api/ai/stream`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeader() },
-      body: JSON.stringify({
-        provider: defaultAgent.provider,
-        model: defaultAgent.model,
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: description },
-        ],
-      }),
-    });
-
-    if (!response.ok || !response.body) throw new Error("AI request failed");
-
-    const fullContent = await readSSEStream(response);
-    const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+  // --- Context continue ---
+  const handleContextContinue = () => {
+    if (selectedShape?.hasStructure) {
+      goForward("structure");
+      generateStructure();
+    } else {
+      handleCreate();
     }
-    return { needsFollowUp: false };
   };
 
   // --- AI Helper: Generate Structure ---
   const generateStructure = async () => {
-    const systemPrompt = `You are helping set up a new writing project. Based on the project description and any follow-up answers, generate a project structure.
+    setIsGenerating(true);
+    setStructure(null);
+    try {
+      const systemPrompt = `You are helping set up a writing project. Based on the project description, generate a project structure.
 
 Output ONLY valid JSON with this exact format — no markdown fences, no explanation:
 {
@@ -915,171 +335,78 @@ Rules:
 - Suggest a creative, specific working title based on the description
 - IMPORTANT: Only use specific names/topics the user explicitly mentioned. Never invent content.`;
 
-    let userMessage = `Project description: ${description}`;
-    if (followUps.length > 0 && Object.keys(followUpAnswers).length > 0) {
-      userMessage += "\n\nFollow-up Q&A:";
-      followUps.forEach((q, i) => {
-        if (followUpAnswers[i]) {
-          userMessage += `\n- ${q.question}\n  Answer: ${followUpAnswers[i]}`;
-        }
+      const userMessage = `Project shape: ${selectedShape.id} (${selectedShape.description})${projectName.trim() ? `\nTitle: ${projectName}` : ""}${description.trim() ? `\nDescription: ${description}` : ""}`;
+
+      const response = await fetch(`${apiBase}/api/ai/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          provider: defaultAgent.provider,
+          model: defaultAgent.model,
+          temperature: 0.4,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+        }),
       });
-    }
 
-    const response = await fetch(`${apiBase}/api/ai/stream`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeader() },
-      body: JSON.stringify({
-        provider: defaultAgent.provider,
-        model: defaultAgent.model,
-        temperature: 0.4,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-      }),
-    });
+      if (!response.ok || !response.body) throw new Error("AI request failed");
 
-    if (!response.ok || !response.body) throw new Error("AI request failed");
-
-    const fullContent = await readSSEStream(response);
-    const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const result = JSON.parse(jsonMatch[0]);
-      return { name: result.suggestedName || "", structure: result.structure || [] };
-    }
-    throw new Error("Could not parse structure");
-  };
-
-  // --- Screen Handlers ---
-
-  const handleDescriptionContinue = async () => {
-    if (!description.trim()) return;
-    setIsEvaluating(true);
-    goForward("evaluating");
-
-    try {
-      const result = await evaluateFollowUps();
-      if (result.needsFollowUp && result.questions?.length > 0) {
-        setFollowUps(result.questions.slice(0, 2));
-        setIsEvaluating(false);
-        goForward("followup-0");
+      const fullContent = await readSSEStream(response);
+      const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const result = JSON.parse(jsonMatch[0]);
+        setStructure(assignIds(result.structure || []));
+        if (result.suggestedName && !projectName.trim()) {
+          setProjectName(result.suggestedName);
+        }
       } else {
-        setFollowUps([]);
-        setIsEvaluating(false);
-        enterNameScreen();
+        throw new Error("Could not parse structure");
       }
     } catch {
-      setFollowUps([]);
-      setIsEvaluating(false);
-      enterNameScreen();
+      setStructure(assignIds(FALLBACK_STRUCTURES[selectedShape?.id] || []));
     }
+    setIsGenerating(false);
   };
 
-  const handleFollowUpChoice = (questionIdx, option) => {
-    setFollowUpAnswers((prev) => ({ ...prev, [questionIdx]: option }));
-    // Auto-advance for choice questions
-    const nextIdx = questionIdx + 1;
-    if (nextIdx < followUps.length) {
-      setTimeout(() => goForward(`followup-${nextIdx}`), 200);
-    } else {
-      setTimeout(() => enterNameScreen(), 200);
-    }
+  const handleToggle = (id) => {
+    setStructure((prev) =>
+      updateItem(prev, id, (item) => ({ ...item, enabled: !item.enabled }))
+    );
   };
 
-  const handleFollowUpTextContinue = (questionIdx) => {
-    const nextIdx = questionIdx + 1;
-    if (nextIdx < followUps.length) {
-      goForward(`followup-${nextIdx}`);
-    } else {
-      enterNameScreen();
-    }
+  const handleRename = (id, newTitle) => {
+    setStructure((prev) =>
+      updateItem(prev, id, (item) => ({ ...item, title: newTitle }))
+    );
   };
 
-  const fetchNameSuggestion = async () => {
-    try {
-      const data = await api.autocomplete(
-        `Suggest a short, creative working title for this writing project: ${description.slice(0, 500)}`,
-        "project_name"
-      );
-      if (data?.completion) {
-        setNameSuggestion(data.completion.replace(/^["']|["']$/g, "").trim());
-      }
-    } catch {
-      // Silently ignore — structure generation also provides a name
-    }
-  };
-
-  const enterNameScreen = () => {
-    // Start structure generation in background
-    structurePromiseRef.current = generateStructure().catch(() => ({
-      name: "Untitled",
-      structure: [{ type: "file", title: "Notes" }, { type: "file", title: "Draft" }],
-    }));
-
-    // Fetch a name suggestion via autocomplete (faster path)
-    fetchNameSuggestion();
-
-    // Set name suggestion from structure result only if autocomplete hasn't already set one
-    structurePromiseRef.current.then((result) => {
-      if (result.name && !projectName) {
-        setNameSuggestion((prev) => prev || result.name);
-      }
-    });
-
-    goForward("name");
-  };
-
-  const handleTemplatePick = (templateId) => {
-    const prefill = TEMPLATE_PREFILLS[templateId] || "";
-    setDescription(prefill);
-  };
-
-  const handleEmptyProject = () => {
-    goForward("name");
-  };
-
-  const handleNameTab = (e) => {
-    if (e.key === "Tab" && nameSuggestion && !projectName) {
-      e.preventDefault();
-      setProjectName(nameSuggestion);
-      setNameSuggestion("");
-    }
-  };
-
+  // --- Create project ---
   const handleCreate = async () => {
     if (isCreating) return;
     setIsCreating(true);
     setShowSuccess(true);
 
-    let structure = [];
-    if (structurePromiseRef.current) {
-      try {
-        const result = await structurePromiseRef.current;
-        structure = result.structure || [];
-      } catch {
-        structure = [];
-      }
-    }
+    const enabledStructure = structure ? filterEnabled(structure) : [];
+    const flatItems = structure ? flattenItems(structure) : [];
 
     await new Promise((r) => setTimeout(r, 600)); // success animation
     await onComplete({
-      name: projectName.trim() || nameSuggestion || "Untitled",
-      type: "custom",
+      name: projectName.trim() || "Untitled",
+      type: selectedShape?.id || "freeform",
       extension: null,
-      structure,
+      structure: enabledStructure,
       description,
+      structureSummary: flatItems.map((i) => i.title).join(", "),
     });
     setIsCreating(false);
   };
 
   // --- Back Navigation ---
   const handleBack = () => {
-    if (screen === "name") {
-      goBackward(followUps.length > 0 ? `followup-${followUps.length - 1}` : "describe");
-    } else if (screen.startsWith("followup-")) {
-      const idx = parseInt(screen.split("-")[1]);
-      goBackward(idx === 0 ? "describe" : `followup-${idx - 1}`);
-    }
+    if (screen === "context") goBackward("shape");
+    else if (screen === "structure") goBackward("context");
   };
 
   const screenClass = `wizard-screen ${direction === "backward" ? "slide-down" : "slide-up"}`;
@@ -1096,121 +423,29 @@ Rules:
 
       <div className="wizard-body">
 
-        {/* Screen: Describe */}
-        {screen === "describe" && (
-          <div className={screenClass} key="describe">
+        {/* Screen: Shape selection */}
+        {screen === "shape" && (
+          <div className={screenClass} key="shape">
             <h1 className="wizard-heading">What are you creating?</h1>
-            <p className="wizard-subheading">Describe your project and we'll help you set it up.</p>
-            <GhostTextarea
-              value={description}
-              onChange={setDescription}
-              context="project_description"
-              className="wizard-textarea"
-              placeholder="A sci-fi novel about time travel, a research paper on climate change, a product brief for a new app..."
-              autoFocus
-              rows={3}
-              style={{ minHeight: "auto" }}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && description.trim()) {
-                  handleDescriptionContinue();
-                }
-              }}
-            />
-            <div className="wizard-actions">
-              <button
-                className="primary"
-                onClick={handleDescriptionContinue}
-                disabled={!description.trim()}
-              >
-                Continue
-              </button>
-            </div>
-
-            <div className="wizard-template-divider">
-              <span>or pick a template</span>
-            </div>
-
-            <div className="wizard-template-grid">
-              {TEMPLATE_LABELS.map((t) => (
-                <button key={t.id} className="wizard-template-pill" onClick={() => handleTemplatePick(t.id)}>
-                  {t.label}
+            <p className="wizard-subheading">Pick a shape and we'll set up the right structure.</p>
+            <div className="wt-shapes">
+              {PROJECT_SHAPES.map((shape) => (
+                <button
+                  key={shape.id}
+                  className={`wt-shape-card ${selectedShape?.id === shape.id ? 'wt-shape-selected' : ''}`}
+                  onClick={() => handleShapeSelect(shape)}
+                >
+                  <span className="wt-shape-name">{shape.name}</span>
+                  <span className="wt-shape-desc">{shape.description}</span>
                 </button>
               ))}
             </div>
-
-            <button className="wizard-freeform-link" onClick={handleEmptyProject}>
-              Start with an empty project
-            </button>
           </div>
         )}
 
-        {/* Screen: Evaluating (brief loading) */}
-        {screen === "evaluating" && (
-          <div className={screenClass} key="evaluating">
-            <div className="wizard-evaluating">
-              <div className="wizard-skeleton">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="wizard-skeleton-item" />
-                ))}
-              </div>
-              <p className="wizard-evaluating-text">Setting things up...</p>
-            </div>
-          </div>
-        )}
-
-        {/* Screen: Follow-up Questions */}
-        {screen.startsWith("followup-") && (() => {
-          const idx = parseInt(screen.split("-")[1]);
-          const q = followUps[idx];
-          if (!q) return null;
-
-          return (
-            <div className={screenClass} key={screen}>
-              <button className="wizard-back" onClick={handleBack}>
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                  <path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {" "}Back
-              </button>
-              <h1 className="wizard-heading">{q.question}</h1>
-
-              {q.type === "choice" ? (
-                <div className="wizard-extension-list">
-                  {q.options.map((opt, j) => (
-                    <button
-                      key={j}
-                      className={`wizard-extension-option ${followUpAnswers[idx] === opt ? "selected" : ""}`}
-                      onClick={() => handleFollowUpChoice(idx, opt)}
-                    >
-                      <span className="wizard-extension-label">{opt}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <GhostTextarea
-                    value={followUpAnswers[idx] || ""}
-                    onChange={(val) => setFollowUpAnswers((prev) => ({ ...prev, [idx]: val }))}
-                    context="project_followup"
-                    className="wizard-textarea"
-                    placeholder={q.placeholder || "Your answer..."}
-                    autoFocus
-                    rows={3}
-                  />
-                  <div className="wizard-actions">
-                    <button className="primary" onClick={() => handleFollowUpTextContinue(idx)}>
-                      Continue
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Screen: Name */}
-        {screen === "name" && (
-          <div className={screenClass} key="name">
+        {/* Screen: Context (name + description) */}
+        {screen === "context" && (
+          <div className={screenClass} key="context">
             {showSuccess ? (
               <div className="wizard-success">
                 <div className="wizard-success-circle">
@@ -1228,32 +463,104 @@ Rules:
                   </svg>
                   {" "}Back
                 </button>
-                <h1 className="wizard-heading">Name your project</h1>
-                <div style={{ position: "relative" }}>
-                  <input
-                    ref={nameInputRef}
-                    className="wizard-name-input"
-                    type="text"
-                    value={projectName}
-                    onChange={(e) => {
-                      setProjectName(e.target.value);
-                      if (e.target.value) setNameSuggestion("");
-                    }}
-                    placeholder={nameSuggestion || "Untitled"}
-                    onKeyDown={(e) => {
-                      handleNameTab(e);
-                      if (e.key === "Enter") handleCreate();
-                    }}
-                  />
-                  {nameSuggestion && !projectName && (
-                    <span className="wizard-name-hint">Press Tab to accept</span>
-                  )}
-                </div>
+                <h1 className="wizard-heading">Give it a name and some direction.</h1>
+                <input
+                  ref={nameInputRef}
+                  className="wizard-name-input"
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="Project name"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleContextContinue();
+                  }}
+                />
+                <GhostTextarea
+                  value={description}
+                  onChange={setDescription}
+                  context="project_description"
+                  className="wizard-textarea"
+                  placeholder="Describe what this is about — the AI will use this to help you."
+                  rows={3}
+                  style={{ minHeight: "auto" }}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                      handleContextContinue();
+                    }
+                  }}
+                />
                 <div className="wizard-actions">
-                  <button className="primary" onClick={handleCreate} disabled={isCreating}>
-                    Create project
+                  <button
+                    className="primary"
+                    onClick={handleContextContinue}
+                    disabled={isCreating}
+                  >
+                    {selectedShape?.hasStructure ? "Continue" : "Create project"}
                   </button>
                 </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Screen: Structure (only for hasStructure shapes) */}
+        {screen === "structure" && (
+          <div className={screenClass} key="structure">
+            {showSuccess ? (
+              <div className="wizard-success">
+                <div className="wizard-success-circle">
+                  <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+                    <path d="M5 12l5 5L19 7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <p className="wizard-success-text">Creating project...</p>
+              </div>
+            ) : (
+              <>
+                <button className="wizard-back" onClick={handleBack}>
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {" "}Back
+                </button>
+                <h1 className="wizard-heading">We'll set up the scaffolding.</h1>
+                <p className="wizard-subheading">
+                  Your assistant sees the whole project — the brief, the outline,
+                  sibling documents. That's what makes it useful.
+                </p>
+                {isGenerating ? (
+                  <div className="wizard-evaluating">
+                    <div className="wizard-skeleton">
+                      {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                        <div key={i} className="wizard-skeleton-item" />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <StructureCards
+                      structure={structure}
+                      onToggle={handleToggle}
+                      onRename={handleRename}
+                    />
+                    <div className="wizard-actions" style={{ gap: "12px" }}>
+                      <button
+                        className="wizard-back"
+                        onClick={generateStructure}
+                        style={{ position: "static" }}
+                      >
+                        Regenerate
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={handleCreate}
+                        disabled={isCreating}
+                      >
+                        Create project
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

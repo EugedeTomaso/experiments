@@ -8535,100 +8535,111 @@ button.ghost:focus-visible {
   max-width: 440px;
 }
 
-.welcome-subtext {
-  font-size: 13px;
-  color: var(--text-4);
+
+/* ── Welcome hero ── */
+
+.wt-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100vh;
+  padding: 48px 24px;
+  gap: 24px;
+}
+
+.wt-welcome-heading {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 400;
+  color: var(--text-1);
+  max-width: 520px;
+  line-height: 1.25;
+}
+
+.wt-welcome-sub {
+  font-size: 16px;
+  color: var(--text-3);
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+.wt-welcome-cta {
+  padding: 12px 32px;
+  background: var(--primary);
+  color: var(--primary-contrast, var(--on-primary));
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.wt-welcome-cta:hover { opacity: 0.85; }
+
+/* ── Step heading ── */
+
+.wt-step-heading {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-1);
   margin: 0;
 }
 
-/* Brand moment (page 1) */
+/* ── Shape cards ── */
 
-.welcome-brand {
-  margin-bottom: 8px;
+.wt-shapes {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 640px;
 }
 
-.welcome-brand-mark {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-md);
-  background: var(--primary);
-  color: var(--on-primary);
-  display: grid;
-  place-items: center;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
-/* ── Type list ── */
-
-.welcome-type-list {
+.wt-shape-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.welcome-type-option {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 16px;
+  gap: 4px;
+  padding: 16px 20px;
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: transparent;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
-  transition: border-color var(--duration-fast) var(--ease),
-              background var(--duration-fast) var(--ease);
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+  min-width: 140px;
 }
 
-.welcome-type-option:hover {
-  border-color: var(--border-strong);
+.wt-shape-card:hover {
   background: var(--surface-inset);
 }
 
-.welcome-type-option:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: var(--control-focus);
+.wt-shape-selected {
+  background: var(--surface-inset);
+  border-color: var(--text-4);
 }
 
-.welcome-type-label {
-  font-size: 14px;
+.wt-shape-name {
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-1);
 }
 
-.welcome-type-desc {
-  font-size: 12px;
+.wt-shape-desc {
+  font-size: 13px;
   color: var(--text-3);
 }
 
-.welcome-type-option-inner {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
+/* ── Walkthrough inputs ── */
 
-.welcome-type-icon {
-  flex-shrink: 0;
-  color: var(--text-3);
-  margin-top: 1px;
-}
-
-.welcome-type-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-/* ── Name input ── */
-
-.welcome-name-input {
+.wt-input {
   width: 100%;
   max-width: 360px;
   padding: 10px 16px;
@@ -8643,19 +8654,17 @@ button.ghost:focus-visible {
   transition: border-color var(--duration-fast) var(--ease);
 }
 
-.welcome-name-input:focus {
+.wt-input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: var(--control-focus);
 }
 
-.welcome-name-input::placeholder {
+.wt-input::placeholder {
   color: var(--text-4);
 }
 
-/* ── Description input ── */
-
-.welcome-desc-input {
+.wt-textarea {
   width: 100%;
   max-width: 360px;
   padding: 10px 16px;
@@ -8670,13 +8679,13 @@ button.ghost:focus-visible {
   transition: border-color var(--duration-fast) var(--ease);
 }
 
-.welcome-desc-input:focus {
+.wt-textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: var(--control-focus);
 }
 
-.welcome-desc-input::placeholder {
+.wt-textarea::placeholder {
   color: var(--text-4);
 }
 
@@ -8903,16 +8912,6 @@ button.ghost:focus-visible {
   box-shadow: var(--control-focus);
 }
 
-/* ── CTA group (page 5) ── */
-
-.welcome-cta-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-}
-
 .welcome-cta {
   border: none;
   background: var(--primary);
@@ -8938,21 +8937,6 @@ button.ghost:focus-visible {
 .welcome-cta:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-.welcome-alt {
-  border: none;
-  background: transparent;
-  color: var(--text-4);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.welcome-alt:hover {
-  color: var(--text-2);
-  text-decoration: underline;
 }
 
 /* ── Bottom navigation ── */
@@ -9038,13 +9022,25 @@ button.ghost:focus-visible {
     font-size: 14px;
   }
 
-  .welcome-name-input {
+  .wt-input,
+  .wt-textarea {
     max-width: 100%;
+  }
+
+  .wt-input {
     font-size: 16px;
   }
 
-  .welcome-desc-input {
+  .wt-step-heading {
+    font-size: 22px;
+  }
+
+  .wt-shapes {
     max-width: 100%;
+  }
+
+  .wt-shape-card {
+    min-width: 120px;
   }
 
   .welcome-prompts {
@@ -9054,10 +9050,6 @@ button.ghost:focus-visible {
   .welcome-structure-list,
   .welcome-structure-skeleton,
   .scaffold-cards {
-    max-width: 100%;
-  }
-
-  .welcome-features {
     max-width: 100%;
   }
 
@@ -9074,125 +9066,6 @@ button.ghost:focus-visible {
   margin: 0;
 }
 
-/* ── Features showcase ── */
-
-.welcome-features {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  max-width: 400px;
-}
-
-.welcome-feature-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  text-align: left;
-  animation: wizard-item-in 200ms var(--ease) both;
-}
-
-.welcome-feature-card:nth-child(1) { animation-delay: 0ms; }
-.welcome-feature-card:nth-child(2) { animation-delay: 80ms; }
-.welcome-feature-card:nth-child(3) { animation-delay: 160ms; }
-
-.welcome-feature-icon {
-  color: var(--text-3);
-  margin-bottom: 4px;
-}
-
-.welcome-feature-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-1);
-}
-
-.welcome-feature-desc {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-3);
-}
-
-.welcome-feature-desc kbd {
-  display: inline-block;
-  padding: 1px 5px;
-  font-size: 11px;
-  font-family: "SF Mono", Menlo, Monaco, monospace;
-  font-weight: 500;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-2);
-}
-
-/* ── Mock review comment (walkthrough) ── */
-
-.welcome-review-mock {
-  width: 100%;
-  max-width: 380px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  padding: 16px;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.welcome-mock-quote {
-  font-size: 13px;
-  color: var(--text-3);
-  padding: 6px 10px;
-  background: rgba(239, 68, 68, 0.06);
-  border-left: 2px solid rgba(239, 68, 68, 0.3);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  text-decoration: line-through;
-  text-decoration-color: rgba(239, 68, 68, 0.4);
-}
-
-.welcome-mock-arrow {
-  display: flex;
-  justify-content: center;
-  color: var(--text-4);
-}
-
-.welcome-mock-suggestion {
-  font-size: 13px;
-  color: var(--text-1);
-  padding: 6px 10px;
-  background: rgba(34, 197, 94, 0.06);
-  border-left: 2px solid rgba(34, 197, 94, 0.3);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.welcome-mock-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.welcome-mock-btn {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-  letter-spacing: 0.01em;
-}
-
-.welcome-mock-btn--approve {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.welcome-mock-btn--dismiss {
-  background: var(--surface-inset);
-  color: var(--text-3);
-}
 
 /* ── Walkthrough: Pulse highlight on CTAs ── */
 
@@ -9218,15 +9091,6 @@ button.ghost:focus-visible {
   100% { opacity: 0; transform: scale(1.05); }
 }
 
-/* Subtle pulse on first type option — just a border glow */
-.wt-pulse-subtle {
-  animation: wt-subtle-glow 2.5s ease-in-out infinite;
-}
-
-@keyframes wt-subtle-glow {
-  0%, 100% { border-color: var(--border); }
-  50% { border-color: var(--border-strong); }
-}
 
 /* ══════════════════════════════════════════════
    Spotlight Tour
