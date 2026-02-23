@@ -23,7 +23,7 @@ import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
 import { SpotlightTour } from "./components/SpotlightTour";
 import { HelpModal } from "./components/HelpModal";
 import { useComments } from "./hooks/useComments";
-import { createStreamParser, parseCreateBlocks, stripCreateBlocks } from "./streamParser";
+import { createStreamParser } from "./streamParser";
 import { buildSnippet, wordCount } from "./utils";
 import { createCollabSession } from "./collabPlugin";
 import PresenceIndicator from "./components/PresenceIndicator";
@@ -98,28 +98,6 @@ Rules:
 - Use "deepseek" as provider and "deepseek-chat" as model for all`;
 
 const FALLBACK_ASSISTANTS = {
-  // New shape-based types (from redesigned wizard)
-  document: [
-    { name: "Writing Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.8, system_prompt: "You are a skilled writing partner. Help draft, revise, and polish documents — articles, essays, blog posts, letters, and any standalone written work. Focus on clarity, structure, and the author's voice." }},
-    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a thorough editor. Review writing for clarity, logical flow, grammar, and prose quality. Suggest structural improvements and tighten language. Be direct and specific." }},
-  ],
-  project: [
-    { name: "Project Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a creative project partner. Help develop multi-document projects — novels, collections, product specs, or any structured body of work. Assist with planning, drafting, and maintaining consistency across documents." }},
-    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a developmental and line editor for multi-document projects. Identify weak prose, pacing issues, inconsistencies across documents, and structural problems. Be direct and constructive." }},
-  ],
-  research: [
-    { name: "Research Advisor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.5, system_prompt: "You are a research advisor. Help develop arguments, gather background information, suggest methodological approaches, identify gaps in reasoning, and strengthen scholarly rigor. Be thorough and cite your reasoning." }},
-    { name: "Academic Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.2, system_prompt: "You are an academic editor. Review for clarity, logical consistency, proper citation practices, and adherence to academic writing standards. Flag unsupported claims and suggest improvements." }},
-  ],
-  script: [
-    { name: "Story Room", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.9, system_prompt: "You are a writers' room collaborator. Help develop scenes, punch up dialogue, suggest visual storytelling opportunities, and workshop story beats. Think cinematically. Adapt to screenplays, teleplays, or video scripts." }},
-    { name: "Script Doctor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.4, system_prompt: "You are a script doctor. Analyze structure, pacing, dialogue naturalness, and character consistency. Identify scenes that drag and suggest cuts or restructuring. Be direct." }},
-  ],
-  freeform: [
-    { name: "Writing Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a versatile writing partner. Help brainstorm, draft, and refine content. Adapt to the user's project needs and writing style." }},
-    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a thorough editor. Review writing for clarity, consistency, and quality. Provide specific, actionable feedback." }},
-  ],
-  // Legacy types (backward compat for existing projects and quick-create)
   novel: [
     { name: "Story Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.9, system_prompt: "You are a creative writing partner for a novel. Help brainstorm plot ideas, develop characters, suggest dialogue, and work through narrative challenges. Be encouraging and imaginative. Preserve the author's voice." }},
     { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a sharp developmental and line editor. Identify weak prose, pacing issues, plot holes, and inconsistencies. Be direct and constructive. Suggest specific rewrites. Focus on tightening language and strengthening narrative structure." }},
@@ -152,6 +130,10 @@ const FALLBACK_ASSISTANTS = {
     { name: "Product Strategist", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.6, system_prompt: "You are a product strategist. Help refine problem statements, develop user stories, prioritize features, and think through edge cases. Challenge assumptions." }},
     { name: "Writer", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.5, system_prompt: "You are a product writing specialist. Help craft clear, concise product documentation, specifications, and briefs. Ensure requirements are unambiguous." }},
   ],
+  freeform: [
+    { name: "Writing Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a versatile writing partner. Help brainstorm, draft, and refine content. Adapt to the user's project needs and writing style." }},
+    { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a thorough editor. Review writing for clarity, consistency, and quality. Provide specific, actionable feedback." }},
+  ],
   custom: [
     { name: "Writing Partner", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.7, system_prompt: "You are a versatile writing partner. Help brainstorm, draft, and refine content. Adapt to the user's project needs and writing style." }},
     { name: "Editor", config: { provider: "deepseek", model: "deepseek-chat", temperature: 0.3, system_prompt: "You are a thorough editor. Review writing for clarity, consistency, and quality. Provide specific, actionable feedback." }},
@@ -159,12 +141,9 @@ const FALLBACK_ASSISTANTS = {
 };
 
 const TYPE_LABELS = {
-  // New shape-based types
-  document: "Document", project: "Project", research: "Research", script: "Script", freeform: "Freeform",
-  // Legacy types (backward compat)
   novel: "Novel", "short-story": "Short Story", screenplay: "Screenplay",
   "tv-series": "TV Series", youtube: "YouTube / Video", "article": "Article / Essay",
-  academic: "Academic", product: "Product / Work", custom: "Custom",
+  academic: "Academic", product: "Product / Work", freeform: "Freeform", custom: "Custom",
 };
 
 const normalizeId = (value) =>
@@ -195,35 +174,6 @@ function buildTree(nodes) {
   };
   sortNodes(roots);
   return roots;
-}
-
-function buildProjectTree(nodes) {
-  const byParent = new Map();
-  for (const n of nodes) {
-    const key = n.parent ? String(n.parent) : "root";
-    if (!byParent.has(key)) byParent.set(key, []);
-    byParent.get(key).push(n);
-  }
-  for (const children of byParent.values()) {
-    children.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }
-  function render(parentKey, prefix) {
-    const children = byParent.get(parentKey) || [];
-    return children.map((n, i) => {
-      const isLast = i === children.length - 1;
-      const connector = isLast ? "└── " : "├── ";
-      const childPrefix = prefix + (isLast ? "    " : "│   ");
-      const label = n.type === "folder" ? `${n.title}/ (folder)` : `${n.title} (file)`;
-      const line = prefix + connector + label;
-      if (n.type === "folder") {
-        const sub = render(String(n.id), childPrefix);
-        return sub.length ? line + "\n" + sub.join("\n") : line;
-      }
-      return line;
-    });
-  }
-  const lines = render("root", "");
-  return lines.join("\n");
 }
 
 export default function App() {
@@ -267,7 +217,6 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
-  const [streamingCreateBlocks, setStreamingCreateBlocks] = useState([]);
   const [streamingNodeIds, setStreamingNodeIds] = useState(new Set());
   const [isEditingDocument, setIsEditingDocument] = useState(false);
   const [diffVisible, setDiffVisible] = useState(false);
@@ -1388,76 +1337,6 @@ export default function App() {
     }
   };
 
-  const handleAICreateFile = async (block) => {
-    if (!activeProjectId) return;
-    // Resolve parent folder
-    let parentId = null;
-    if (block.folder) {
-      const folder = nodes.find(
-        (n) => n.type === "folder" && n.title === block.folder && n.project === activeProjectId
-      );
-      if (folder) parentId = folder.id;
-    }
-    if (!parentId && activeNode?.type === "folder") {
-      parentId = activeNode.id;
-    } else if (!parentId && activeNode?.parent) {
-      parentId = activeNode.parent;
-    }
-
-    const node = await api.createNode({
-      project: activeProjectId,
-      parent: parentId,
-      type: "file",
-      title: block.title,
-      order: getNextOrder(parentId),
-      content_md: block.content || "",
-    });
-    setNodes((prev) => [...prev, node]);
-    setActiveNodeId(String(node.id));
-    return node;
-  };
-
-  const handleAICreateFolder = async (block) => {
-    if (!activeProjectId) return;
-    let parentId = null;
-    if (activeNode?.type === "folder") {
-      parentId = activeNode.id;
-    } else if (activeNode?.parent) {
-      parentId = activeNode.parent;
-    }
-
-    // Create the folder first
-    const folder = await api.createNode({
-      project: activeProjectId,
-      parent: parentId,
-      type: "folder",
-      title: block.title,
-      order: getNextOrder(parentId),
-      content_md: "",
-    });
-    setNodes((prev) => [...prev, folder]);
-
-    // Create files inside the folder
-    let firstFileId = null;
-    for (let i = 0; i < block.files.length; i++) {
-      const f = block.files[i];
-      const fileNode = await api.createNode({
-        project: activeProjectId,
-        parent: folder.id,
-        type: "file",
-        title: f.title,
-        order: i,
-        content_md: f.content || "",
-      });
-      setNodes((prev) => [...prev, fileNode]);
-      if (i === 0) firstFileId = fileNode.id;
-    }
-
-    // Navigate to first file
-    if (firstFileId) setActiveNodeId(String(firstFileId));
-    return folder;
-  };
-
   const handleRenameNode = async (nodeId, newTitle) => {
     if (!newTitle.trim()) return;
     const updated = await api.updateNode(nodeId, { title: newTitle.trim() });
@@ -1730,25 +1609,12 @@ export default function App() {
     if (conv) setAgentMode(conv.agent_mode || "auto");
     try {
       const msgs = await api.listMessages(convId);
-      setChatMessages(msgs.map((m) => {
-        if (m.role === "assistant") {
-          const blocks = parseCreateBlocks(m.content);
-          const stripped = stripCreateBlocks(m.content);
-          return {
-            role: m.role,
-            content: stripped || m.content,
-            routedAgentId: m.routed_agent || null,
-            routedAgentName: m.routed_agent_name || null,
-            createBlocks: blocks.length > 0 ? blocks : undefined,
-          };
-        }
-        return {
-          role: m.role,
-          content: m.content,
-          routedAgentId: m.routed_agent || null,
-          routedAgentName: m.routed_agent_name || null,
-        };
-      }));
+      setChatMessages(msgs.map((m) => ({
+        role: m.role,
+        content: m.content,
+        routedAgentId: m.routed_agent || null,
+        routedAgentName: m.routed_agent_name || null,
+      })));
     } catch {
       setChatMessages([]);
     }
@@ -1991,42 +1857,14 @@ export default function App() {
         systemContent += addSection("Project Preferences", resolvedMemories.project_memories);
       }
 
-      // Project tree + file creation instructions
-      const projectTree = buildProjectTree(nodes);
-      if (projectTree) {
-        systemContent += `\n\n## Project structure\n${projectTree}`;
-      }
-
-      const currentLocation = activeNode
-        ? (activeNode.type === "folder"
-          ? `the folder "${activeNode.title}"`
-          : `the file "${activeNode.title}"`)
-        : "the project root";
-      systemContent += `\n\nThe user is chatting from ${currentLocation}.`;
-
-      systemContent += `\n\n## Creating new documents
-When the user's request would be better served as a new document (rather than editing the current one or just answering with text), suggest creating it. Use <create-file> tags. Use <create-folder> to group files in a new folder.
-
-Format for a single file:
-<create-file title="Document Title" folder="Existing Folder Name">
-markdown content
-</create-file>
-
-Format for a new folder with files:
-<create-folder title="Folder Name">
-<create-file title="File Title">
-content
-</create-file>
-</create-folder>
-
-Rules:
-- title is required. folder is optional (defaults to current location).
-- You can include normal text before/after the tags to explain.
-- If the user explicitly asks to create a file or document, always use the tags.
-- Do NOT use <create-file> when the user wants to edit the current document — use <document> tags for that.`;
-
       if (activeNode?.type === "file") {
-        systemContent += `\n\nCurrent content:\n\n${draft}`;
+        const parentFolderForLabel = activeNode.parent
+          ? nodesById.get(String(activeNode.parent))
+          : null;
+        const locationLabel = parentFolderForLabel
+          ? `a document titled "${activeNode.title}" inside the folder "${parentFolderForLabel.title}"`
+          : `a document titled "${activeNode.title}"`;
+        systemContent += `\n\nThe user is working on ${locationLabel}. Current content:\n\n${draft}`;
         systemContent += `\n\nWhen the user asks you to write, edit, rewrite, expand, or modify the document content, you MUST respond using this exact format:
 
 <document>
@@ -2108,6 +1946,7 @@ Use mermaid when the user discusses processes, flows, or architectures.`;
         }
       } else if (activeNode?.type === "folder" && folderSummary) {
         const summaryLines = [
+          `The user is viewing a folder titled "${activeNode.title}".`,
           `Files: ${folderSummary.fileCount}, Folders: ${folderSummary.folderCount}`,
           `Total words: ${folderSummary.wordCount}`,
         ];
@@ -2234,13 +2073,11 @@ Rules for memory suggestions:
               .catch(() => {});
           }
           assistantContent = finalState.chatContent || "I've updated the document.";
-          const finalCreateBlocks = finalState.createBlocks || [];
-          assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
+          assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName };
         } else {
-          assistantContent = finalState.chatContent || fullContent;
-          const finalCreateBlocks = finalState.createBlocks || [];
+          assistantContent = fullContent;
           if (fullContent) {
-            assistantMsg = { role: "assistant", content: assistantContent, routedAgentId, routedAgentName, createBlocks: finalCreateBlocks.length > 0 ? finalCreateBlocks : undefined };
+            assistantMsg = { role: "assistant", content: fullContent, routedAgentId, routedAgentName };
           }
         }
 
@@ -2263,7 +2100,6 @@ Rules for memory suggestions:
         if (isCurrentlyViewed()) {
           if (assistantMsg) setChatMessages((prev) => [...prev, assistantMsg]);
           setStreamingContent("");
-          setStreamingCreateBlocks([]);
           setIsEditingDocument(false);
           if (finalState.memorySuggestion) {
             setPendingMemorySuggestion(finalState.memorySuggestion);
@@ -2332,14 +2168,11 @@ Rules for memory suggestions:
                 if (isCurrentlyViewed()) {
                   setIsEditingDocument(true);
                   setStreamingContent(state.chatContent || "");
-                  setStreamingCreateBlocks(state.createBlocks || []);
                 }
               } else if (state.mode === "chat") {
-                session.streamingContent = state.chatContent || fullContent;
-                session.streamingCreateBlocks = state.createBlocks || [];
+                session.streamingContent = fullContent;
                 if (isCurrentlyViewed()) {
-                  setStreamingContent(state.chatContent || fullContent);
-                  setStreamingCreateBlocks(state.createBlocks || []);
+                  setStreamingContent(fullContent);
                 }
               }
               // mode === "pending": don't update streaming content yet
@@ -2368,7 +2201,6 @@ Rules for memory suggestions:
             setChatMessages((prev) => [...prev, { role: "assistant", content: partial }]);
           }
           setStreamingContent("");
-          setStreamingCreateBlocks([]);
           setIsEditingDocument(false);
         }
       } else {
@@ -2383,7 +2215,6 @@ Rules for memory suggestions:
             { role: "assistant", content: "Error: " + errorText },
           ]);
           setStreamingContent("");
-          setStreamingCreateBlocks([]);
           setIsEditingDocument(false);
         }
       }
@@ -3556,9 +3387,6 @@ Rules for memory suggestions:
           onClose={() => setIsAssistantOpen(false)}
           messages={chatMessages}
           streamingContent={streamingContent}
-          streamingCreateBlocks={streamingCreateBlocks}
-          onCreateFile={handleAICreateFile}
-          onCreateFolder={handleAICreateFolder}
           currentInput={chatInput}
           onInputChange={setChatInput}
           onSend={handleSendMessage}
