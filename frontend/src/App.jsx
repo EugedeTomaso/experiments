@@ -176,6 +176,35 @@ function buildTree(nodes) {
   return roots;
 }
 
+function buildProjectTree(nodes) {
+  const byParent = new Map();
+  for (const n of nodes) {
+    const key = n.parent ? String(n.parent) : "root";
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(n);
+  }
+  for (const children of byParent.values()) {
+    children.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }
+  function render(parentKey, prefix) {
+    const children = byParent.get(parentKey) || [];
+    return children.map((n, i) => {
+      const isLast = i === children.length - 1;
+      const connector = isLast ? "└── " : "├── ";
+      const childPrefix = prefix + (isLast ? "    " : "│   ");
+      const label = n.type === "folder" ? `${n.title}/ (folder)` : `${n.title} (file)`;
+      const line = prefix + connector + label;
+      if (n.type === "folder") {
+        const sub = render(String(n.id), childPrefix);
+        return sub.length ? line + "\n" + sub.join("\n") : line;
+      }
+      return line;
+    });
+  }
+  const lines = render("root", "");
+  return lines.join("\n");
+}
+
 export default function App() {
   const { user, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -1857,14 +1886,42 @@ export default function App() {
         systemContent += addSection("Project Preferences", resolvedMemories.project_memories);
       }
 
+      // Project tree + file creation instructions
+      const projectTree = buildProjectTree(nodes);
+      if (projectTree) {
+        systemContent += `\n\n## Project structure\n${projectTree}`;
+      }
+
+      const currentLocation = activeNode
+        ? (activeNode.type === "folder"
+          ? `the folder "${activeNode.title}"`
+          : `the file "${activeNode.title}"`)
+        : "the project root";
+      systemContent += `\n\nThe user is chatting from ${currentLocation}.`;
+
+      systemContent += `\n\n## Creating new documents
+When the user's request would be better served as a new document (rather than editing the current one or just answering with text), suggest creating it. Use <create-file> tags. Use <create-folder> to group files in a new folder.
+
+Format for a single file:
+<create-file title="Document Title" folder="Existing Folder Name">
+markdown content
+</create-file>
+
+Format for a new folder with files:
+<create-folder title="Folder Name">
+<create-file title="File Title">
+content
+</create-file>
+</create-folder>
+
+Rules:
+- title is required. folder is optional (defaults to current location).
+- You can include normal text before/after the tags to explain.
+- If the user explicitly asks to create a file or document, always use the tags.
+- Do NOT use <create-file> when the user wants to edit the current document — use <document> tags for that.`;
+
       if (activeNode?.type === "file") {
-        const parentFolderForLabel = activeNode.parent
-          ? nodesById.get(String(activeNode.parent))
-          : null;
-        const locationLabel = parentFolderForLabel
-          ? `a document titled "${activeNode.title}" inside the folder "${parentFolderForLabel.title}"`
-          : `a document titled "${activeNode.title}"`;
-        systemContent += `\n\nThe user is working on ${locationLabel}. Current content:\n\n${draft}`;
+        systemContent += `\n\nCurrent content:\n\n${draft}`;
         systemContent += `\n\nWhen the user asks you to write, edit, rewrite, expand, or modify the document content, you MUST respond using this exact format:
 
 <document>
@@ -1946,7 +2003,6 @@ Use mermaid when the user discusses processes, flows, or architectures.`;
         }
       } else if (activeNode?.type === "folder" && folderSummary) {
         const summaryLines = [
-          `The user is viewing a folder titled "${activeNode.title}".`,
           `Files: ${folderSummary.fileCount}, Folders: ${folderSummary.folderCount}`,
           `Total words: ${folderSummary.wordCount}`,
         ];
