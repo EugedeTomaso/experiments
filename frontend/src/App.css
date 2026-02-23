@@ -10492,3 +10492,87 @@ button.ghost:focus-visible {
 .focus-mode .editor-content {
   max-width: 780px;
 }
+
+/* ===========================
+   AI Create File Card
+   =========================== */
+
+.create-file-card {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.create-file-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.create-file-card-location {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+  padding-left: 20px;
+}
+
+.create-file-card-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+  padding-left: 20px;
+}
+
+.create-file-card-filelist {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 8px;
+}
+
+.create-file-card-filelist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.create-file-card-filelist-item .create-file-card-meta {
+  margin-top: 0;
+  margin-left: auto;
+  padding-left: 0;
+}
+
+.create-file-card-actions {
+  margin-top: 10px;
+}
+
+.create-file-card-btn {
+  background: var(--text-1);
+  color: var(--surface);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.create-file-card-btn:hover {
+  opacity: 0.85;
+}
+
+.create-file-card-status {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.create-file-card-done {
+  color: var(--success, #16a34a);
+}
