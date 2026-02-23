@@ -28,7 +28,7 @@ function generateLines() {
 }
 
 export default function ConvergingLines() {
-  const lines = useMemo(generateLines, []);
+  const lines = useMemo(() => generateLines(), []);
 
   // Build keyframe rules for each line with literal values (not CSS vars)
   // so they resolve correctly in all browsers.
@@ -89,6 +89,13 @@ export default function ConvergingLines() {
     stroke-linecap: round;
     fill: none;
     will-change: transform, opacity;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .converging-line {
+      animation: none !important;
+      opacity: 0.18;
+      stroke-dashoffset: 0;
+    }
   }
   ${styleContent}
 `}</style>

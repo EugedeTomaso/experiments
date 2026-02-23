@@ -174,15 +174,7 @@ function buildKeyframes(el, index) {
   65%, 71% { transform: translate(${s[2].cx}px, ${s[2].cy}px); }
 }`;
   }
-  if (el.type === 'line') {
-    return `
-@keyframes shape-${index} {
-  0%, 100% { transform: translate(${s[0].x}px, ${s[0].y}px) rotate(${s[0].rotation}deg); }
-  30%, 36% { transform: translate(${s[1].x}px, ${s[1].y}px) rotate(${s[1].rotation}deg); }
-  65%, 71% { transform: translate(${s[2].x}px, ${s[2].y}px) rotate(${s[2].rotation}deg); }
-}`;
-  }
-  // rect
+  // line and rect use the same x/y/rotation state shape
   return `
 @keyframes shape-${index} {
   0%, 100% { transform: translate(${s[0].x}px, ${s[0].y}px) rotate(${s[0].rotation}deg); }
@@ -250,8 +242,16 @@ function renderElement(el, index) {
   );
 }
 
+const allKeyframes = elements.map(buildKeyframes).join('\n');
+
+const reducedMotionCSS = `
+@media (prefers-reduced-motion: reduce) {
+  svg circle, svg line, svg rect {
+    animation: none !important;
+  }
+}`;
+
 export default function AdaptiveShapes() {
-  const allKeyframes = elements.map(buildKeyframes).join('\n');
 
   return (
     <svg
@@ -267,7 +267,7 @@ export default function AdaptiveShapes() {
         overflow: 'visible',
       }}
     >
-      <style>{allKeyframes}</style>
+      <style>{allKeyframes + reducedMotionCSS}</style>
       {elements.map(renderElement)}
     </svg>
   );
