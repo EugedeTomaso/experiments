@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MiveLogo } from "../components/MiveLogo";
-import { EditorDemo } from "../components/EditorDemo";
+import { ConvergingLines } from "../components/svg/ConvergingLines";
 
 /* ── Inline SVG icons ── */
 
@@ -186,44 +186,25 @@ export function LandingPage() {
           <MiveLogo size={22} />
           Mive
         </Link>
-        <div className="landing-nav-links">
-          <a href="#features" className="landing-nav-link">Features</a>
-          <a href="#pricing" className="landing-nav-link">Pricing</a>
-        </div>
-        <div className="landing-nav-actions">
-          <Link to="/login" className="landing-btn-ghost">Sign in</Link>
-          <Link to="/register" className="landing-btn-primary">Get started</Link>
-        </div>
+        <Link to="/login" className="landing-nav-signin">Sign in</Link>
       </nav>
 
       {/* ── Hero ── */}
       <section className="landing-hero">
-        <div className="landing-hero-eyebrow">
-          <span className="landing-hero-eyebrow-dot" />
-          A writing studio
-        </div>
-        <h1 className="landing-hero-heading">
-          Think deeper. Write better.
-        </h1>
-        <p className="landing-hero-sub">
-          Mive is the space where serious writing happens — with a thinking partner
-          that reads everything you've written and helps you see what you can't.
-        </p>
-        <div className="landing-hero-actions">
-          <Link to="/register" className="landing-hero-cta">
-            Start writing free
-            <IconArrowRight />
-          </Link>
-          <a href="#features" className="landing-hero-cta-secondary">
-            See how it works
-          </a>
+        <ConvergingLines />
+        <div className="hero-content">
+          <h1 className="hero-heading">
+            You think in fragments.<br />
+            <span className="hero-heading-sub">
+              You are the glue between your tools. You shouldn't have to be.
+            </span>
+          </h1>
+          <p className="hero-transition">
+            What if everything lived in one place — and it understood what you're writing?
+          </p>
+          <a href="/register" className="hero-cta">Try Mive</a>
         </div>
       </section>
-
-      {/* ── Interactive demo ── */}
-      <div className="landing-hero-screenshot landing-animate" ref={addRef}>
-        <EditorDemo />
-      </div>
 
       {/* ── Showcase 1: AI Assistant ── */}
       <div className="landing-showcase landing-animate" ref={addRef}>
