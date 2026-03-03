@@ -15,6 +15,7 @@ import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
 import { CommentInput } from "./components/CommentInput";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareDialog } from "./components/ShareDialog";
+import { MarketplacePublishDialog } from "./components/MarketplacePublishDialog";
 import { ReceivedReviews } from "./components/ReceivedReviews";
 import { InvitationBanner } from "./components/InvitationBanner";
 import { ProjectWizard } from "./components/ProjectWizard";
@@ -417,6 +418,7 @@ export default function App() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [showReceivedReviews, setShowReceivedReviews] = useState(false);
+  const [showMarketplacePublish, setShowMarketplacePublish] = useState(false);
   const [publishState, setPublishState] = useState(null); // { platform, connection }
   const [collabSession, setCollabSession] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
@@ -2868,6 +2870,15 @@ Rules for memory suggestions:
           })()}
           {activeProjectId && (
             <button
+              className="topbar-btn"
+              onClick={() => setShowMarketplacePublish(true)}
+              title="Publish to Marketplace"
+            >
+              Marketplace
+            </button>
+          )}
+          {activeProjectId && (
+            <button
               className="topbar-icon-btn"
               onClick={() => setShowReceivedReviews(true)}
               title="Reviews"
@@ -3482,6 +3493,14 @@ Rules for memory suggestions:
         onClose={() => setIsShareOpen(false)}
         onProjectUpdate={() => api.listProjects().then(setProjects)}
       />
+
+      {showMarketplacePublish && activeProjectId && (
+        <MarketplacePublishDialog
+          projectId={activeProjectId}
+          projectName={projects.find((p) => p.id === activeProjectId)?.name || ""}
+          onClose={() => setShowMarketplacePublish(false)}
+        />
+      )}
 
       {showReceivedReviews && (
         <div className="received-reviews-overlay">

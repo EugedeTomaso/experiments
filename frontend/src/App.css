@@ -86,6 +86,23 @@
   color: var(--text-1);
 }
 
+.topbar-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-1);
+}
+
+.topbar-btn:hover {
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--text-1);
+}
+
 /* --- User avatar & menu --- */
 .user-menu-wrapper {
   position: relative;
@@ -11262,4 +11279,187 @@ button.ghost:focus-visible {
   color: var(--text-secondary);
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+/* Marketplace Publish Dialog */
+
+.marketplace-publish-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.marketplace-publish-dialog {
+  background: var(--surface);
+  border-radius: 16px;
+  width: 440px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.marketplace-publish-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.marketplace-publish-dialog__header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.marketplace-publish-dialog .btn-text {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 18px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.marketplace-publish-dialog .btn-text:hover {
+  color: var(--text-primary);
+}
+
+.marketplace-publish-dialog__loading {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.marketplace-publish-dialog__desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.marketplace-publish-dialog__field {
+  margin-bottom: 16px;
+}
+
+.marketplace-publish-dialog__field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.marketplace-publish-dialog__field input,
+.marketplace-publish-dialog__field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.marketplace-publish-dialog__field input:focus,
+.marketplace-publish-dialog__field textarea:focus {
+  border-color: var(--accent);
+}
+
+.marketplace-publish-dialog__field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.marketplace-publish-dialog__publish {
+  width: 100%;
+  padding: 10px;
+  background: var(--text-primary);
+  color: var(--surface);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 8px;
+}
+
+.marketplace-publish-dialog__publish:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.marketplace-publish-dialog__note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 12px;
+}
+
+.marketplace-publish-dialog__status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.marketplace-publish-dialog__status-badge {
+  padding: 3px 10px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.marketplace-publish-dialog__score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.marketplace-publish-dialog__info {
+  margin-bottom: 20px;
+}
+
+.marketplace-publish-dialog__info p {
+  font-size: 14px;
+  margin: 4px 0;
+  color: var(--text-primary);
+}
+
+.marketplace-publish-dialog__delist {
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: 1px solid #f44336;
+  color: #f44336;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.marketplace-publish-dialog__delist:hover {
+  background: #ffebee;
+}
+
+.marketplace-publish-dialog__listed {
+  display: flex;
+  flex-direction: column;
 }
