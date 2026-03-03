@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "./AuthContext";
+import { ListingDetail } from "./components/ListingDetail";
 import { MarketplaceBrowse } from "./components/MarketplaceBrowse";
 import "./App.css";
 
@@ -45,12 +46,21 @@ export function ReviewerApp() {
           <MarketplaceBrowse onSelectListing={handleSelectListing} />
         )}
         {view === "listing-detail" && selectedListing && (
+          <ListingDetail
+            listing={selectedListing}
+            onBack={() => setView("marketplace")}
+            onStartReview={(review, listing) => {
+              setActiveReview(review);
+              setSelectedListing(listing);
+              setView("reader");
+            }}
+          />
+        )}
+        {view === "reader" && activeReview && (
           <div>
-            <button className="btn-text" onClick={() => setView("marketplace")}>
-              &larr; Back to Marketplace
-            </button>
-            <h2>{selectedListing.project_name}</h2>
-            <p>Listing detail coming in Task 8...</p>
+            <button className="btn-text" onClick={() => setView("marketplace")}>&larr; Back</button>
+            <h2>Reader View</h2>
+            <p>Coming in Task 9...</p>
           </div>
         )}
         {view === "my-reviews" && (
