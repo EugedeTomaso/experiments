@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "./AuthContext";
 import { ListingDetail } from "./components/ListingDetail";
 import { MarketplaceBrowse } from "./components/MarketplaceBrowse";
+import { ReaderView } from "./components/ReaderView";
 import "./App.css";
 
 export function ReviewerApp() {
@@ -41,7 +42,7 @@ export function ReviewerApp() {
           <button onClick={logout} className="btn-text">Log out</button>
         </div>
       </header>
-      <main className="reviewer-main">
+      <main className={`reviewer-main${view === "reader" ? " reviewer-main--reader" : ""}`}>
         {view === "marketplace" && (
           <MarketplaceBrowse onSelectListing={handleSelectListing} />
         )}
@@ -57,11 +58,11 @@ export function ReviewerApp() {
           />
         )}
         {view === "reader" && activeReview && (
-          <div>
-            <button className="btn-text" onClick={() => setView("marketplace")}>&larr; Back</button>
-            <h2>Reader View</h2>
-            <p>Coming in Task 9...</p>
-          </div>
+          <ReaderView
+            review={activeReview}
+            listing={selectedListing}
+            onBack={() => setView("marketplace")}
+          />
         )}
         {view === "my-reviews" && (
           <div>
