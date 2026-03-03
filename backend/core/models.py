@@ -438,3 +438,17 @@ class CritiqueMessage(models.Model):
 
     def __str__(self):
         return f"{self.role} message in thread {self.thread_id}"
+
+
+class UserProfile(models.Model):
+    class UserType(models.TextChoices):
+        WRITER = "writer", "Writer"
+        REVIEWER = "reviewer", "Reviewer"
+
+    user = models.OneToOneField("auth.User", related_name="profile", on_delete=models.CASCADE)
+    user_type = models.CharField(max_length=10, choices=UserType.choices, default=UserType.WRITER)
+    bio = models.TextField(blank=True, default="")
+    specialties = models.JSONField(default=list, blank=True)
+
+    def __str__(self):
+        return f"{self.user.first_name} ({self.user_type})"
