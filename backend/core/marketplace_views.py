@@ -14,7 +14,29 @@ from .marketplace_serializers import (
     ReviewCommentSerializer,
     ReviewSerializer,
 )
-from .models import MarketplaceListing, Node, Project, Review, ReviewComment
+from .llm import generate_marketplace_score
+from .models import MarketplaceListing, Node, Project, ProviderKey, Review, ReviewComment
+from .utils import decrypt_value
+
+
+def _calculate_score(listing):
+    project = listing.project
+    nodes = project.nodes.filter(type="file").order_by("parent_id", "order")
+    content = "\n\n".join(f"# {n.title}\n\n{n.content_md or ''}" for n in nodes)
+    if not content.strip():
+        return None
+    try:
+        pk = ProviderKey.objects.first()
+        if not pk:
+            return None
+        api_key = decrypt_value(pk.api_key_encrypted)
+        score = generate_marketplace_score(pk.provider, api_key, "gpt-4o", content)
+        listing.ai_score = score
+        listing.ai_score_updated_at = timezone.now()
+        listing.save(update_fields=["ai_score", "ai_score_updated_at"])
+        return score
+    except Exception:
+        return None
 
 
 def require_user_type(user_type):
@@ -125,6 +147,7 @@ class ListingViewSet(viewsets.ModelViewSet):
         listing = serializer.save(
             status="listed", listed_at=timezone.now(), word_count=word_count
         )
+        _calculate_score(listing)
         return Response(
             MarketplaceListingDetailSerializer(listing).data,
             status=status.HTTP_201_CREATED,
@@ -151,7 +174,13 @@ class ListingViewSet(viewsets.ModelViewSet):
     @require_user_type("writer")
     def refresh_score(self, request, pk=None):
         listing = self.get_object()
-        return Response({"detail": "Score refresh queued."})
+        score = _calculate_score(listing)
+        if score is None:
+            return Response(
+                {"detail": "Could not calculate score. Check provider keys and project content."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({"ai_score": score})
 
     @action(detail=True, methods=["get"], url_path="reviews")
     @require_user_type("writer")

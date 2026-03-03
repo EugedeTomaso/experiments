@@ -251,6 +251,59 @@ def generate_critique_sync(
     return {"overall_score": 0, "summary": "Failed to generate critique.", "sections": []}
 
 
+MARKETPLACE_SCORE_SYSTEM_PROMPT = """You are a manuscript evaluator. Analyze the provided text and return a JSON object with these exact keys:
+- "overall": float 1-10, weighted average of the 4 dimensions
+- "prose_quality": float 1-10, clarity, flow, narrative voice, language use
+- "structure": float 1-10, organization, pacing, narrative arcs, transitions
+- "consistency": float 1-10, character continuity, timeline, worldbuilding, plot holes
+- "completeness": float 1-10, how finished it feels, beginning/middle/end, loose threads
+- "summary": string, 2-3 sentence assessment
+
+Return ONLY valid JSON, no markdown fences."""
+
+
+def generate_marketplace_score(provider: str, api_key: str, model: str, content_md: str) -> dict:
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    truncated = content_md[:30000]
+    messages = [
+        {"role": "system", "content": MARKETPLACE_SCORE_SYSTEM_PROMPT},
+        {"role": "user", "content": truncated},
+    ]
+
+    if config["type"] == "anthropic":
+        raw = _sync_anthropic_review(api_key, config["base_url"], model, messages)
+    else:
+        raw = _sync_openai_compatible_review(api_key, config["base_url"], model, messages)
+
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict) and "overall" in result:
+            result["model"] = model
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            result = json.loads(raw[start : end + 1])
+            if isinstance(result, dict) and "overall" in result:
+                result["model"] = model
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return {
+        "overall": 0, "prose_quality": 0, "structure": 0,
+        "consistency": 0, "completeness": 0,
+        "summary": "Failed to generate score.", "model": model,
+    }
+
+
 def _sync_openai_compatible_review(api_key: str, base_url: str, model: str, messages: list) -> str:
     url = f"{base_url}/chat/completions"
     body = {
