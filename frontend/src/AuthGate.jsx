@@ -1,6 +1,8 @@
 import { useAuth } from "./AuthContext";
+import App from "./App.jsx";
+import { ReviewerApp } from "./ReviewerApp.jsx";
 
-export function AuthGate({ children, fallback }) {
+export function AuthGate({ fallback }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -11,5 +13,7 @@ export function AuthGate({ children, fallback }) {
     );
   }
 
-  return user ? children : fallback;
+  if (!user) return fallback;
+
+  return user.user_type === "reviewer" ? <ReviewerApp /> : <App />;
 }

@@ -3,6 +3,7 @@ import { useAuth } from "../AuthContext";
 
 export function RegisterPage({ onNavigate }) {
   const { register } = useAuth();
+  const [userType, setUserType] = useState(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,15 +16,54 @@ export function RegisterPage({ onNavigate }) {
       setError("");
       setSubmitting(true);
       try {
-        await register(name, email, password);
+        await register(name, email, password, userType);
       } catch (err) {
         setError(err.message);
       } finally {
         setSubmitting(false);
       }
     },
-    [register, name, email, password]
+    [register, name, email, password, userType]
   );
+
+  if (!userType) {
+    return (
+      <div className="auth-page">
+        <div className="auth-brand">Mive</div>
+        <div className="auth-card" style={{ maxWidth: 480 }}>
+          <h2 className="auth-title">I want to...</h2>
+          <div style={{ display: "flex", gap: 16, marginTop: 24 }}>
+            <button
+              className="role-card"
+              onClick={() => setUserType("writer")}
+              style={{
+                flex: 1, padding: 24, border: "1px solid var(--border)",
+                borderRadius: 12, background: "var(--surface)", cursor: "pointer",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 8 }}>✍️</div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Write</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Create & publish your work</div>
+            </button>
+            <button
+              className="role-card"
+              onClick={() => setUserType("reviewer")}
+              style={{
+                flex: 1, padding: 24, border: "1px solid var(--border)",
+                borderRadius: 12, background: "var(--surface)", cursor: "pointer",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Review</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Discover & review manuscripts</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-page">
