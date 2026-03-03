@@ -15,6 +15,7 @@ import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
 import { CommentInput } from "./components/CommentInput";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareDialog } from "./components/ShareDialog";
+import { ReceivedReviews } from "./components/ReceivedReviews";
 import { InvitationBanner } from "./components/InvitationBanner";
 import { ProjectWizard } from "./components/ProjectWizard";
 import { ProjectHome } from "./components/ProjectHome";
@@ -148,6 +149,168 @@ const TYPE_LABELS = {
 const normalizeId = (value) =>
   value === null || value === undefined ? null : String(value);
 
+function findUniqueOccurrence(text, needle) {
+  if (!text || !needle) return -1;
+  const first = text.indexOf(needle);
+  if (first === -1) return -1;
+  const second = text.indexOf(needle, first + needle.length);
+  return second === -1 ? first : -1;
+}
+
+function buildScopedDocumentUpdate(originalDoc, generatedDoc, selectedText) {
+  if (!originalDoc || !generatedDoc || !selectedText) return null;
+
+  const normalizedSelection = selectedText.replace(/\r\n/g, "\n");
+  const candidateSelections = [
+    normalizedSelection,
+    normalizedSelection.replace(/\n/g, "\n\n"),
+  ];
+
+  let selected = null;
+  let start = -1;
+  for (const candidate of candidateSelections) {
+    if (!candidate) continue;
+    const idx = findUniqueOccurrence(originalDoc, candidate);
+    if (idx !== -1) {
+      selected = candidate;
+      start = idx;
+      break;
+    }
+  }
+
+  if (start === -1 || !selected) return null;
+
+  const end = start + selected.length;
+  const anchorSize = 120;
+  const beforeAnchor = originalDoc.slice(Math.max(0, start - anchorSize), start);
+  const afterAnchor = originalDoc.slice(end, Math.min(originalDoc.length, end + anchorSize));
+
+  let generatedStart = 0;
+  if (beforeAnchor) {
+    const beforeIndex = generatedDoc.indexOf(beforeAnchor);
+    if (beforeIndex === -1) return null;
+    generatedStart = beforeIndex + beforeAnchor.length;
+  }
+
+  let generatedEnd = generatedDoc.length;
+  if (afterAnchor) {
+    const afterIndex = generatedDoc.indexOf(afterAnchor, generatedStart);
+    if (afterIndex === -1) return null;
+    generatedEnd = afterIndex;
+  }
+
+  if (generatedEnd < generatedStart) return null;
+
+  const replacement = generatedDoc.slice(generatedStart, generatedEnd);
+  return originalDoc.slice(0, start) + replacement + originalDoc.slice(end);
+}
+
+function isLikelyParagraphBlock(block) {
+  if (!block) return false;
+  return !(
+    /^#{1,6}\s/.test(block) ||
+    /^[-*+]\s/.test(block) ||
+    /^\d+\.\s/.test(block) ||
+    /^>\s?/.test(block) ||
+    /^```/.test(block) ||
+    /^\|/.test(block)
+  );
+}
+
+function extractParagraphRanges(markdown) {
+  const text = (markdown || "").replace(/\r\n/g, "\n");
+  const ranges = [];
+  let cursor = 0;
+
+  while (cursor <= text.length) {
+    const breakIdx = text.indexOf("\n\n", cursor);
+    const blockEnd = breakIdx === -1 ? text.length : breakIdx;
+    const rawBlock = text.slice(cursor, blockEnd);
+    const trimmed = rawBlock.trim();
+    if (trimmed && isLikelyParagraphBlock(trimmed)) {
+      const leadingNonWhitespace = rawBlock.search(/\S/);
+      if (leadingNonWhitespace !== -1) {
+        const trailingWhitespace = rawBlock.length - rawBlock.trimEnd().length;
+        const start = cursor + leadingNonWhitespace;
+        const end = blockEnd - trailingWhitespace;
+        ranges.push({
+          start,
+          end,
+          text: text.slice(start, end),
+        });
+      }
+    }
+
+    if (breakIdx === -1) break;
+    cursor = breakIdx + 2;
+    while (cursor < text.length && text[cursor] === "\n") cursor++;
+  }
+
+  return ranges;
+}
+
+function inferParagraphScopeFromPrompt(prompt, markdown) {
+  const input = (prompt || "").toLowerCase();
+  const mentionsParagraph = /(p[áa]rrafo|paragraph)/.test(input);
+  let paragraphIndex = null;
+
+  if (
+    /(primer|primero|1er|1º|1°|first)\s+(p[áa]rrafo|paragraph)/.test(input) ||
+    /\b(intro|introducci[óo]n|introduction|opening)\b/.test(input)
+  ) {
+    paragraphIndex = 0;
+  } else if (/(segundo|2do|2º|second)\s+(p[áa]rrafo|paragraph)/.test(input)) {
+    paragraphIndex = 1;
+  } else if (/(tercer|tercero|3er|3º|third)\s+(p[áa]rrafo|paragraph)/.test(input)) {
+    paragraphIndex = 2;
+  } else if (
+    /(u[úu]ltimo|ultimo|last)\s+(p[áa]rrafo|paragraph)/.test(input) ||
+    /\b(conclusi[óo]n|conclusion|closing|cierre)\b/.test(input)
+  ) {
+    paragraphIndex = -1;
+  } else if (!mentionsParagraph) {
+    return null;
+  }
+
+  const paragraphs = extractParagraphRanges(markdown);
+  if (!paragraphs.length) return null;
+
+  const resolvedIndex =
+    paragraphIndex === null
+      ? null
+      : paragraphIndex < 0
+        ? paragraphs.length - 1
+        : paragraphIndex;
+  if (resolvedIndex === null || resolvedIndex >= paragraphs.length) return null;
+
+  const target = paragraphs[resolvedIndex];
+  return {
+    paragraphIndex: resolvedIndex,
+    text: target.text,
+    from: target.start,
+    to: target.end,
+  };
+}
+
+function replaceParagraphByIndex(originalDoc, generatedDoc, paragraphIndex) {
+  if (!originalDoc || !generatedDoc || !Number.isInteger(paragraphIndex)) return null;
+  const originalParagraphs = extractParagraphRanges(originalDoc);
+  if (paragraphIndex < 0 || paragraphIndex >= originalParagraphs.length) return null;
+  const generatedParagraphs = extractParagraphRanges(generatedDoc);
+  if (!generatedParagraphs.length) return null;
+
+  const sourceParagraph =
+    generatedParagraphs[paragraphIndex] || generatedParagraphs[0] || null;
+  if (!sourceParagraph) return null;
+
+  const targetParagraph = originalParagraphs[paragraphIndex];
+  return (
+    originalDoc.slice(0, targetParagraph.start) +
+    sourceParagraph.text +
+    originalDoc.slice(targetParagraph.end)
+  );
+}
+
 
 function buildTree(nodes) {
   const map = new Map();
@@ -253,6 +416,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [showReceivedReviews, setShowReceivedReviews] = useState(false);
   const [publishState, setPublishState] = useState(null); // { platform, connection }
   const [collabSession, setCollabSession] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
@@ -1541,15 +1705,22 @@ export default function App() {
     const targetNodeId = String(activeNodeId);
     // Build the API message with optional context
     const context = pendingContext;
+    const inferredParagraphScope = !context
+      ? inferParagraphScopeFromPrompt(userMsg, draft)
+      : null;
+    const scopeText = context?.text || inferredParagraphScope?.text || null;
+    const hasScopedContext = Boolean(scopeText?.trim());
+    const scopedParagraphIndex = inferredParagraphScope?.paragraphIndex ?? null;
+    const messageContext = context || (scopeText ? { text: scopeText } : null);
     const capturedMentionedIds = [...mentionedFileIds];
-    const apiUserMsg = context
-      ? `[Re: "${context.text}"]\n\n${userMsg}`
+    const apiUserMsg = scopeText
+      ? `[Re: "${scopeText}"]\n\n${userMsg}`
       : userMsg;
 
     const userMsgObj = {
       role: "user",
       content: userMsg,
-      context: context || undefined,
+      context: messageContext || undefined,
       mentionedFiles: capturedMentionedIds.length > 0 ? capturedMentionedIds : undefined,
     };
 
@@ -1719,6 +1890,9 @@ IMPORTANT RULES:
 - The <document> block must contain the COMPLETE document content (not a diff or partial update)
 - The <message> block should be a short, conversational follow-up (1-2 sentences)
 - If the user is NOT asking you to edit the document (e.g., they ask a question, want feedback, or want a summary), respond normally WITHOUT any <document> or <message> tags
+- Use surgical edits by default: if the user asks to change a specific section (e.g. first paragraph, intro, conclusion, selected text), edit ONLY that section and keep all other text exactly the same
+- Only rewrite the full document when the user explicitly asks for a full rewrite
+- When the user message contains a [Re: "..."] context marker, treat that referenced excerpt as strict scope and do not edit outside it
 - Never put document content outside of <document> tags when editing
 - Never omit the <message> tag when you include a <document> tag
 - Do NOT repeat the document or file title in your response text — the user already sees it in the UI
@@ -1735,6 +1909,17 @@ The editor supports these advanced formats. Use them when they improve readabili
 
 Use tables for any structured data. Use callouts for warnings, tips, and important notes.
 Use mermaid when the user discusses processes, flows, or architectures.`;
+
+        if (scopeText) {
+          systemContent += `\n\n## Strict edit scope
+The user requested edits to this excerpt:
+"${scopeText}"
+
+If you edit the document:
+- Change only that excerpt
+- Keep the rest of the document verbatim
+- If you notice other possible improvements, mention them in <message> only (do not apply them in <document>)`;
+        }
 
         // Context file resolution: project pins + folder pins (or auto-sibling fallback)
         const projectPins = (activeProject?.context_nodes || [])
@@ -1861,21 +2046,52 @@ Rules for memory suggestions:
       fullContent = "";
       parser = createStreamParser();
       let lastApplyTime = 0;
-      let appliedDocument = false;
 
       const finalize = () => {
         const finalState = parser.getState();
         session.completed = true;
         let assistantContent = "";
         let assistantMsg = null;
+        let scopeGuardTriggered = false;
 
         if (finalState.mode === "document_edit") {
           if (finalState.documentContent) {
-            session.finalDocumentContent = finalState.documentContent;
+            const preEditDraft = preEditDraftsRef.current.get(targetNodeId) || "";
+            let nextDocumentContent = finalState.documentContent;
+            if (hasScopedContext) {
+              const scopedDocument = buildScopedDocumentUpdate(
+                preEditDraft,
+                finalState.documentContent,
+                scopeText
+              );
+              if (scopedDocument !== null) {
+                nextDocumentContent = scopedDocument;
+              } else if (Number.isInteger(scopedParagraphIndex)) {
+                const paragraphScopedDocument = replaceParagraphByIndex(
+                  preEditDraft,
+                  finalState.documentContent,
+                  scopedParagraphIndex
+                );
+                if (paragraphScopedDocument !== null) {
+                  nextDocumentContent = paragraphScopedDocument;
+                } else {
+                  // If we cannot isolate the requested selection safely, keep the doc intact.
+                  nextDocumentContent = preEditDraft;
+                  scopeGuardTriggered = true;
+                }
+              } else {
+                // If we cannot isolate the requested selection safely, keep the doc intact.
+                nextDocumentContent = preEditDraft;
+                scopeGuardTriggered = true;
+              }
+            }
+
+            const hasDocumentChange = nextDocumentContent !== preEditDraft;
+            session.finalDocumentContent = hasDocumentChange ? nextDocumentContent : null;
             const editor = getTargetEditor();
-            if (editor) {
+            if (editor && hasDocumentChange) {
               // Foreground: apply to editor directly, show diff
-              try { editor.replaceContentDiff(finalState.documentContent); } catch (_) {}
+              try { editor.replaceContentDiff(nextDocumentContent); } catch (_) {}
               setTimeout(() => {
                 const currentEditor = getTargetEditor();
                 if (currentEditor) {
@@ -1893,26 +2109,38 @@ Rules for memory suggestions:
                   session.diffAvailable = true;
                 }
               }, 400);
-            } else {
+            } else if (!editor && hasDocumentChange) {
               // Background: just mark diff available for later restore
               session.diffAvailable = true;
             }
             // Publish AI suggestion to collaborators if sharing is enabled
-            if (collabSession && localStorage.getItem("mive:ai-visible") === "true") {
+            if (
+              hasDocumentChange &&
+              collabSession &&
+              localStorage.getItem("mive:ai-visible") === "true"
+            ) {
               collabSession.publishAiSuggestion(
                 user?.id,
-                preEditDraftsRef.current.get(targetNodeId) || "",
-                finalState.documentContent
+                preEditDraft,
+                nextDocumentContent
               );
             }
-            // Always persist to the correct node via API, regardless of navigation
-            api.updateNode(targetNodeId, { content_md: finalState.documentContent })
-              .then((updated) => {
-                setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
-              })
-              .catch(() => {});
+            if (hasDocumentChange) {
+              // Always persist to the correct node via API, regardless of navigation
+              api.updateNode(targetNodeId, { content_md: nextDocumentContent })
+                .then((updated) => {
+                  setNodes((prev) =>
+                    prev.map((n) => (String(n.id) === String(updated.id) ? updated : n))
+                  );
+                })
+                .catch(() => {});
+            }
           }
           assistantContent = finalState.chatContent || "I've updated the document.";
+          if (scopeGuardTriggered) {
+            assistantContent +=
+              "\n\nI kept the rest of the document unchanged because I could not isolate the requested scope safely.";
+          }
           assistantMsg = { role: "assistant", content: assistantContent, isDocumentEdit: true, routedAgentId, routedAgentName };
         } else {
           assistantContent = fullContent;
@@ -1994,7 +2222,7 @@ Rules for memory suggestions:
                 // Typewriter: apply partial content throttled
                 const now = Date.now();
                 const editor = getTargetEditor();
-                if (state.documentContent && now - lastApplyTime >= 80) {
+                if (!hasScopedContext && state.documentContent && now - lastApplyTime >= 80) {
                   if (editor) {
                     try { editor.replaceContentDiff(state.documentContent, { streaming: true }); } catch (_) {}
                   }
@@ -2003,7 +2231,6 @@ Rules for memory suggestions:
                     String(n.id) === targetNodeId ? { ...n, content_md: state.documentContent } : n
                   ));
                   lastApplyTime = now;
-                  appliedDocument = true;
                 }
                 if (isCurrentlyViewed()) {
                   setIsEditingDocument(true);
@@ -2027,7 +2254,11 @@ Rules for memory suggestions:
         // User stopped streaming or navigated away — persist partial document content
         if (parser) {
           const partialState = parser.getState();
-          if (partialState.mode === "document_edit" && partialState.documentContent) {
+          if (
+            !hasScopedContext &&
+            partialState.mode === "document_edit" &&
+            partialState.documentContent
+          ) {
             // Save partial content so it's not lost
             setNodes((prev) => prev.map((n) =>
               String(n.id) === targetNodeId ? { ...n, content_md: partialState.documentContent } : n
@@ -2619,7 +2850,12 @@ Rules for memory suggestions:
             return (p?.current_user_role === "owner" || p?.current_user_role === "admin") ? (
               <button
                 className="topbar-icon-btn"
-                onClick={() => setIsShareOpen(true)}
+                onClick={() => {
+                  // Avoid stacked overlays (assistant creator over share dialog).
+                  setIsAgentCreatorOpen(false);
+                  setEditingAgent(null);
+                  setIsShareOpen(true);
+                }}
                 title="Share"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2630,6 +2866,21 @@ Rules for memory suggestions:
               </button>
             ) : null;
           })()}
+          {activeProjectId && (
+            <button
+              className="topbar-icon-btn"
+              onClick={() => setShowReceivedReviews(true)}
+              title="Reviews"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </button>
+          )}
           {collabSession && <PresenceIndicator awareness={collabSession.awareness} />}
           <button
             className="topbar-icon-btn"
@@ -3231,6 +3482,12 @@ Rules for memory suggestions:
         onClose={() => setIsShareOpen(false)}
         onProjectUpdate={() => api.listProjects().then(setProjects)}
       />
+
+      {showReceivedReviews && (
+        <div className="received-reviews-overlay">
+          <ReceivedReviews onClose={() => setShowReceivedReviews(false)} />
+        </div>
+      )}
 
       {commentInputState && (
         <CommentInput
