@@ -10993,3 +10993,99 @@ button.ghost:focus-visible {
   display: flex;
   flex-direction: column;
 }
+
+/* My Reviews */
+
+.my-reviews__title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 24px;
+}
+
+.my-reviews__loading,
+.my-reviews__empty {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text-secondary);
+}
+
+.my-reviews__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-reviews__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  width: 100%;
+  font-family: inherit;
+}
+
+.my-reviews__card:hover {
+  border-color: var(--text-secondary);
+}
+
+.my-reviews__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.my-reviews__card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.my-reviews__status {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.my-reviews__status--in_progress {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.my-reviews__status--submitted {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.my-reviews__status--read_by_author {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.my-reviews__card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.my-reviews__verdict {
+  font-weight: 500;
+}
+
+.my-reviews__card-summary {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}

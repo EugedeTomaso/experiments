@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useAuth } from "./AuthContext";
+import { api } from "./api";
 import { ListingDetail } from "./components/ListingDetail";
 import { MarketplaceBrowse } from "./components/MarketplaceBrowse";
+import { MyReviews } from "./components/MyReviews";
 import { ReaderView } from "./components/ReaderView";
 import "./App.css";
 
@@ -65,10 +67,18 @@ export function ReviewerApp() {
           />
         )}
         {view === "my-reviews" && (
-          <div>
-            <h2>My Reviews</h2>
-            <p>Coming in Task 12...</p>
-          </div>
+          <MyReviews
+            onOpenReview={async (review) => {
+              try {
+                const listing = await api.getMarketplaceListing(review.listing);
+                setActiveReview(review);
+                setSelectedListing(listing);
+                setView("reader");
+              } catch (err) {
+                console.error("Failed to open review:", err);
+              }
+            }}
+          />
         )}
       </main>
     </div>
