@@ -35,6 +35,9 @@ from .publish_views import (
     PublishPreviewView,
     PublishView,
 )
+from .marketplace_views import (
+    MarketplaceViewSet, ListingViewSet, ReviewViewSet, ReviewCommentViewSet,
+)
 from .views import (
     AIAutocompleteView,
     AICommentReplyView,
@@ -73,6 +76,9 @@ router.register(r"provider-keys", ProviderKeyViewSet, basename="provider-key")
 router.register(r"conversations", ConversationViewSet, basename="conversation")
 router.register(r"messages", MessageViewSet, basename="message")
 router.register(r"memories", MemoryViewSet, basename="memory")
+router.register(r"marketplace", MarketplaceViewSet, basename="marketplace")
+router.register(r"listings", ListingViewSet, basename="listing")
+router.register(r"reviews", ReviewViewSet, basename="review")
 
 urlpatterns = [
     # Auth
@@ -119,6 +125,9 @@ urlpatterns = [
     path("api/publish/", PublishView.as_view(), name="publish"),
     path("api/publish/preview/", PublishPreviewView.as_view(), name="publish-preview"),
     path("api/publish/history/", PublishHistoryView.as_view(), name="publish-history"),
+    # Review comments (nested under reviews)
+    path("api/reviews/<int:review_pk>/comments/", ReviewCommentViewSet.as_view({"get": "list", "post": "create"})),
+    path("api/reviews/<int:review_pk>/comments/<int:pk>/", ReviewCommentViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"})),
     # Internal (collab server)
     path("api/internal/node-access/<int:node_id>/", NodeAccessView.as_view(), name="internal-node-access"),
     path("api/internal/nodes/<int:node_id>/yjs-state/", YjsStateView.as_view(), name="internal-yjs-state"),
