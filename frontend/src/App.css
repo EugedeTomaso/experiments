@@ -10644,3 +10644,352 @@ button.ghost:focus-visible {
 .comment-type-tag--suggestion { background: #e3f2fd; color: #1565c0; }
 .comment-type-tag--issue { background: #ffebee; color: #c62828; }
 .comment-type-tag--note { background: var(--surface-inset); color: var(--text-secondary); }
+
+/* AI Tools Panel */
+
+.ai-tools-panel__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ai-tools-panel__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+
+.ai-tools-panel__btn:hover {
+  border-color: var(--text-secondary);
+  background: var(--surface-inset);
+}
+
+.ai-tools-panel__btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.ai-tools-panel__icon {
+  font-size: 20px;
+}
+
+.ai-tools-panel__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.ai-tools-panel__scope {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.ai-tools-panel__result {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--surface-inset);
+  border-radius: 8px;
+}
+
+.ai-tools-panel__result h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+
+.ai-tools-panel__result-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+/* Reviewer Chat */
+
+.reviewer-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.reviewer-chat__messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.reviewer-chat__empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.reviewer-chat__msg {
+  max-width: 90%;
+}
+
+.reviewer-chat__msg--user {
+  align-self: flex-end;
+}
+
+.reviewer-chat__msg--assistant {
+  align-self: flex-start;
+}
+
+.reviewer-chat__msg-content {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.reviewer-chat__msg--user .reviewer-chat__msg-content {
+  background: var(--text-primary);
+  color: var(--surface);
+}
+
+.reviewer-chat__msg--assistant .reviewer-chat__msg-content {
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+
+.reviewer-chat__typing {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.reviewer-chat__input-row {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.reviewer-chat__input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+}
+
+.reviewer-chat__input:focus {
+  border-color: var(--accent);
+}
+
+.reviewer-chat__send {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--text-primary);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.reviewer-chat__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Report Builder */
+
+.report-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-builder__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.report-builder__select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.report-builder__textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.report-builder__textarea:focus {
+  border-color: var(--accent);
+}
+
+.report-builder__empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.report-builder__group {
+  margin-bottom: 12px;
+}
+
+.report-builder__group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 6px;
+}
+
+.report-builder__comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--surface-inset);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.report-builder__comment-body {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.report-builder__actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-inset);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+}
+
+.report-builder__submit {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--text-primary);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  margin-left: auto;
+}
+
+.report-builder__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Report Preview */
+
+.report-preview {
+  padding: 16px;
+  background: var(--surface-inset);
+  border-radius: 8px;
+}
+
+.report-preview h3 {
+  font-size: 16px;
+  margin: 0 0 16px;
+}
+
+.report-preview__verdict {
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.report-preview__summary h4,
+.report-preview__comments h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.report-preview__summary p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 16px;
+  white-space: pre-wrap;
+}
+
+.report-preview__group {
+  margin-bottom: 12px;
+}
+
+.report-preview__group h5 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 6px;
+}
+
+.report-preview__comment {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.report-builder__section {
+  display: flex;
+  flex-direction: column;
+}

@@ -271,3 +271,124 @@ class ReviewCommentViewSet(viewsets.ModelViewSet):
     @require_user_type("reviewer")
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
+
+
+class ReviewAIAnalyzeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @require_user_type("reviewer")
+    def post(self, request, review_pk):
+        try:
+            review = Review.objects.select_related("listing__project").get(
+                id=review_pk, reviewer=request.user
+            )
+        except Review.DoesNotExist:
+            return Response({"detail": "Review not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        tool = request.data.get("tool", "")
+        node_id = request.data.get("node_id")
+
+        project = review.listing.project
+        if node_id:
+            try:
+                node = project.nodes.get(id=node_id)
+                content = node.content_md or ""
+            except Node.DoesNotExist:
+                return Response({"detail": "Node not found."}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            nodes = project.nodes.filter(type="file").order_by("parent_id", "order")
+            content = "\n\n".join(f"# {n.title}\n\n{n.content_md or ''}" for n in nodes)
+
+        if not content.strip():
+            return Response({"result": "No content to analyze."})
+
+        tool_prompts = {
+            "structure": "Analyze the narrative structure, pacing, and arc of this text. Identify strengths and weaknesses.",
+            "prose": "Evaluate the prose quality: clarity, voice, show vs tell, repetitions, sentence variety.",
+            "inconsistencies": "Find plot holes, timeline contradictions, character inconsistencies, and worldbuilding errors.",
+            "summaries": "Provide a 2-3 sentence summary for each chapter/section.",
+            "characters": "List all characters, their roles, relationships, and which chapters they appear in.",
+            "genre": "Analyze how this text fits within its genre conventions. What tropes does it use or subvert?",
+        }
+
+        prompt = tool_prompts.get(tool, f"Analyze this text for: {tool}")
+
+        try:
+            pk = ProviderKey.objects.first()
+            if not pk:
+                return Response({"result": "No AI provider configured."})
+            api_key = decrypt_value(pk.api_key_encrypted)
+
+            from .llm import PROVIDERS, _sync_openai_compatible_review, _sync_anthropic_review
+            config = PROVIDERS.get(pk.provider)
+            if not config:
+                return Response({"result": "Unsupported provider."})
+
+            messages = [
+                {"role": "system", "content": f"You are a professional literary reviewer. {prompt}"},
+                {"role": "user", "content": content[:20000]},
+            ]
+
+            if config["type"] == "anthropic":
+                result = _sync_anthropic_review(api_key, config["base_url"], "claude-sonnet-4-20250514", messages)
+            else:
+                result = _sync_openai_compatible_review(api_key, config["base_url"], "gpt-4o", messages)
+
+            return Response({"result": result})
+        except Exception as e:
+            return Response({"result": f"Analysis failed: {str(e)}"})
+
+
+class ReviewAIChatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @require_user_type("reviewer")
+    def post(self, request, review_pk):
+        try:
+            review = Review.objects.select_related("listing__project").get(
+                id=review_pk, reviewer=request.user
+            )
+        except Review.DoesNotExist:
+            return Response({"detail": "Review not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        message = request.data.get("message", "")
+        node_id = request.data.get("node_id")
+
+        if not message.strip():
+            return Response({"detail": "Message is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        project = review.listing.project
+        if node_id:
+            try:
+                node = project.nodes.get(id=node_id)
+                context = f"Current chapter: {node.title}\n\n{node.content_md or ''}"
+            except Node.DoesNotExist:
+                context = ""
+        else:
+            nodes = project.nodes.filter(type="file").order_by("parent_id", "order")
+            context = "\n\n".join(f"# {n.title}\n\n{(n.content_md or '')[:3000]}" for n in nodes[:10])
+
+        try:
+            pk = ProviderKey.objects.first()
+            if not pk:
+                return Response({"reply": "No AI provider configured."})
+            api_key = decrypt_value(pk.api_key_encrypted)
+
+            from .llm import PROVIDERS, _sync_openai_compatible_review, _sync_anthropic_review
+            config = PROVIDERS.get(pk.provider)
+            if not config:
+                return Response({"reply": "Unsupported provider."})
+
+            messages = [
+                {"role": "system", "content": f"You are a professional literary reviewer helping analyze a manuscript. Here is the context:\n\n{context[:15000]}"},
+                {"role": "user", "content": message},
+            ]
+
+            if config["type"] == "anthropic":
+                reply = _sync_anthropic_review(api_key, config["base_url"], "claude-sonnet-4-20250514", messages)
+            else:
+                reply = _sync_openai_compatible_review(api_key, config["base_url"], "gpt-4o", messages)
+
+            return Response({"reply": reply})
+        except Exception as e:
+            return Response({"reply": f"Chat failed: {str(e)}"})

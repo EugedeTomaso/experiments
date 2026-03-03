@@ -37,6 +37,7 @@ from .publish_views import (
 )
 from .marketplace_views import (
     MarketplaceViewSet, ListingViewSet, ReviewViewSet, ReviewCommentViewSet,
+    ReviewAIAnalyzeView, ReviewAIChatView,
 )
 from .views import (
     AIAutocompleteView,
@@ -128,6 +129,8 @@ urlpatterns = [
     # Review comments (nested under reviews)
     path("api/reviews/<int:review_pk>/comments/", ReviewCommentViewSet.as_view({"get": "list", "post": "create"})),
     path("api/reviews/<int:review_pk>/comments/<int:pk>/", ReviewCommentViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"})),
+    path("api/reviews/<int:review_pk>/ai/analyze", ReviewAIAnalyzeView.as_view()),
+    path("api/reviews/<int:review_pk>/ai/chat", ReviewAIChatView.as_view()),
     # Internal (collab server)
     path("api/internal/node-access/<int:node_id>/", NodeAccessView.as_view(), name="internal-node-access"),
     path("api/internal/nodes/<int:node_id>/yjs-state/", YjsStateView.as_view(), name="internal-yjs-state"),

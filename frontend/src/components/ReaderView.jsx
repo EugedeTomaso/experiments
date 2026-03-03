@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { MarkdownEditor } from "../MarkdownEditor";
+import { AIToolsPanel } from "./AIToolsPanel";
+import { ReviewerChatPanel } from "./ReviewerChatPanel";
+import { ReportBuilder } from "./ReportBuilder";
 
 export function ReaderView({ review, listing, onBack }) {
   const [nodes, setNodes] = useState([]);
@@ -167,29 +170,22 @@ export function ReaderView({ review, listing, onBack }) {
           </div>
           <div className="reader-panel__content">
             {activeTab === "tools" && (
-              <div className="reader-panel__placeholder">
-                AI analysis tools (Task 10)
-              </div>
+              <AIToolsPanel reviewId={review.id} nodeId={selectedNodeId} />
             )}
             {activeTab === "chat" && (
-              <div className="reader-panel__placeholder">
-                AI chat (Task 10)
-              </div>
+              <ReviewerChatPanel
+                reviewId={review.id}
+                nodeId={selectedNodeId}
+                nodeTitle={nodeTitle}
+              />
             )}
             {activeTab === "report" && (
-              <div className="reader-panel__placeholder">
-                <h4>Comments ({nodeComments.length})</h4>
-                {nodeComments.map((c) => (
-                  <div key={c.id} className="reader-panel__comment">
-                    <span className={`comment-type-tag comment-type-tag--${c.comment_type}`}>
-                      {c.comment_type}
-                    </span>
-                    <span>{c.body}</span>
-                    <button className="btn-text" onClick={() => handleDeleteComment(c.id)}>&times;</button>
-                  </div>
-                ))}
-                Report builder (Task 11)
-              </div>
+              <ReportBuilder
+                review={review}
+                comments={comments}
+                onCommentDelete={handleDeleteComment}
+                onSubmitted={() => onBack()}
+              />
             )}
           </div>
         </aside>

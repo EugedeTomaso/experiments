@@ -498,4 +498,16 @@ export const api = {
   getListingReviews(id) {
     return request(`/api/listings/${id}/reviews/`);
   },
+  analyzeForReview(reviewId, tool, nodeId = null) {
+    return request(`/api/reviews/${reviewId}/ai/analyze`, {
+      method: "POST",
+      body: JSON.stringify({ tool, node_id: nodeId }),
+    });
+  },
+  chatForReview(reviewId, message, nodeId = null) {
+    return request(`/api/reviews/${reviewId}/ai/chat`, {
+      method: "POST",
+      body: JSON.stringify({ message, node_id: nodeId }),
+    });
+  },
 };
