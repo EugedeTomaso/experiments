@@ -35,7 +35,8 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        create_demo_project(user)
+        if user.profile.user_type == "writer":
+            create_demo_project(user)
         tokens = get_tokens_for_user(user)
         return Response(
             {

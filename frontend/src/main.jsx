@@ -8,6 +8,7 @@ import App from './App.jsx'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import { AuthShell } from './components/AuthShell.jsx'
 import { LandingPage } from './pages/LandingPage.jsx'
+import { ReviewerApp } from './ReviewerApp.jsx'
 import { ErrorBoundary } from './ErrorBoundary.jsx'
 
 function ProtectedRoute({ children }) {
@@ -34,6 +35,11 @@ function AuthRoute({ children }) {
   return user ? <Navigate to="/app" replace /> : children
 }
 
+function AppShell() {
+  const { user } = useAuth()
+  return user?.user_type === "reviewer" ? <ReviewerApp /> : <App />
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
@@ -45,7 +51,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/register" element={<AuthRoute><AuthShell initialPage="register" /></AuthRoute>} />
             <Route path="/forgot" element={<AuthRoute><AuthShell initialPage="forgot" /></AuthRoute>} />
             <Route path="/reset" element={<AuthRoute><AuthShell initialPage="reset" /></AuthRoute>} />
-            <Route path="/app/*" element={<ProtectedRoute><App /></ProtectedRoute>} />
+            <Route path="/app/*" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>

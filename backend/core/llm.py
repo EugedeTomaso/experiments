@@ -174,6 +174,18 @@ CRITIQUE_SYSTEM_PROMPT = (
     '{"overall_score": 7, "summary": "...", "sections": [{"title": "...", "score": 7, "body": "..."}, ...]}'
 )
 
+MARKETPLACE_SCORE_SYSTEM_PROMPT = """You are a professional fiction reviewer evaluating a manuscript for a reviewer marketplace.
+
+Read the text and return a single JSON object with exactly these keys:
+- "overall": float from 0 to 10
+- "prose_quality": float from 0 to 10
+- "structure": float from 0 to 10
+- "consistency": float from 0 to 10
+- "completeness": float from 0 to 10
+- "summary": string, 2-3 sentence assessment
+
+Return ONLY valid JSON, no markdown fences."""
+
 
 def generate_review_sync(
     provider: str, api_key: str, model: str, content_md: str, focus: str = "all"
@@ -249,6 +261,52 @@ def generate_critique_sync(
             pass
 
     return {"overall_score": 0, "summary": "Failed to generate critique.", "sections": []}
+
+
+def generate_marketplace_score(provider: str, api_key: str, model: str, content_md: str) -> dict:
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    truncated = content_md[:30000]
+    messages = [
+        {"role": "system", "content": MARKETPLACE_SCORE_SYSTEM_PROMPT},
+        {"role": "user", "content": truncated},
+    ]
+
+    if config["type"] == "anthropic":
+        raw = _sync_anthropic_review(api_key, config["base_url"], model, messages)
+    else:
+        raw = _sync_openai_compatible_review(api_key, config["base_url"], model, messages)
+
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict) and "overall" in result:
+            result["model"] = model
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            result = json.loads(raw[start : end + 1])
+            if isinstance(result, dict) and "overall" in result:
+                result["model"] = model
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return {
+        "overall": 0,
+        "prose_quality": 0,
+        "structure": 0,
+        "consistency": 0,
+        "completeness": 0,
+        "summary": "Failed to generate score.",
+        "model": model,
+    }
 
 
 def _sync_openai_compatible_review(api_key: str, base_url: str, model: str, messages: list) -> str:

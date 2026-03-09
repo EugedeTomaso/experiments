@@ -15,12 +15,15 @@ import { AgentCreatorSlideOver } from "./components/AgentCreatorSlideOver";
 import { CommentInput } from "./components/CommentInput";
 import { SettingsModal } from "./components/SettingsModal";
 import { ShareDialog } from "./components/ShareDialog";
+import { MarketplacePublishDialog } from "./components/MarketplacePublishDialog";
+import { ReceivedReviews } from "./components/ReceivedReviews";
 import { InvitationBanner } from "./components/InvitationBanner";
 import { ProjectWizard } from "./components/ProjectWizard";
 import { ProjectHome } from "./components/ProjectHome";
 import { AllProjects } from "./components/AllProjects";
 import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
 import { SpotlightTour } from "./components/SpotlightTour";
+import { shouldShowWelcomeWalkthrough } from "./utils/walkthrough";
 import { HelpModal } from "./components/HelpModal";
 import { useComments } from "./hooks/useComments";
 import { createStreamParser } from "./streamParser";
@@ -258,6 +261,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [showMarketplacePublish, setShowMarketplacePublish] = useState(false);
+  const [showReceivedReviews, setShowReceivedReviews] = useState(false);
   const [publishState, setPublishState] = useState(null); // { platform, connection }
   const [collabSession, setCollabSession] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
@@ -1255,7 +1260,13 @@ export default function App() {
   };
 
   // --- Walkthrough handlers ---
-  const showWalkthrough = !isReviewerOnlyUser && !walkthroughDismissed && !isWizardOpen;
+  const showWalkthrough = shouldShowWelcomeWalkthrough({
+    isReviewerOnlyUser,
+    walkthroughDismissed,
+    isWizardOpen,
+    canCreateProjects,
+    projectCount: projects.length,
+  });
 
   const handleWalkthroughComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
     if (!canCreateProjects) return;
@@ -2891,6 +2902,36 @@ Rules for memory suggestions:
               </button>
             ) : null;
           })()}
+          {activeProjectId && (() => {
+            const p = projects.find((pr) => pr.id === activeProjectId);
+            return p?.current_user_role === "owner" ? (
+              <button
+                className="topbar-btn"
+                onClick={() => setShowMarketplacePublish(true)}
+                title="Publish to Marketplace"
+              >
+                Marketplace
+              </button>
+            ) : null;
+          })()}
+          {activeProjectId && (() => {
+            const p = projects.find((pr) => pr.id === activeProjectId);
+            return p?.current_user_role === "owner" ? (
+              <button
+                className="topbar-icon-btn"
+                onClick={() => setShowReceivedReviews(true)}
+                title="Reviews"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </button>
+            ) : null;
+          })()}
           {collabSession && <PresenceIndicator awareness={collabSession.awareness} />}
           <button
             className={`topbar-icon-btn ai-intensity-indicator ai-intensity-${aiIntensity}`}
@@ -3570,6 +3611,20 @@ Rules for memory suggestions:
         onClose={() => setIsShareOpen(false)}
         onProjectUpdate={() => api.listProjects().then(setProjects)}
       />
+
+      {showMarketplacePublish && activeProjectId && (
+        <MarketplacePublishDialog
+          projectId={activeProjectId}
+          projectName={projects.find((p) => p.id === activeProjectId)?.name || ""}
+          onClose={() => setShowMarketplacePublish(false)}
+        />
+      )}
+
+      {showReceivedReviews && (
+        <div className="received-reviews-overlay">
+          <ReceivedReviews onClose={() => setShowReceivedReviews(false)} />
+        </div>
+      )}
 
       {commentInputState && (
         <CommentInput
