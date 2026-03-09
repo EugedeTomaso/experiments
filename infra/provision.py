@@ -3,9 +3,9 @@
 
 import os
 import secrets
+import shlex
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 try:
@@ -22,11 +22,12 @@ except ImportError:
 SERVER_NAME = "mive-prod"
 SSH_KEY_NAME = "mive-deploy"
 FIREWALL_NAME = "mive-firewall"
-SERVER_TYPE = "cx22"  # 2 vCPU, 4GB RAM, 40GB SSD
+SERVER_TYPE = "cx23"  # 2 vCPU, 4GB RAM, 40GB SSD
 IMAGE_NAME = "ubuntu-24.04"
 LOCATION_NAME = "nbg1"  # Nuremberg
-GITHUB_REPO = "git@github.com:EugedeTomaso/experiments.git"
+GITHUB_REPO = "https://github.com/EugedeTomaso/experiments.git"
 DEPLOY_DIR = "/opt/mive"
+DEPLOY_REF = os.environ.get("DEPLOY_REF", "development")
 SSH_KEY_PATH = Path.home() / ".ssh" / "mive_deploy_key"
 
 
@@ -42,8 +43,7 @@ def generate_ssh_key():
             check=True,
         )
     public_key = SSH_KEY_PATH.with_suffix(".pub").read_text().strip()
-    private_key = SSH_KEY_PATH.read_text()
-    return public_key, private_key
+    return public_key
 
 
 def find_or_create_ssh_key(client, name, public_key):
@@ -84,10 +84,13 @@ def generate_secrets():
     }
 
 
-def build_cloud_init(private_key, sec):
+def build_cloud_init(sec):
     """Build cloud-init user_data for server bootstrap."""
-    # Indent private key for YAML block scalar
-    pk_indented = textwrap.indent(private_key.strip(), "      ")
+    deploy_ref = shlex.quote(DEPLOY_REF)
+    deploy_ref_cmd = (
+        f"\n  - git -C {DEPLOY_DIR} fetch --all --tags"
+        f"\n  - git -C {DEPLOY_DIR} checkout {deploy_ref}"
+    )
 
     return f"""#cloud-config
 package_update: true
@@ -95,12 +98,6 @@ packages:
   - ca-certificates
   - curl
   - git
-
-write_files:
-  - path: /root/.ssh/deploy_key
-    permissions: '0600'
-    content: |
-{pk_indented}
 
 runcmd:
   # Install Docker CE
@@ -111,17 +108,14 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-  # GitHub SSH setup
-  - ssh-keyscan github.com >> /root/.ssh/known_hosts
-
-  # Clone repo with retry (gives user time to add deploy key)
+  # Clone repo with retry
   - |
     for i in $(seq 1 30); do
-      GIT_SSH_COMMAND="ssh -i /root/.ssh/deploy_key -o StrictHostKeyChecking=no" \\
-        git clone {GITHUB_REPO} {DEPLOY_DIR} && break
+      git clone {GITHUB_REPO} {DEPLOY_DIR} && break
       echo "Clone attempt $i/30 failed, retrying in 10s..."
       sleep 10
     done
+{deploy_ref_cmd}
 
   # Write production .env
   - |
@@ -156,7 +150,7 @@ def main():
     client = Client(token=token)
 
     # 1. SSH key
-    public_key, private_key = generate_ssh_key()
+    public_key = generate_ssh_key()
     ssh_key = find_or_create_ssh_key(client, SSH_KEY_NAME, public_key)
 
     # 2. Firewall
@@ -175,7 +169,7 @@ def main():
         return
 
     # 5. Create server
-    user_data = build_cloud_init(private_key, sec)
+    user_data = build_cloud_init(sec)
     print(f"Creating server '{SERVER_NAME}' ({SERVER_TYPE} in {LOCATION_NAME})...")
     response = client.servers.create(
         name=SERVER_NAME,
@@ -197,12 +191,8 @@ def main():
     print(f"  SSH: ssh -i {SSH_KEY_PATH} root@{ip}")
     print(f"  App: http://{ip}")
     print()
-    print("NEXT STEP — Add this deploy key to GitHub:")
-    print(f"  URL: https://github.com/EugedeTomaso/experiments/settings/keys")
-    print(f"  Key: {public_key}")
-    print()
-    print("The server will retry cloning for ~5 minutes while you add the key.")
-    print("Monitor progress: ssh root@{ip} 'tail -f /var/log/cloud-init-output.log'")
+    print("Monitor bootstrap:")
+    print(f"  ssh -i {SSH_KEY_PATH} root@{ip} 'tail -f /var/log/cloud-init-output.log'")
     print("=" * 60)
 
 
