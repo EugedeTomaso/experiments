@@ -338,8 +338,30 @@ export default function App() {
   const [critiqueThreadMessages, setCritiqueThreadMessages] = useState({});
   const [discussingSection, setDiscussingSection] = useState(null);
 
+  const currentRole = useMemo(() => {
+    const p = projects.find((p) => p.id === activeProjectId);
+    return p?.current_user_role || null;
+  }, [projects, activeProjectId]);
+  const canEdit = currentRole && currentRole !== "viewer" && currentRole !== "commenter";
+  const canApplyDocumentChanges = Boolean(canEdit);
+  const isReviewerOnlyUser = useMemo(
+    () =>
+      projects.length > 0 &&
+      projects.every((project) =>
+        ["viewer", "commenter"].includes(project.current_user_role)
+      ),
+    [projects]
+  );
+  const canCreateProjects = !isReviewerOnlyUser;
+
   // --- Comment state (centralized hook) ---
-  const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef, content: draft });
+  const commentState = useComments({
+    nodeId: activeNodeId,
+    editorRef,
+    editorWrapperRef,
+    content: draft,
+    canApplySuggestions: canApplyDocumentChanges,
+  });
   const {
     comments, openComments, decorationComments, activeThread: activeThreadComment,
     focusedId: focusedCommentId, flashId: flashCommentId, navIndex: focusedNavIndex, navTotal,
@@ -439,13 +461,6 @@ export default function App() {
     () => nodes.find((n) => String(n.id) === String(activeNodeId)),
     [nodes, activeNodeId]
   );
-
-  const currentRole = useMemo(() => {
-    const p = projects.find((p) => p.id === activeProjectId);
-    return p?.current_user_role || null;
-  }, [projects, activeProjectId]);
-
-  const canEdit = currentRole && currentRole !== "viewer" && currentRole !== "commenter";
 
   const tree = useMemo(() => buildTree(nodes), [nodes]);
 
@@ -923,6 +938,7 @@ export default function App() {
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        if (!canApplyDocumentChanges) return;
         e.preventDefault();
         const view = editorRef.current?.getView?.();
         if (!view) return;
@@ -944,7 +960,7 @@ export default function App() {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [canApplyDocumentChanges]);
 
   // --- Cmd+K: send selection to AI composer ---
   useEffect(() => {
@@ -1067,10 +1083,12 @@ export default function App() {
 
   // --- Handlers ---
   const handleCreateProject = () => {
+    if (!canCreateProjects) return;
     setIsWizardOpen(true);
   };
 
   const handleQuickCreate = async ({ name, type }) => {
+    if (!canCreateProjects) return;
     const project = await api.createProject({
       name: name.trim() || "Untitled",
       project_type: type || "",
@@ -1192,6 +1210,7 @@ export default function App() {
   };
 
   const handleWizardComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
+    if (!canCreateProjects) return;
     setIsWizardOpen(false);
     const project = await api.createProject({
       name,
@@ -1236,9 +1255,10 @@ export default function App() {
   };
 
   // --- Walkthrough handlers ---
-  const showWalkthrough = !walkthroughDismissed && !isWizardOpen;
+  const showWalkthrough = !isReviewerOnlyUser && !walkthroughDismissed && !isWizardOpen;
 
   const handleWalkthroughComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
+    if (!canCreateProjects) return;
     localStorage.setItem("mive:walkthrough-seen", "true");
     setWalkthroughDismissed(true);
 
@@ -1313,7 +1333,7 @@ export default function App() {
   };
 
   const handleCreateNode = async (type) => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !canEdit) return;
     const isFile = type === "file";
     let title;
     if (isFile) {
@@ -1338,12 +1358,13 @@ export default function App() {
   };
 
   const handleRenameNode = async (nodeId, newTitle) => {
-    if (!newTitle.trim()) return;
+    if (!canEdit || !newTitle.trim()) return;
     const updated = await api.updateNode(nodeId, { title: newTitle.trim() });
     setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
   };
 
   const handleDeleteNode = async (nodeId) => {
+    if (!canEdit) return;
     const node = nodesById.get(String(nodeId));
     if (!node) return;
     const label = node.type === "folder" ? "folder" : "file";
@@ -1532,7 +1553,7 @@ export default function App() {
   handleFactCheckRef.current = handleFactCheck;
 
   const handleAssignAgent = async (agentId) => {
-    if (!activeNode) return;
+    if (!activeNode || !canEdit) return;
     try {
       if (agentId) {
         if (nodeDirectConfig) {
@@ -1574,7 +1595,7 @@ export default function App() {
   };
 
   const handleCreateAgentFromCreator = async ({ name, config }) => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !canEdit) return;
     const agent = await api.createAgent({
       project: activeProjectId,
       name,
@@ -1584,21 +1605,25 @@ export default function App() {
   };
 
   const handleUpdateAgent = async (agentId, { name, config }) => {
+    if (!canEdit) return;
     const updated = await api.updateAgent(agentId, { name, config });
     setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
   };
 
   const handleDeleteAgent = async (agentId) => {
+    if (!canEdit) return;
     await api.deleteAgent(agentId);
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
   };
 
   const openAgentEditor = (agent) => {
+    if (!canEdit) return;
     setEditingAgent(agent);
     setIsAgentCreatorOpen(true);
   };
 
   const openAgentCreator = () => {
+    if (!canEdit) return;
     setEditingAgent(null);
     setIsAgentCreatorOpen(true);
   };
@@ -2287,7 +2312,7 @@ Rules for memory suggestions:
   }, [defaultAgent]);
 
   const handleInlinePromptAccept = useCallback((result) => {
-    if (!inlinePrompt || !result) return;
+    if (!canApplyDocumentChanges || !inlinePrompt || !result) return;
     const { from, selectedText } = inlinePrompt;
     setInlinePrompt(null);
 
@@ -2313,9 +2338,10 @@ Rules for memory suggestions:
         view.dispatch(view.state.tr.insertText(result, from));
       }
     }
-  }, [inlinePrompt, activeNodeId, draft]);
+  }, [canApplyDocumentChanges, inlinePrompt, activeNodeId, draft]);
 
   const handleUndoEdit = () => {
+    if (!canApplyDocumentChanges) return;
     const nodeKey = String(activeNodeId);
     const preEditDraft = preEditDraftsRef.current.get(nodeKey);
     if (preEditDraft != null && editorRef.current) {
@@ -2334,6 +2360,7 @@ Rules for memory suggestions:
   };
 
   const handleAcceptEdit = () => {
+    if (!canApplyDocumentChanges) return;
     if (editorRef.current) {
       editorRef.current.clearAiHighlights();
     }
@@ -2810,6 +2837,7 @@ Rules for memory suggestions:
             projects={projects}
             activeProjectId={activeProjectId}
             nodes={nodes}
+            canCreateProjects={canCreateProjects}
             onSelect={setActiveProjectId}
             onCreate={handleCreateProject}
             onQuickCreate={handleQuickCreate}
@@ -3070,41 +3098,43 @@ Rules for memory suggestions:
                 </button>
               )}
             </div>
-            <div className="rail-create-wrapper" ref={createMenuRef}>
-              <button
-                className="rail-create-btn"
-                onClick={() => setCreateMenuOpen((v) => !v)}
-                aria-label="Create new"
-                title="New file or folder"
-              >
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-              {createMenuOpen && (
-                <div className="rail-create-menu">
-                  <button
-                    className="rail-create-menu-item"
-                    onClick={() => { setCreateMenuOpen(false); handleCreateNode("file"); }}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                      <path d="M4.5 1.5h4.586a1 1 0 0 1 .707.293l2.914 2.914a1 1 0 0 1 .293.707V13.5a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                      <path d="M9 1.5v3a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                    </svg>
-                    New file
-                  </button>
-                  <button
-                    className="rail-create-menu-item"
-                    onClick={() => { setCreateMenuOpen(false); handleCreateNode("folder"); }}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                      <path d="M1.5 3.5a1 1 0 0 1 1-1h3.586a1 1 0 0 1 .707.293L8.5 4.5h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                    </svg>
-                    New folder
-                  </button>
-                </div>
-              )}
-            </div>
+            {canEdit && (
+              <div className="rail-create-wrapper" ref={createMenuRef}>
+                <button
+                  className="rail-create-btn"
+                  onClick={() => setCreateMenuOpen((v) => !v)}
+                  aria-label="Create new"
+                  title="New file or folder"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+                {createMenuOpen && (
+                  <div className="rail-create-menu">
+                    <button
+                      className="rail-create-menu-item"
+                      onClick={() => { setCreateMenuOpen(false); handleCreateNode("file"); }}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                        <path d="M4.5 1.5h4.586a1 1 0 0 1 .707.293l2.914 2.914a1 1 0 0 1 .293.707V13.5a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                        <path d="M9 1.5v3a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                      </svg>
+                      New file
+                    </button>
+                    <button
+                      className="rail-create-menu-item"
+                      onClick={() => { setCreateMenuOpen(false); handleCreateNode("folder"); }}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                        <path d="M1.5 3.5a1 1 0 0 1 1-1h3.586a1 1 0 0 1 .707.293L8.5 4.5h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                      </svg>
+                      New folder
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {searchResults !== null ? (
             <div className="search-results">
@@ -3159,17 +3189,20 @@ Rules for memory suggestions:
                   showMeta={outlineWidth >= 240}
                   onHoverStart={handleHoverStart}
                   onHoverEnd={handleHoverEnd}
+                  canEdit={canEdit}
                 />
               ))}
               {tree.length === 0 && (
                 <div className="tree-empty-state">
                   <p>Your studio is ready.</p>
-                  <button
-                    className="tree-empty-action"
-                    onClick={() => handleCreateNode("file")}
-                  >
-                    What are you working on?
-                  </button>
+                  {canEdit && (
+                    <button
+                      className="tree-empty-action"
+                      onClick={() => handleCreateNode("file")}
+                    >
+                      What are you working on?
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -3197,10 +3230,11 @@ Rules for memory suggestions:
               <div className="document-header">
                 <h1
                   className="editable-title"
-                  contentEditable
+                  contentEditable={canEdit}
                   suppressContentEditableWarning
                   spellCheck={false}
                   onBlur={(e) => {
+                    if (!canEdit) return;
                     const newTitle = e.target.textContent.trim();
                     if (newTitle && newTitle !== activeNode.title) {
                       handleRenameNode(activeNode.id, newTitle);
@@ -3222,7 +3256,13 @@ Rules for memory suggestions:
                     {saveStatus === "saved" && "Saved"}
                   </span>
                   <div className="doc-actions">
-                    <VersionsMenu versions={versions} onRestore={handleRestoreVersion} onCompare={handleCompareVersion} activeCompareId={compareVersionId} />
+                    <VersionsMenu
+                      versions={versions}
+                      onRestore={handleRestoreVersion}
+                      onCompare={handleCompareVersion}
+                      activeCompareId={compareVersionId}
+                      canRestore={canApplyDocumentChanges}
+                    />
                     <ExportMenu
                       node={activeNode}
                       project={projects.find(p => p.id === activeProjectId)}
@@ -3263,6 +3303,7 @@ Rules for memory suggestions:
                 <AiSuggestionBanner
                   aiSuggestions={collabSession.aiSuggestions}
                   currentUserId={user?.id}
+                  canAccept={canApplyDocumentChanges}
                   onViewDiff={(s) => {
                     editorRef.current?.compareWithVersion(s.oldMarkdown);
                   }}
@@ -3290,7 +3331,7 @@ Rules for memory suggestions:
                   focusedCommentId={focusedCommentId}
                   flashCommentId={flashCommentId}
                   editorRef={editorRef}
-                  readOnly={currentRole === "viewer"}
+                  readOnly={!canEdit}
                   currentRole={currentRole}
                   collabSession={collabSession}
                   aiIntensity={aiIntensity}
@@ -3349,6 +3390,7 @@ Rules for memory suggestions:
               project={projects.find((p) => p.id === activeProjectId)}
               nodes={nodes}
               agents={agents}
+              canManageProject={canEdit}
               onUpdate={(updates) => {
                 api.updateProject(activeProjectId, updates).then((updated) => {
                   setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -3370,8 +3412,9 @@ Rules for memory suggestions:
           {!activeNode && !activeProjectId && (
             <AllProjects
               projects={projects}
+              canCreate={canCreateProjects}
               onSelect={setActiveProjectId}
-              onCreate={() => setIsWizardOpen(true)}
+              onCreate={handleCreateProject}
             />
           )}
         </main>
@@ -3397,6 +3440,7 @@ Rules for memory suggestions:
           onAgentChange={handleAssignAgent}
           onCreateAgent={openAgentCreator}
           onEditAgent={openAgentEditor}
+          canManageAgents={canEdit}
           onSuggestionAction={handleSuggestionAction}
           canSummarize={activeNode?.type === "file" && !!draft.trim()}
           isEditingDocument={isEditingDocument}
@@ -3460,6 +3504,7 @@ Rules for memory suggestions:
           isReviewing={isReviewing}
           isFactChecking={isFactChecking}
           factCheckProgress={factCheckProgress}
+          canApplySuggestions={canApplyDocumentChanges}
           critiques={critiques}
           isCritiquing={isCritiquing}
           activeCritiqueId={activeCritiqueId}

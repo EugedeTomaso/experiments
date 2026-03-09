@@ -20,7 +20,13 @@ from .llm import (
     _sync_openai_compatible_review,
 )
 from django.db.models import Count, Q
-from .permissions import get_user_role
+from .permissions import (
+    get_accessible_projects,
+    get_project_for_object,
+    get_user_role,
+    require_project_role,
+    user_can_access_project,
+)
 
 from .models import Agent, AgentConfig, Comment, Conversation, Critique, CritiqueMessage, CritiqueThread, Memory, Message, Node, Project, ProviderKey, Version, Workspace
 from .serializers import (
@@ -110,10 +116,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        return Project.objects.filter(
-            Q(owner=user) | Q(memberships__user=user, memberships__accepted=True)
-        ).distinct().order_by("created_at")
+        return get_accessible_projects(self.request.user).order_by("created_at")
 
     def perform_create(self, serializer):
         project = serializer.save()
@@ -135,11 +138,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Response({"share_token": str(project.share_token)})
 
     def perform_update(self, serializer):
+        require_project_role(self.request.user, serializer.instance, "editor")
         instance = serializer.save()
         # Auto-generate share_token when enabling link sharing
         if instance.visibility == "link_viewable" and not instance.share_token:
             instance.share_token = uuid.uuid4()
             instance.save(update_fields=["share_token"])
+
+    def perform_destroy(self, instance):
+        require_project_role(self.request.user, instance, "editor")
+        instance.delete()
 
     @action(detail=True, methods=["post"], url_path="publish-snapshot")
     def publish_snapshot(self, request, pk=None):
@@ -189,10 +197,7 @@ class NodeViewSet(viewsets.ModelViewSet):
     serializer_class = NodeSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        accessible_projects = Project.objects.filter(
-            Q(owner=user) | Q(memberships__user=user, memberships__accepted=True)
-        )
+        accessible_projects = get_accessible_projects(self.request.user)
         queryset = Node.objects.filter(
             project__in=accessible_projects
         ).order_by("order", "created_at")
@@ -204,6 +209,20 @@ class NodeViewSet(viewsets.ModelViewSet):
         if parent_id is not None:
             queryset = queryset.filter(parent_id=parent_id)
         return queryset
+
+    def perform_create(self, serializer):
+        require_project_role(
+            self.request.user, serializer.validated_data["project"], "editor"
+        )
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_project_role(self.request.user, serializer.instance.project, "editor")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_project_role(self.request.user, instance.project, "editor")
+        instance.delete()
 
 
 class VersionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -221,7 +240,9 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        queryset = Comment.objects.select_related("agent").annotate(
+        queryset = Comment.objects.select_related("agent", "node__project").filter(
+            node__project__in=get_accessible_projects(self.request.user)
+        ).annotate(
             reply_count=Count("replies")
         ).order_by("created_at")
         node_id = self.request.query_params.get("node")
@@ -232,9 +253,24 @@ class CommentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(parent__isnull=True)
         return queryset
 
+    def perform_create(self, serializer):
+        require_project_role(
+            self.request.user, serializer.validated_data["node"].project, "commenter"
+        )
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_project_role(self.request.user, serializer.instance.node.project, "commenter")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_project_role(self.request.user, instance.node.project, "commenter")
+        instance.delete()
+
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
         comment = self.get_object()
+        require_project_role(request.user, comment.node.project, "editor")
         comment.status = Comment.Status.APPROVED
         comment.save(update_fields=["status"])
         return Response(CommentSerializer(comment).data)
@@ -242,6 +278,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request, pk=None):
         comment = self.get_object()
+        require_project_role(request.user, comment.node.project, "commenter")
         comment.status = Comment.Status.REJECTED
         comment.save(update_fields=["status"])
         return Response(CommentSerializer(comment).data)
@@ -249,6 +286,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="resolve")
     def resolve(self, request, pk=None):
         comment = self.get_object()
+        require_project_role(request.user, comment.node.project, "commenter")
         comment.status = Comment.Status.RESOLVED
         comment.save(update_fields=["status"])
         return Response(CommentSerializer(comment).data)
@@ -258,18 +296,37 @@ class AgentViewSet(viewsets.ModelViewSet):
     serializer_class = AgentSerializer
 
     def get_queryset(self):
-        queryset = Agent.objects.all().order_by("name")
+        queryset = Agent.objects.filter(
+            project__in=get_accessible_projects(self.request.user)
+        ).order_by("name")
         project_id = self.request.query_params.get("project")
         if project_id:
             queryset = queryset.filter(project_id=project_id)
         return queryset
+
+    def perform_create(self, serializer):
+        require_project_role(
+            self.request.user, serializer.validated_data["project"], "editor"
+        )
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_project_role(self.request.user, serializer.instance.project, "editor")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_project_role(self.request.user, instance.project, "editor")
+        instance.delete()
 
 
 class AgentConfigViewSet(viewsets.ModelViewSet):
     serializer_class = AgentConfigSerializer
 
     def get_queryset(self):
-        queryset = AgentConfig.objects.select_related("agent").order_by("created_at")
+        accessible_projects = get_accessible_projects(self.request.user)
+        queryset = AgentConfig.objects.select_related("agent").filter(
+            Q(project__in=accessible_projects) | Q(node__project__in=accessible_projects)
+        ).order_by("created_at")
         scope_type = self.request.query_params.get("scope_type")
         project_id = self.request.query_params.get("project")
         node_id = self.request.query_params.get("node")
@@ -300,6 +357,9 @@ class AgentConfigViewSet(viewsets.ModelViewSet):
             node = None
         else:
             return Response({"detail": "node or project is required"}, status=400)
+
+        if not user_can_access_project(request.user, project):
+            return Response({"detail": "Project not found"}, status=404)
 
         merged = {}
         last_agent_id = None
@@ -354,12 +414,31 @@ class AgentConfigViewSet(viewsets.ModelViewSet):
             "inherited": inherited,
         })
 
+    def perform_create(self, serializer):
+        project = serializer.validated_data.get("project")
+        if project is None:
+            project = serializer.validated_data["node"].project
+        require_project_role(self.request.user, project, "editor")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        project = get_project_for_object(serializer.instance)
+        require_project_role(self.request.user, project, "editor")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        project = get_project_for_object(instance)
+        require_project_role(self.request.user, project, "editor")
+        instance.delete()
+
 
 class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
 
     def get_queryset(self):
-        queryset = Conversation.objects.annotate(
+        queryset = Conversation.objects.filter(
+            node__project__in=get_accessible_projects(self.request.user)
+        ).annotate(
             message_count=Count("messages")
         ).order_by("-updated_at")
         node_id = self.request.query_params.get("node")
@@ -367,23 +446,54 @@ class ConversationViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(node_id=node_id)
         return queryset
 
+    def perform_create(self, serializer):
+        require_project_role(
+            self.request.user, serializer.validated_data["node"].project, "commenter"
+        )
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_project_role(self.request.user, serializer.instance.node.project, "commenter")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_project_role(self.request.user, instance.node.project, "commenter")
+        instance.delete()
+
 
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
 
     def get_queryset(self):
-        queryset = Message.objects.select_related("routed_agent").order_by("created_at")
+        queryset = Message.objects.select_related("routed_agent").filter(
+            conversation__node__project__in=get_accessible_projects(self.request.user)
+        ).order_by("created_at")
         conversation_id = self.request.query_params.get("conversation")
         if conversation_id:
             queryset = queryset.filter(conversation_id=conversation_id)
         return queryset
 
     def perform_create(self, serializer):
+        require_project_role(
+            self.request.user,
+            serializer.validated_data["conversation"].node.project,
+            "commenter",
+        )
         message = serializer.save()
         # Touch conversation updated_at
         Conversation.objects.filter(id=message.conversation_id).update(
             updated_at=timezone.now()
         )
+
+    def perform_update(self, serializer):
+        require_project_role(
+            self.request.user, serializer.instance.conversation.node.project, "commenter"
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_project_role(self.request.user, instance.conversation.node.project, "commenter")
+        instance.delete()
 
 
 class ProviderKeyViewSet(viewsets.ModelViewSet):
@@ -579,6 +689,8 @@ class NodeSummaryView(APIView):
         node = Node.objects.filter(id=node_id, type=Node.NodeType.FILE).first()
         if not node:
             return Response({"detail": "File node not found"}, status=404)
+        if not user_can_access_project(request.user, node.project):
+            return Response({"detail": "File node not found"}, status=404)
 
         # Debounce: reject if file was edited within the last 15 min
         now = timezone.now()
@@ -637,6 +749,9 @@ class NodeSearchView(APIView):
         q = request.query_params.get("q", "").strip()
         if not project_id or not q:
             return Response([])
+        project = get_accessible_projects(request.user).filter(id=project_id).first()
+        if not project:
+            return Response([])
 
         try:
             from django.contrib.postgres.search import (
@@ -654,7 +769,7 @@ class NodeSearchView(APIView):
             search_query = SearchQuery(q, search_type="websearch")
 
             results = (
-                Node.objects.filter(project_id=project_id)
+                Node.objects.filter(project=project)
                 .annotate(
                     rank=SearchRank(search_vector, search_query),
                     headline=SearchHeadline(
@@ -672,7 +787,7 @@ class NodeSearchView(APIView):
         except Exception:
             # Fallback to simple icontains search
             results = (
-                Node.objects.filter(project_id=project_id)
+                Node.objects.filter(project=project)
                 .filter(
                     Q(title__icontains=q)
                     | Q(content_md__icontains=q)
@@ -734,6 +849,9 @@ class AIReviewView(APIView):
         node = Node.objects.filter(id=node_id, type=Node.NodeType.FILE).first()
         if not node:
             return Response({"detail": "File node not found"}, status=404)
+        if not user_can_access_project(request.user, node.project):
+            return Response({"detail": "File node not found"}, status=404)
+        require_project_role(request.user, node.project, "commenter")
 
         content = node.content_md or ""
         if not content.strip():
@@ -790,7 +908,9 @@ class CritiqueViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CritiqueSerializer
 
     def get_queryset(self):
-        qs = Critique.objects.all()
+        qs = Critique.objects.filter(
+            node__project__in=get_accessible_projects(self.request.user)
+        )
         node_id = self.request.query_params.get("node_id")
         if node_id:
             qs = qs.filter(node_id=node_id)
@@ -810,6 +930,9 @@ class AICritiqueView(APIView):
             node = Node.objects.get(id=node_id)
         except Node.DoesNotExist:
             return Response({"error": "Node not found"}, status=404)
+        if not user_can_access_project(request.user, node.project):
+            return Response({"error": "Node not found"}, status=404)
+        require_project_role(request.user, node.project, "commenter")
 
         content = node.content_md or ""
         if not content.strip():
@@ -852,6 +975,9 @@ class AICritiqueDiscussView(APIView):
             critique = Critique.objects.get(id=critique_id)
         except Critique.DoesNotExist:
             return Response({"error": "Critique not found"}, status=404)
+        if not user_can_access_project(request.user, critique.node.project):
+            return Response({"error": "Critique not found"}, status=404)
+        require_project_role(request.user, critique.node.project, "commenter")
 
         section = None
         for s in critique.sections:
@@ -946,6 +1072,9 @@ class AIFactCheckView(APIView):
         node = Node.objects.filter(id=node_id, type=Node.NodeType.FILE).first()
         if not node:
             return Response({"detail": "File node not found"}, status=404)
+        if not user_can_access_project(request.user, node.project):
+            return Response({"detail": "File node not found"}, status=404)
+        require_project_role(request.user, node.project, "commenter")
 
         content = node.content_md or ""
         if not content.strip():
@@ -1082,6 +1211,9 @@ class AICommentReplyView(APIView):
         root_comment = Comment.objects.filter(id=comment_id, parent__isnull=True).first()
         if not root_comment:
             return Response({"detail": "Root comment not found"}, status=404)
+        if not user_can_access_project(request.user, root_comment.node.project):
+            return Response({"detail": "Root comment not found"}, status=404)
+        require_project_role(request.user, root_comment.node.project, "commenter")
 
         provider_key = ProviderKey.objects.filter(provider=provider).first()
         api_key = provider_key.get_api_key() if provider_key else ""

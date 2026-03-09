@@ -96,6 +96,7 @@ export function AssistantPanel({
   onAgentChange,
   onCreateAgent,
   onEditAgent,
+  canManageAgents = true,
   onSuggestionAction,
   canSummarize,
   isEditingDocument,
@@ -156,6 +157,7 @@ export function AssistantPanel({
   isReviewing,
   isFactChecking,
   factCheckProgress,
+  canApplySuggestions = true,
   // Critique tab data
   critiques,
   isCritiquing,
@@ -459,7 +461,11 @@ export function AssistantPanel({
           <div className="assistant-agent-wrapper" ref={agentDropdownRef}>
             <button
               className="agent-selector-pill"
-              onClick={() => setIsAgentDropdownOpen((prev) => !prev)}
+              onClick={() => {
+                if (canManageAgents) {
+                  setIsAgentDropdownOpen((prev) => !prev);
+                }
+              }}
               aria-label="Select agent"
             >
               {agentMode === "auto" && (
@@ -476,7 +482,7 @@ export function AssistantPanel({
                 <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            {isAgentDropdownOpen && (
+            {canManageAgents && isAgentDropdownOpen && (
               <div className="assistant-agent-dropdown">
                 <div className="assistant-agent-dropdown-label">Agent</div>
                 <button
@@ -753,20 +759,24 @@ export function AssistantPanel({
             )}
           </div>
           <div className="agent-action-block-buttons">
-            <button className="agent-action-btn agent-action-btn-primary" onClick={() => { setConfirmingUndo(false); onAcceptEdit(); }}>
-              Accept
-            </button>
+            {canApplySuggestions && (
+              <button className="agent-action-btn agent-action-btn-primary" onClick={() => { setConfirmingUndo(false); onAcceptEdit(); }}>
+                Accept
+              </button>
+            )}
             <button className="agent-action-btn" onClick={onToggleDiff}>
               {diffVisible ? "Hide changes" : "Show changes"}
             </button>
-            {!confirmingUndo ? (
-              <button className="agent-action-btn" onClick={() => setConfirmingUndo(true)}>
-                Undo
-              </button>
-            ) : (
-              <button className="agent-action-btn agent-action-btn-danger" onClick={() => { setConfirmingUndo(false); onUndoEdit(); }}>
-                Confirm undo
-              </button>
+            {canApplySuggestions && (
+              !confirmingUndo ? (
+                <button className="agent-action-btn" onClick={() => setConfirmingUndo(true)}>
+                  Undo
+                </button>
+              ) : (
+                <button className="agent-action-btn agent-action-btn-danger" onClick={() => { setConfirmingUndo(false); onUndoEdit(); }}>
+                  Confirm undo
+                </button>
+              )
             )}
           </div>
         </div>
@@ -1009,6 +1019,7 @@ export function AssistantPanel({
               pendingCount={reviewPendingCount}
               acceptedCount={reviewAcceptedCount}
               dismissedCount={reviewDismissedCount}
+              canApplySuggestion={canApplySuggestions}
               focusedCommentId={focusedCommentId}
               aiThinkingId={aiThinkingId}
               getReplies={getReplies}
@@ -1047,6 +1058,7 @@ export function AssistantPanel({
           <VerifyTab
             comments={verifyTabComments}
             pendingCount={verifyPendingCount}
+            canAccept={canApplySuggestions}
             focusedCommentId={focusedCommentId}
             onClickComment={onClickComment}
             onAccept={onApproveComment}

@@ -9,7 +9,13 @@ import { api } from "../api";
  *   - Navigation prev/next ordering
  *   - Counter display (N/M)
  */
-export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
+export function useComments({
+  nodeId,
+  editorRef,
+  editorWrapperRef,
+  content,
+  canApplySuggestions = true,
+}) {
   const [comments, setComments] = useState([]);
   const [activeThread, setActiveThread] = useState(null); // { comment, rect } | null
   const [focusedId, setFocusedId] = useState(null);
@@ -213,6 +219,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
 
   const approve = useCallback(
     async (commentId) => {
+      if (!canApplySuggestions) return;
       const comment = comments.find((c) => c.id === commentId);
       if (!comment || !comment.suggested_text) return;
 
@@ -255,12 +262,13 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
       setActiveThread(null);
       setFocusedId(null);
     },
-    [comments, editorRef]
+    [canApplySuggestions, comments, editorRef]
   );
 
   // Accept a suggestion from a reply (alternative offered in the thread)
   const approveReply = useCallback(
     async (replyId) => {
+      if (!canApplySuggestions) return;
       const reply = comments.find((c) => c.id === replyId);
       if (!reply || !reply.suggested_text || !reply.parent) return;
       const rootId = reply.parent;
@@ -299,7 +307,7 @@ export function useComments({ nodeId, editorRef, editorWrapperRef, content }) {
       setActiveThread(null);
       setFocusedId(null);
     },
-    [comments, editorRef]
+    [canApplySuggestions, comments, editorRef]
   );
 
   const reject = useCallback(async (commentId) => {

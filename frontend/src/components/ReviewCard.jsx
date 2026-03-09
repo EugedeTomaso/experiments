@@ -7,6 +7,7 @@ export function ReviewCard({
   replies,
   isActive,
   isAiThinking,
+  canApplySuggestion = true,
   onClick,
   onApprove,
   onApproveReply,
@@ -170,7 +171,7 @@ export function ReviewCard({
 
       {isOpen && (
         <div className="review-card-actions">
-          {isAI && hasSuggestion && (
+          {isAI && hasSuggestion && canApplySuggestion && (
             <button className="review-card-btn review-card-btn--accept" onClick={(e) => { e.stopPropagation(); onApprove(comment.id); }}>
               Accept
             </button>
@@ -207,7 +208,7 @@ export function ReviewCard({
                     <del className="review-card-diff-del">{r.quoted_text || comment.quoted_text}</del>
                     <ins className="review-card-diff-ins">{r.suggested_text}</ins>
                   </div>
-                  {isOpen && (
+                  {isOpen && canApplySuggestion && (
                     <button
                       className="review-card-btn review-card-btn--accept"
                       onClick={() => onApproveReply(r.id)}
