@@ -184,7 +184,7 @@ export function LandingPage() {
       <nav className={`landing-nav${scrolled ? " scrolled" : ""}`}>
         <Link to="/" className="landing-nav-brand">
           <MiveLogo size={22} />
-          Mive
+          Marvin
         </Link>
         <div className="landing-nav-links">
           <a href="#features" className="landing-nav-link">Features</a>
@@ -206,7 +206,7 @@ export function LandingPage() {
           Think deeper. Write better.
         </h1>
         <p className="landing-hero-sub">
-          Mive is the space where serious writing happens — with a thinking partner
+          Marvin is the space where serious writing happens — with a thinking partner
           that reads everything you've written and helps you see what you can't.
         </p>
         <div className="landing-hero-actions">
@@ -378,7 +378,7 @@ export function LandingPage() {
       <div className="landing-cta-band landing-animate" ref={addRef}>
         <h2 className="landing-cta-heading">Your studio is waiting.</h2>
         <p className="landing-cta-sub">
-          Join writers who think deeper and write better with Mive.
+          Join writers who think deeper and write better with Marvin.
         </p>
         <Link to="/register" className="landing-hero-cta">
           Get started — it's free
@@ -392,7 +392,7 @@ export function LandingPage() {
           <div>
             <div className="landing-footer-brand">
               <MiveLogo size={20} />
-              Mive
+              Marvin
             </div>
             <p className="landing-footer-tagline">Think deeper. Write better.</p>
           </div>
@@ -421,7 +421,7 @@ export function LandingPage() {
           </div>
         </div>
         <div className="landing-footer-bottom">
-          &copy; {new Date().getFullYear()} Mive. All rights reserved.
+          &copy; {new Date().getFullYear()} Marvin. All rights reserved.
         </div>
       </footer>
     </div>

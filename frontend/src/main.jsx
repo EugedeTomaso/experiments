@@ -15,7 +15,7 @@ function ProtectedRoute({ children }) {
   if (loading) {
     return (
       <div className="auth-page">
-        <div className="auth-brand" style={{ opacity: 0.4 }}>Mive</div>
+        <div className="auth-brand" style={{ opacity: 0.4 }}>Marvin</div>
       </div>
     )
   }
@@ -27,7 +27,7 @@ function AuthRoute({ children }) {
   if (loading) {
     return (
       <div className="auth-page">
-        <div className="auth-brand" style={{ opacity: 0.4 }}>Mive</div>
+        <div className="auth-brand" style={{ opacity: 0.4 }}>Marvin</div>
       </div>
     )
   }

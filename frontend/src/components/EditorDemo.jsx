@@ -354,7 +354,7 @@ export function EditorDemo() {
           <div className="demo-topbar-dots">
             <span /><span /><span />
           </div>
-          <div className="demo-topbar-brand">Mive</div>
+          <div className="demo-topbar-brand">Marvin</div>
         </div>
 
         {/* Body */}

@@ -27,7 +27,7 @@ export function LoginPage({ onNavigate }) {
   return (
     <div className="auth-page">
       <div className="auth-container">
-        <div className="auth-brand">Mive</div>
+        <div className="auth-brand">Marvin</div>
         <h1 className="auth-heading">Welcome back</h1>
         <p className="auth-subheading">Sign in to continue writing</p>
 

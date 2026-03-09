@@ -73,7 +73,7 @@ const INITIAL_DEFAULT_AGENT = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Mive. Based on the project type and description, generate 2-3 assistants tailored to this project.
+const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Marvin. Based on the project type and description, generate 2-3 assistants tailored to this project.
 
 Each assistant should serve a different purpose (e.g., creative collaborator, editor/critic, research/planning).
 
@@ -2804,7 +2804,7 @@ Rules for memory suggestions:
     <div className={`app-shell${isFocusMode ? ' focus-mode' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
-          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Mive</button>
+          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Marvin</button>
           <span className="topbar-divider" />
           <ProjectSwitcher
             projects={projects}
