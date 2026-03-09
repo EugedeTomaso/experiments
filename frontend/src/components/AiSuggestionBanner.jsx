@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 
-export default function AiSuggestionBanner({ aiSuggestions, currentUserId, onViewDiff, onAccept, onReject }) {
+export default function AiSuggestionBanner({
+  aiSuggestions,
+  currentUserId,
+  canAccept = true,
+  onViewDiff,
+  onAccept,
+  onReject,
+}) {
   const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
@@ -29,7 +36,7 @@ export default function AiSuggestionBanner({ aiSuggestions, currentUserId, onVie
         <div key={s.userId} className="ai-suggestion-banner">
           <span>Un colaborador sugiere cambios via IA</span>
           <button onClick={() => onViewDiff(s)}>Ver diff</button>
-          <button onClick={() => onAccept(s)}>Aceptar</button>
+          {canAccept && <button onClick={() => onAccept(s)}>Aceptar</button>}
           <button onClick={() => onReject(s)}>Rechazar</button>
         </div>
       ))}

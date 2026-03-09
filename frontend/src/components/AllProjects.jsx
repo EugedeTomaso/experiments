@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { timeAgo } from "../utils";
 import { getProjectColor, formatTypeLabel } from "./ProjectSwitcher";
 
-export function AllProjects({ projects, onSelect, onCreate }) {
+export function AllProjects({ projects, onSelect, onCreate, canCreate = true }) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -19,9 +19,11 @@ export function AllProjects({ projects, onSelect, onCreate }) {
           <div className="all-projects-empty-text">
             Create your first project to start writing.
           </div>
-          <button className="all-projects-empty-action" onClick={onCreate}>
-            New Project
-          </button>
+          {canCreate && (
+            <button className="all-projects-empty-action" onClick={onCreate}>
+              New Project
+            </button>
+          )}
         </div>
       </div>
     );
@@ -68,17 +70,19 @@ export function AllProjects({ projects, onSelect, onCreate }) {
           );
         })}
 
-        <button className="project-card project-card-new" onClick={onCreate}>
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path
-              d="M12 5v14M5 12h14"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-          <span>New Project</span>
-        </button>
+        {canCreate && (
+          <button className="project-card project-card-new" onClick={onCreate}>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span>New Project</span>
+          </button>
+        )}
       </div>
 
       {search.trim() && filtered.length === 0 && (

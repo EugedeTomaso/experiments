@@ -21,7 +21,7 @@ export function ForgotPasswordPage({ onNavigate }) {
   return (
     <div className="auth-page">
       <div className="auth-container">
-        <div className="auth-brand">Mive</div>
+        <div className="auth-brand">Marvin</div>
         <h1 className="auth-heading">Reset your password</h1>
         <p className="auth-subheading">
           {sent

@@ -424,4 +424,94 @@ export const api = {
       method: "POST",
     });
   },
+
+  // Marketplace (reviewer)
+  listMarketplace(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/marketplace/${qs ? `?${qs}` : ""}`);
+  },
+  getMarketplaceListing(id) {
+    return request(`/api/marketplace/${id}/`);
+  },
+  getListingNodes(listingId) {
+    return request(`/api/marketplace/${listingId}/nodes/`);
+  },
+  getListingNode(listingId, nodeId) {
+    return request(`/api/marketplace/${listingId}/nodes/${nodeId}/`);
+  },
+
+  // Reviews (reviewer)
+  createReview(listingId) {
+    return request("/api/reviews/", {
+      method: "POST",
+      body: JSON.stringify({ listing: listingId }),
+    });
+  },
+  listMyReviews() {
+    return request("/api/reviews/");
+  },
+  getReview(id) {
+    return request(`/api/reviews/${id}/`);
+  },
+  updateReview(id, payload) {
+    return request(`/api/reviews/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  submitReview(id) {
+    return request(`/api/reviews/${id}/submit/`, { method: "POST" });
+  },
+  listReviewComments(reviewId) {
+    return request(`/api/reviews/${reviewId}/comments/`);
+  },
+  createReviewComment(reviewId, payload) {
+    return request(`/api/reviews/${reviewId}/comments/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateReviewComment(reviewId, commentId, payload) {
+    return request(`/api/reviews/${reviewId}/comments/${commentId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteReviewComment(reviewId, commentId) {
+    return request(`/api/reviews/${reviewId}/comments/${commentId}/`, {
+      method: "DELETE",
+    });
+  },
+
+  // Listings (writer)
+  createListing(payload) {
+    return request("/api/listings/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  listMyListings() {
+    return request("/api/listings/");
+  },
+  delistListing(id) {
+    return request(`/api/listings/${id}/delist/`, { method: "POST" });
+  },
+  refreshListingScore(id) {
+    return request(`/api/listings/${id}/refresh-score/`, { method: "POST" });
+  },
+  getListingReviews(id) {
+    return request(`/api/listings/${id}/reviews/`);
+  },
+  analyzeForReview(reviewId, tool, nodeId = null) {
+    return request(`/api/reviews/${reviewId}/ai/analyze`, {
+      method: "POST",
+      body: JSON.stringify({ tool, node_id: nodeId }),
+    });
+  },
+  chatForReview(reviewId, message, nodeId = null) {
+    return request(`/api/reviews/${reviewId}/ai/chat`, {
+      method: "POST",
+      body: JSON.stringify({ message, node_id: nodeId }),
+    });
+  },
 };

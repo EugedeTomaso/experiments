@@ -18,7 +18,21 @@ const EXT_LABELS = {
   brief: "Product Brief", "full-product": "Full Product", "research-project": "Research Project",
 };
 
-export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDelete, onEditAgent, onCreateAgent, memories = [], onCreateMemory, onDeleteMemory, onUpdateMemory, onSelectNode }) {
+export function ProjectHome({
+  project,
+  nodes = [],
+  agents = [],
+  onUpdate,
+  onDelete,
+  onEditAgent,
+  onCreateAgent,
+  memories = [],
+  onCreateMemory,
+  onDeleteMemory,
+  onUpdateMemory,
+  onSelectNode,
+  canManageProject = true,
+}) {
   const [autoContext, setAutoContext] = useState(project?.auto_context !== false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [newMemoryText, setNewMemoryText] = useState("");
@@ -41,12 +55,14 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
   }, [project?.brief]);
 
   const toggleAutoContext = () => {
+    if (!canManageProject) return;
     const next = !autoContext;
     setAutoContext(next);
     onUpdate({ auto_context: next });
   };
 
   const handleTitleBlur = () => {
+    if (!canManageProject) return;
     const newTitle = titleRef.current?.textContent?.trim();
     if (newTitle && newTitle !== project.name) {
       onUpdate({ name: newTitle });
@@ -96,7 +112,7 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
         <h1
           ref={titleRef}
           className="project-home-title"
-          contentEditable
+          contentEditable={canManageProject}
           suppressContentEditableWarning
           onBlur={handleTitleBlur}
           onKeyDown={handleTitleKeyDown}
@@ -117,9 +133,10 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
         <p
           ref={briefRef}
           className="project-home-brief"
-          contentEditable
+          contentEditable={canManageProject}
           suppressContentEditableWarning
           onBlur={(e) => {
+            if (!canManageProject) return;
             const value = e.target.textContent.trim();
             if (value !== (project.brief || "").trim()) {
               onUpdate({ brief: value });
@@ -177,6 +194,7 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
       </div>
 
       {/* Zone 2: Settings */}
+      {canManageProject && (
       <div className="project-home-settings">
         <div className="project-home-settings-header">Settings</div>
 
@@ -358,6 +376,7 @@ export function ProjectHome({ project, nodes = [], agents = [], onUpdate, onDele
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

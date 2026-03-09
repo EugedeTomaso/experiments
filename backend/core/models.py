@@ -438,3 +438,120 @@ class CritiqueMessage(models.Model):
 
     def __str__(self):
         return f"{self.role} message in thread {self.thread_id}"
+
+
+class UserProfile(models.Model):
+    class UserType(models.TextChoices):
+        WRITER = "writer", "Writer"
+        REVIEWER = "reviewer", "Reviewer"
+
+    user = models.OneToOneField("auth.User", related_name="profile", on_delete=models.CASCADE)
+    user_type = models.CharField(
+        max_length=10,
+        choices=UserType.choices,
+        default=UserType.WRITER,
+    )
+    bio = models.TextField(blank=True, default="")
+    specialties = models.JSONField(default=list, blank=True)
+
+    def __str__(self):
+        return f"{self.user.first_name} ({self.user_type})"
+
+
+class MarketplaceListing(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        LISTED = "listed", "Listed"
+        DELISTED = "delisted", "Delisted"
+
+    project = models.OneToOneField(Project, related_name="listing", on_delete=models.CASCADE)
+    published_by = models.ForeignKey(
+        "auth.User",
+        related_name="listings",
+        on_delete=models.CASCADE,
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    genre = models.CharField(max_length=100, blank=True, default="")
+    word_count = models.IntegerField(default=0)
+    synopsis = models.TextField(blank=True, default="")
+    ai_score = models.JSONField(default=dict, blank=True)
+    ai_score_updated_at = models.DateTimeField(null=True, blank=True)
+    listed_at = models.DateTimeField(null=True, blank=True)
+    delisted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-listed_at"]
+
+    def __str__(self):
+        return f"{self.project.name} ({self.status})"
+
+
+class Review(models.Model):
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In Progress"
+        SUBMITTED = "submitted", "Submitted"
+        READ = "read_by_author", "Read by Author"
+
+    class Verdict(models.TextChoices):
+        PROMISING = "promising", "Promising"
+        NEEDS_WORK = "needs_work", "Needs Work"
+        PUBLISH_READY = "publish_ready", "Publish Ready"
+
+    listing = models.ForeignKey(
+        MarketplaceListing,
+        related_name="reviews",
+        on_delete=models.CASCADE,
+    )
+    reviewer = models.ForeignKey(
+        "auth.User",
+        related_name="reviews",
+        on_delete=models.CASCADE,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.IN_PROGRESS,
+    )
+    summary = models.TextField(blank=True, default="")
+    verdict = models.CharField(
+        max_length=20,
+        choices=Verdict.choices,
+        blank=True,
+        default="",
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        unique_together = ("listing", "reviewer")
+
+    def __str__(self):
+        return f"Review by {self.reviewer.first_name} on {self.listing.project.name}"
+
+
+class ReviewComment(models.Model):
+    class CommentType(models.TextChoices):
+        PRAISE = "praise", "Praise"
+        SUGGESTION = "suggestion", "Suggestion"
+        ISSUE = "issue", "Issue"
+        NOTE = "note", "Note"
+
+    review = models.ForeignKey(Review, related_name="comments", on_delete=models.CASCADE)
+    node = models.ForeignKey(Node, related_name="review_comments", on_delete=models.CASCADE)
+    body = models.TextField()
+    position_from = models.IntegerField()
+    position_to = models.IntegerField()
+    comment_type = models.CharField(
+        max_length=12,
+        choices=CommentType.choices,
+        default=CommentType.NOTE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["node", "position_from"]
+
+    def __str__(self):
+        return f"{self.comment_type}: {self.body[:60]}"

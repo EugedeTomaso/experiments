@@ -10,7 +10,7 @@ const PROVIDERS = [
   { value: "groq", label: "Groq" },
 ];
 
-const GENERATION_PROMPT = `You are helping a user create a writing assistant for a markdown editor called Mive. Based on their description, generate a JSON object with these fields:
+const GENERATION_PROMPT = `You are helping a user create a writing assistant for a markdown editor called Marvin. Based on their description, generate a JSON object with these fields:
 
 - "name": A short, memorable name for the assistant (1-3 words)
 - "system_prompt": A detailed system prompt that captures the described personality, writing style, and behavior. Write it as direct instructions to the AI. Be specific and actionable.

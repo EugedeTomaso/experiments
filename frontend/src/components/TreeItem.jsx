@@ -65,6 +65,7 @@ export function TreeItem({
   showMeta,
   onHoverStart,
   onHoverEnd,
+  canEdit = true,
 }) {
   const isDropTarget = String(dropTargetId) === String(node.id);
   const isDragging = String(draggingId) === String(node.id);
@@ -117,6 +118,7 @@ export function TreeItem({
   }, [menuOpen]);
 
   const handleDoubleClick = (e) => {
+    if (!canEdit) return;
     e.stopPropagation();
     setEditValue(node.title);
     setIsEditing(true);
@@ -170,13 +172,15 @@ export function TreeItem({
         onSelect(node);
         break;
       case "F2":
-        e.preventDefault();
-        setEditValue(node.title);
-        setIsEditing(true);
+        if (canEdit) {
+          e.preventDefault();
+          setEditValue(node.title);
+          setIsEditing(true);
+        }
         break;
       case "Delete":
       case "Backspace":
-        if (e.metaKey || e.ctrlKey) {
+        if (canEdit && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           onDelete(node.id);
         }
@@ -251,11 +255,11 @@ export function TreeItem({
         onClick={() => !isEditing && onSelect(node)}
         onKeyDown={handleKeyDown}
         tabIndex={isFocused ? 0 : -1}
-        draggable={!isEditing}
-        onDragStart={(event) => onDragStart(event, node)}
-        onDragOver={(event) => onDragOver(event, node)}
-        onDrop={(event) => onDrop(event, node)}
-        onDragEnd={onDragEnd}
+        draggable={canEdit && !isEditing}
+        onDragStart={canEdit ? (event) => onDragStart(event, node) : undefined}
+        onDragOver={canEdit ? (event) => onDragOver(event, node) : undefined}
+        onDrop={canEdit ? (event) => onDrop(event, node) : undefined}
+        onDragEnd={canEdit ? onDragEnd : undefined}
         onMouseEnter={(e) => {
           if (onHoverStart && !isEditing && !isDragging) {
             onHoverStart(node, e.currentTarget.getBoundingClientRect());
@@ -304,7 +308,7 @@ export function TreeItem({
         </div>
         {isStreamingNode && <span className="streaming-dot" />}
         {hasAgent && !isStreamingNode && <span className="agent-dot" />}
-        {!isEditing && (
+        {!isEditing && canEdit && (
           <div className="tree-more-wrapper" ref={menuRef}>
             <button
               className="tree-more-btn"
@@ -359,6 +363,7 @@ export function TreeItem({
               showMeta={showMeta}
               onHoverStart={onHoverStart}
               onHoverEnd={onHoverEnd}
+              canEdit={canEdit}
             />
           ))}
         </div>
