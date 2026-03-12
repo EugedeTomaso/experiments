@@ -123,39 +123,6 @@ const SMALL_FEATURES = [
   },
 ];
 
-const PLANS = [
-  {
-    name: "Free",
-    price: "$0",
-    period: "",
-    desc: "For individual reviewers and editors.",
-    features: ["3 projects", "Basic AI review", "Inline comments", "Export to PDF & DOCX"],
-    cta: "Get started",
-    ctaStyle: "ghost",
-    href: "/register",
-  },
-  {
-    name: "Pro",
-    price: "$12",
-    period: "/mo",
-    desc: "For editors who review at scale.",
-    features: ["Unlimited projects", "Advanced AI models", "Priority support", "Full version history", "Publishing integrations"],
-    cta: "Start free trial",
-    ctaStyle: "primary",
-    featured: true,
-    href: "/register",
-  },
-  {
-    name: "Team",
-    price: "$24",
-    period: "/user/mo",
-    desc: "For editorial teams and newsrooms.",
-    features: ["Everything in Pro", "Real-time collaboration", "Shared editorial agents", "Team management", "Custom review workflows"],
-    cta: "Contact us",
-    ctaStyle: "ghost",
-    href: "/register",
-  },
-];
 
 /* ── Component ── */
 
@@ -200,7 +167,6 @@ export function LandingPage() {
         </Link>
         <div className="landing-nav-links">
           <a href="#features" className="landing-nav-link">Features</a>
-          <a href="#pricing" className="landing-nav-link">Pricing</a>
         </div>
         <div className="landing-nav-actions">
           <Link to="/login" className="landing-btn-ghost">Sign in</Link>
@@ -372,41 +338,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Divider ── */}
-      <div className="landing-divider">
-        <div className="landing-divider-line" />
-      </div>
-
-      {/* ── Pricing ── */}
-      <section className="landing-section landing-animate" ref={addRef} id="pricing">
-        <h2 className="landing-section-heading">Simple pricing</h2>
-        <p className="landing-section-sub">Start free. Upgrade when your team grows.</p>
-        <div className="landing-pricing">
-          {PLANS.map((plan) => (
-            <div key={plan.name} className={`landing-price-card${plan.featured ? " featured" : ""}`}>
-              {plan.featured && <div className="landing-price-badge">Popular</div>}
-              <div className="landing-price-name">{plan.name}</div>
-              <div className="landing-price-amount">
-                {plan.price}
-                {plan.period && <span>{plan.period}</span>}
-              </div>
-              <p className="landing-price-desc">{plan.desc}</p>
-              <ul className="landing-price-features">
-                {plan.features.map((feat) => (
-                  <li key={feat}>
-                    <IconCheck />
-                    {feat}
-                  </li>
-                ))}
-              </ul>
-              <Link to={plan.href} className={`landing-price-cta ${plan.ctaStyle}`}>
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ── Final CTA ── */}
       <div className="landing-cta-band landing-animate" ref={addRef}>
         <h2 className="landing-cta-heading">Better editing starts here.</h2>
@@ -434,7 +365,6 @@ export function LandingPage() {
               <div className="landing-footer-col-title">Product</div>
               <ul className="landing-footer-col-links">
                 <li><a href="#features">Features</a></li>
-                <li><a href="#pricing">Pricing</a></li>
               </ul>
             </div>
             <div>
