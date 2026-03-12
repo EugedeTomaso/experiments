@@ -1,45 +1,46 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /* ── Scene data ── */
+/* Order: Review (editorial) → Editorial workflow → Writer (creative) */
 
 const SCENES = [
   {
-    tab: "Product",
+    tab: "Editorial",
     sidebar: [
-      { label: "Launch Checklist", depth: 0, active: true },
-      { label: "Features", depth: 0 },
-      { label: "Pricing Page", depth: 1 },
-      { label: "FAQ", depth: 1 },
-      { label: "Brand Assets", depth: 0 },
+      { label: "Q1 Product Update", depth: 0, active: true },
+      { label: "Press Release", depth: 0 },
+      { label: "Style Guide", depth: 1 },
+      { label: "Brand Voice", depth: 1 },
+      { label: "Legal Review", depth: 0 },
     ],
-    title: "Launch Checklist",
+    title: "Q1 Product Update",
     paragraphs: [
-      "Before going live, make sure every piece is in place. A smooth launch isn't about luck — it's preparation.",
-      "Start with the core experience. Does the onboarding flow work on mobile? Have you tested payment in production?",
+      "We're thrilled to announce several exciting new features that our incredible team has been working tirelessly on for the past quarter.",
+      "These groundbreaking innovations will revolutionize the way our customers interact with our platform going forward.",
     ],
     action: {
       type: "review",
-      quote: "make sure every piece is in place",
-      comment: "Missing rollback plan, status page, and post-launch monitoring. These are critical for launch readiness.",
+      quote: "thrilled to announce several exciting new features",
+      comment: "Corporate filler. Cut \"thrilled\", \"exciting\", \"incredible\", \"groundbreaking\", and \"revolutionize\". Lead with what changed and why it matters to the reader.",
     },
     chat: [
-      { role: "user", text: "Review my launch checklist" },
+      { role: "user", text: "@copy-editor review for tone" },
       {
         role: "assistant",
-        text: "I found 3 gaps in your checklist. See the review card above for details.",
+        text: "Found 4 weak spots. Your draft relies on superlatives instead of specifics. See the review above.",
       },
     ],
   },
   {
-    tab: "Blog",
+    tab: "Review",
     sidebar: [
-      { label: "Why We Rebuilt Our API", depth: 0, active: true },
+      { label: "API Migration Guide", depth: 0, active: true },
       { label: "Research", depth: 0 },
       { label: "Outline", depth: 1 },
       { label: "Sources", depth: 1 },
       { label: "Draft v2", depth: 0 },
     ],
-    title: "Why We Rebuilt Our API",
+    title: "API Migration Guide",
     paragraphs: [
       "After three years of patching our REST API, we hit a wall. Every new feature meant weeks of workarounds.",
       "The decision to rewrite wasn't easy — but the alternative was slower. Here's what we learned along the way.",
@@ -58,7 +59,7 @@ const SCENES = [
     ],
   },
   {
-    tab: "Novel",
+    tab: "Creative",
     sidebar: [
       { label: "Part I — Dust", depth: 0 },
       { label: "Chapter 1", depth: 1, active: true },
@@ -190,7 +191,7 @@ function DemoActionCard({ action, visible }) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
-          <span className="demo-review-author">AI Review</span>
+          <span className="demo-review-author">Copy Editor</span>
         </div>
         <div className="demo-review-quote">&ldquo;{action.quote}&rdquo;</div>
         <div className="demo-review-body">{action.comment}</div>
