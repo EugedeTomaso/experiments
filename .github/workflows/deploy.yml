@@ -1,0 +1,73 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@${{ secrets.DEPLOY_HOST }} << 'DEPLOY'
+            set -e
+            cd /opt/mive
+            echo "=== Pulling latest code ==="
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+            echo "=== Rebuilding containers ==="
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            echo "=== Waiting for services to start ==="
+            sleep 10
+            echo "=== Deploy complete ==="
+          DEPLOY
+
+      - name: Health check
+        run: |
+          HOST=${{ secrets.DEPLOY_HOST }}
+          MAX_RETRIES=6
+          RETRY_DELAY=10
+
+          echo "Checking frontend (GET /)..."
+          for i in $(seq 1 $MAX_RETRIES); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://$HOST/" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend OK (HTTP $STATUS)"
+              break
+            fi
+            echo "Attempt $i/$MAX_RETRIES: HTTP $STATUS, retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          done
+          if [ "$STATUS" != "200" ]; then
+            echo "FAILED: Frontend returned HTTP $STATUS"
+            exit 1
+          fi
+
+          echo "Checking backend (GET /api/auth/me/)..."
+          for i in $(seq 1 $MAX_RETRIES); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://$HOST/api/auth/me/" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "401" ]; then
+              echo "Backend OK (HTTP $STATUS — auth required, service is alive)"
+              break
+            fi
+            echo "Attempt $i/$MAX_RETRIES: HTTP $STATUS, retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          done
+          if [ "$STATUS" != "401" ]; then
+            echo "FAILED: Backend returned HTTP $STATUS (expected 401)"
+            exit 1
+          fi
+
+          echo "All health checks passed."
