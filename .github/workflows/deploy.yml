@@ -42,7 +42,7 @@ jobs:
 
           echo "Checking frontend (GET /)..."
           for i in $(seq 1 $MAX_RETRIES); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://$HOST/" 2>/dev/null || echo "000")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$HOST/" 2>/dev/null || echo "000")
             if [ "$STATUS" = "200" ]; then
               echo "Frontend OK (HTTP $STATUS)"
               break
@@ -57,7 +57,7 @@ jobs:
 
           echo "Checking backend (GET /api/auth/me/)..."
           for i in $(seq 1 $MAX_RETRIES); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://$HOST/api/auth/me/" 2>/dev/null || echo "000")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$HOST/api/auth/me/" 2>/dev/null || echo "000")
             if [ "$STATUS" = "401" ]; then
               echo "Backend OK (HTTP $STATUS — auth required, service is alive)"
               break
