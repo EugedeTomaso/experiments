@@ -141,6 +141,18 @@ Key components in `src/components/`:
 - Publish: `/api/publish/{connect,callback,connections,history}/`
 - Search: `/api/search/`
 
+## Post-Deploy Verification
+
+After every deploy to production, run a browser-based smoke test (dogfood) against https://marvintext.com/app to verify:
+
+1. Login page loads without crashing
+2. Login with test credentials succeeds
+3. Editor loads and displays document content
+4. Text selection shows the formatting toolbar (Bold, Italic, Comment, Ask AI)
+5. No "Reconectando" / reconnect banner appears unexpectedly
+
+If any functionality changes (new features, UI modifications, removed components), update the corresponding Playwright e2e tests in `frontend/tests/` to match the new behavior **before** deploying.
+
 ## Common Pitfalls
 
 - Backend code changes in this workspace don't affect the running Docker container — must copy to Docker mount source
