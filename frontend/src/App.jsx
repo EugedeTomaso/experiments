@@ -350,6 +350,7 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [activeNodeId, setActiveNodeId] = useState(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // --- Editor state ---
   const [draft, setDraft] = useState("");
@@ -698,7 +699,7 @@ export default function App() {
     api.listProjects().then((data) => {
       setProjects(data);
       if (data.length && !activeProjectId) setActiveProjectId(data[0].id);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setInitialLoading(false));
   }, []);
 
   useEffect(() => {
@@ -3684,7 +3685,7 @@ Rules for memory suggestions:
             />
           )}
 
-          {!activeNode && !activeProjectId && (
+          {!activeNode && !activeProjectId && !initialLoading && (
             <AllProjects
               projects={projects}
               canCreate={canCreateProjects}

@@ -24,7 +24,7 @@ import { mermaidPlugin } from "./mermaidPlugin";
 import { createMarginAvatarPlugin } from "./marginAvatarPlugin";
 import "@milkdown/theme-nord/style.css";
 
-function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, reviewerMode = false }) {
+function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, reviewerMode = false, aiIntensity = "silent", onRequestGhostText }) {
   const pluginViewFactory = usePluginViewFactory();
   const [loading, get] = useInstance();
   const shellRef = useRef(null);
