@@ -648,7 +648,7 @@ Rules:
               Your ideas deserve a room, not a blank page.
             </h1>
             <p className="welcome-text">
-              Mive gives your work structure and intelligence. Outline, draft,
+              Marvin gives your work structure and intelligence. Outline, draft,
               and revise — with an AI that reads everything you've written.
             </p>
             <p className="welcome-subtext">

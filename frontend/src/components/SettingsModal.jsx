@@ -10,6 +10,7 @@ const PROVIDERS = [
 ];
 
 const SECTIONS = [
+  { id: "appearance", label: "Appearance" },
   { id: "providers", label: "Provider Keys" },
   { id: "editor", label: "Editor" },
   { id: "ai", label: "AI Defaults" },
@@ -31,8 +32,14 @@ export function SettingsModal({
   onDeleteMemory,
   onUpdateMemory,
   collabSession,
+  theme,
+  onThemeChange,
+  aiIntensity,
+  onAiIntensityChange,
+  editorFont,
+  onEditorFontChange,
 }) {
-  const [activeSection, setActiveSection] = useState("providers");
+  const [activeSection, setActiveSection] = useState("appearance");
   const [keyForm, setKeyForm] = useState({ provider: "openai", api_key: "" });
   const [keyMessage, setKeyMessage] = useState("");
   const [newMemoryText, setNewMemoryText] = useState("");
@@ -92,6 +99,41 @@ export function SettingsModal({
               </svg>
             </button>
           </div>
+
+          {activeSection === "appearance" && (
+            <div className="settings-section">
+              <p className="settings-description">
+                Choose your writing environment.
+              </p>
+
+              <div className="settings-field">
+                <label className="settings-label">Theme</label>
+                <select value={theme} onChange={(e) => onThemeChange(e.target.value)}>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+
+              <div className="settings-field" style={{ marginTop: 16 }}>
+                <label className="settings-label">AI Presence</label>
+                <select value={aiIntensity} onChange={(e) => onAiIntensityChange(e.target.value)}>
+                  <option value="silent">Silent — only when asked</option>
+                  <option value="active">Active — subtle suggestions</option>
+                  <option value="coauthor">Co-author — maximum collaboration</option>
+                </select>
+              </div>
+
+              <div className="settings-field" style={{ marginTop: 16 }}>
+                <label className="settings-label">Editor Font</label>
+                <select value={editorFont} onChange={(e) => onEditorFontChange(e.target.value)}>
+                  <option value="sans">Sans-serif (default)</option>
+                  <option value="serif">Serif</option>
+                  <option value="mono">Monospace</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {activeSection === "providers" && (
             <div className="settings-section">

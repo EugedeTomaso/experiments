@@ -5,6 +5,7 @@ export function ReviewTab({
   pendingCount,
   acceptedCount,
   dismissedCount,
+  canApplySuggestion = true,
   focusedCommentId,
   aiThinkingId,
   getReplies,
@@ -69,6 +70,7 @@ export function ReviewTab({
             replies={getReplies(c.id)}
             isActive={c.id === focusedCommentId}
             isAiThinking={c.id === aiThinkingId}
+            canApplySuggestion={canApplySuggestion}
             onClick={() => onClickComment(c)}
             onApprove={onApprove}
             onApproveReply={onApproveReply}

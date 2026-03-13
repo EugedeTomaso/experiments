@@ -36,8 +36,12 @@ from .publish_views import (
     PublishView,
 )
 from .marketplace_views import (
-    MarketplaceViewSet, ListingViewSet, ReviewViewSet, ReviewCommentViewSet,
-    ReviewAIAnalyzeView, ReviewAIChatView,
+    MarketplaceViewSet,
+    ListingViewSet,
+    ReviewViewSet,
+    ReviewCommentViewSet,
+    ReviewAIAnalyzeView,
+    ReviewAIChatView,
 )
 from .views import (
     AIAutocompleteView,
@@ -127,8 +131,16 @@ urlpatterns = [
     path("api/publish/preview/", PublishPreviewView.as_view(), name="publish-preview"),
     path("api/publish/history/", PublishHistoryView.as_view(), name="publish-history"),
     # Review comments (nested under reviews)
-    path("api/reviews/<int:review_pk>/comments/", ReviewCommentViewSet.as_view({"get": "list", "post": "create"})),
-    path("api/reviews/<int:review_pk>/comments/<int:pk>/", ReviewCommentViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"})),
+    path(
+        "api/reviews/<int:review_pk>/comments/",
+        ReviewCommentViewSet.as_view({"get": "list", "post": "create"}),
+    ),
+    path(
+        "api/reviews/<int:review_pk>/comments/<int:pk>/",
+        ReviewCommentViewSet.as_view(
+            {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
+        ),
+    ),
     path("api/reviews/<int:review_pk>/ai/analyze", ReviewAIAnalyzeView.as_view()),
     path("api/reviews/<int:review_pk>/ai/chat", ReviewAIChatView.as_view()),
     # Internal (collab server)

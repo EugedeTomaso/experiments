@@ -446,7 +446,11 @@ class UserProfile(models.Model):
         REVIEWER = "reviewer", "Reviewer"
 
     user = models.OneToOneField("auth.User", related_name="profile", on_delete=models.CASCADE)
-    user_type = models.CharField(max_length=10, choices=UserType.choices, default=UserType.WRITER)
+    user_type = models.CharField(
+        max_length=10,
+        choices=UserType.choices,
+        default=UserType.WRITER,
+    )
     bio = models.TextField(blank=True, default="")
     specialties = models.JSONField(default=list, blank=True)
 
@@ -461,7 +465,11 @@ class MarketplaceListing(models.Model):
         DELISTED = "delisted", "Delisted"
 
     project = models.OneToOneField(Project, related_name="listing", on_delete=models.CASCADE)
-    published_by = models.ForeignKey("auth.User", related_name="listings", on_delete=models.CASCADE)
+    published_by = models.ForeignKey(
+        "auth.User",
+        related_name="listings",
+        on_delete=models.CASCADE,
+    )
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     genre = models.CharField(max_length=100, blank=True, default="")
     word_count = models.IntegerField(default=0)
@@ -490,11 +498,28 @@ class Review(models.Model):
         NEEDS_WORK = "needs_work", "Needs Work"
         PUBLISH_READY = "publish_ready", "Publish Ready"
 
-    listing = models.ForeignKey(MarketplaceListing, related_name="reviews", on_delete=models.CASCADE)
-    reviewer = models.ForeignKey("auth.User", related_name="reviews", on_delete=models.CASCADE)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.IN_PROGRESS)
+    listing = models.ForeignKey(
+        MarketplaceListing,
+        related_name="reviews",
+        on_delete=models.CASCADE,
+    )
+    reviewer = models.ForeignKey(
+        "auth.User",
+        related_name="reviews",
+        on_delete=models.CASCADE,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.IN_PROGRESS,
+    )
     summary = models.TextField(blank=True, default="")
-    verdict = models.CharField(max_length=20, choices=Verdict.choices, blank=True, default="")
+    verdict = models.CharField(
+        max_length=20,
+        choices=Verdict.choices,
+        blank=True,
+        default="",
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
 
@@ -518,7 +543,11 @@ class ReviewComment(models.Model):
     body = models.TextField()
     position_from = models.IntegerField()
     position_to = models.IntegerField()
-    comment_type = models.CharField(max_length=12, choices=CommentType.choices, default=CommentType.NOTE)
+    comment_type = models.CharField(
+        max_length=12,
+        choices=CommentType.choices,
+        default=CommentType.NOTE,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

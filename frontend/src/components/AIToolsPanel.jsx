@@ -1,55 +1,82 @@
 import { useCallback, useState } from "react";
 import { api } from "../api";
-
-const TOOLS = [
-  { id: "structure", label: "Analyze Structure", icon: "\u{1F3D7}\u{FE0F}", scope: "project" },
-  { id: "prose", label: "Evaluate Prose", icon: "\u{270D}\u{FE0F}", scope: "node" },
-  { id: "inconsistencies", label: "Find Inconsistencies", icon: "\u{1F50D}", scope: "project" },
-  { id: "summaries", label: "Chapter Summaries", icon: "\u{1F4CB}", scope: "project" },
-  { id: "characters", label: "Character Map", icon: "\u{1F465}", scope: "project" },
-  { id: "genre", label: "Compare to Genre", icon: "\u{1F4CA}", scope: "project" },
-];
+import { ReviewerIcon } from "./ReviewerIcon";
+import { ReviewerMarkdown } from "./ReviewerMarkdown";
+import { ReviewerThinkingState } from "./ReviewerThinkingState";
+import { REVIEWER_TOOLS, getReviewerTool } from "./reviewerPanelConfig";
 
 export function AIToolsPanel({ reviewId, nodeId }) {
   const [results, setResults] = useState({});
-  const [loading, setLoading] = useState({});
+  const [resultOrder, setResultOrder] = useState([]);
+  const [loadingToolId, setLoadingToolId] = useState(null);
 
   const runTool = useCallback(async (tool) => {
-    setLoading((prev) => ({ ...prev, [tool.id]: true }));
+    if (loadingToolId) return;
+    setLoadingToolId(tool.id);
     try {
       const res = await api.analyzeForReview(
         reviewId,
         tool.id,
         tool.scope === "node" ? nodeId : null
       );
-      setResults((prev) => ({ ...prev, [tool.id]: res.result || res.detail || JSON.stringify(res) }));
+      setResults((prev) => ({
+        ...prev,
+        [tool.id]: res.result || res.detail || JSON.stringify(res),
+      }));
+      setResultOrder((prev) => [tool.id, ...prev.filter((id) => id !== tool.id)]);
     } catch (err) {
       setResults((prev) => ({ ...prev, [tool.id]: `Error: ${err.message}` }));
+      setResultOrder((prev) => [tool.id, ...prev.filter((id) => id !== tool.id)]);
     } finally {
-      setLoading((prev) => ({ ...prev, [tool.id]: false }));
+      setLoadingToolId(null);
     }
-  }, [reviewId, nodeId]);
+  }, [loadingToolId, reviewId, nodeId]);
 
   return (
     <div className="ai-tools-panel">
       <div className="ai-tools-panel__grid">
-        {TOOLS.map((tool) => (
+        {REVIEWER_TOOLS.map((tool) => (
           <button
             key={tool.id}
-            className="ai-tools-panel__btn"
+            className={`ai-tools-panel__btn${loadingToolId === tool.id ? " ai-tools-panel__btn--thinking" : ""}`}
             onClick={() => runTool(tool)}
-            disabled={loading[tool.id]}
+            disabled={Boolean(loadingToolId)}
           >
-            <span className="ai-tools-panel__icon">{tool.icon}</span>
+            <span className="ai-tools-panel__icon-wrap">
+              <ReviewerIcon name={tool.icon} className="ai-tools-panel__icon" size={20} />
+            </span>
             <span className="ai-tools-panel__label">{tool.label}</span>
             {tool.scope === "node" && <span className="ai-tools-panel__scope">current chapter</span>}
           </button>
         ))}
       </div>
-      {Object.entries(results).map(([toolId, result]) => (
+
+      {loadingToolId && (
+        <div className="ai-tools-panel__result ai-tools-panel__result--thinking">
+          <div className="ai-tools-panel__result-head">
+            <div className="ai-tools-panel__result-title">
+              <ReviewerIcon name={getReviewerTool(loadingToolId)?.icon} size={16} />
+              <span>{getReviewerTool(loadingToolId)?.label || "Analyzing"}</span>
+            </div>
+            <span className="ai-tools-panel__result-badge">Live</span>
+          </div>
+          <ReviewerThinkingState
+            kind="tool"
+            toolId={loadingToolId}
+            title="AI is reading the manuscript"
+          />
+        </div>
+      )}
+
+      {resultOrder.map((toolId) => (
         <div key={toolId} className="ai-tools-panel__result">
-          <h4>{TOOLS.find((t) => t.id === toolId)?.label}</h4>
-          <div className="ai-tools-panel__result-body">{result}</div>
+          <div className="ai-tools-panel__result-head">
+            <div className="ai-tools-panel__result-title">
+              <ReviewerIcon name={getReviewerTool(toolId)?.icon} size={16} />
+              <span>{getReviewerTool(toolId)?.label}</span>
+            </div>
+          </div>
+          <ReviewerMarkdown className="ai-tools-panel__result-body" content={results[toolId]} />
         </div>
       ))}
     </div>

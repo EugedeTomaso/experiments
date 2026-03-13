@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { api } from "../api";
+import { ReviewerMarkdown } from "./ReviewerMarkdown";
 
 export function ReportBuilder({ review, comments, onCommentDelete, onSubmitted }) {
   const [summary, setSummary] = useState(review.summary || "");
@@ -59,7 +60,7 @@ export function ReportBuilder({ review, comments, onCommentDelete, onSubmitted }
           </div>
           <div className="report-preview__summary">
             <h4>Summary</h4>
-            <p>{summary || "(no summary)"}</p>
+            <ReviewerMarkdown content={summary || "_No summary yet._"} />
           </div>
           <div className="report-preview__comments">
             <h4>Comments ({comments.length})</h4>
@@ -69,7 +70,7 @@ export function ReportBuilder({ review, comments, onCommentDelete, onSubmitted }
                 {nodeComments.map((c) => (
                   <div key={c.id} className="report-preview__comment">
                     <span className={`comment-type-tag comment-type-tag--${c.comment_type}`}>{c.comment_type}</span>
-                    <span>{c.body}</span>
+                    <ReviewerMarkdown compact content={c.body} />
                   </div>
                 ))}
               </div>

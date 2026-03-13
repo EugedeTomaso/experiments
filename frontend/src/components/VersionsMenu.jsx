@@ -14,7 +14,13 @@ function relativeTime(dateStr) {
   return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function VersionsMenu({ versions, onRestore, onCompare, activeCompareId }) {
+export function VersionsMenu({
+  versions,
+  onRestore,
+  onCompare,
+  activeCompareId,
+  canRestore = true,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
 
@@ -73,15 +79,17 @@ export function VersionsMenu({ versions, onRestore, onCompare, activeCompareId }
                     {activeCompareId === v.id ? "Comparing" : "Compare"}
                   </button>
                 )}
-                <button
-                  className="versions-item-btn"
-                  onClick={() => {
-                    onRestore(v);
-                    setIsOpen(false);
-                  }}
-                >
-                  Restore
-                </button>
+                {canRestore && (
+                  <button
+                    className="versions-item-btn"
+                    onClick={() => {
+                      onRestore(v);
+                      setIsOpen(false);
+                    }}
+                  >
+                    Restore
+                  </button>
+                )}
               </div>
             </div>
           ))}

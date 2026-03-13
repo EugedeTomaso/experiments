@@ -5,13 +5,23 @@ import { collectBlocks, isEmptyParagraph } from "./diffUpdate";
 
 export const aiTextPluginKey = new PluginKey("ai-text-appear");
 
-const INIT_STATE = { decos: DecorationSet.empty, savedOldDoc: null, mode: "idle", stats: null };
+const INIT_STATE = { decos: DecorationSet.empty, savedOldDoc: null, mode: "idle", stats: null, ghostText: null };
 
 function createCursorWidget() {
   const span = document.createElement("span");
   span.className = "ai-cursor";
   span.setAttribute("aria-hidden", "true");
   return span;
+}
+
+function createGhostWidget(text) {
+  return () => {
+    const span = document.createElement("span");
+    span.className = "ai-ghost-text";
+    span.textContent = text;
+    span.setAttribute("aria-hidden", "true");
+    return span;
+  };
 }
 
 /**
@@ -239,6 +249,42 @@ export const aiTextPlugin = $prose(() => {
           return INIT_STATE;
         }
 
+        // Ghost text actions
+        if (meta && typeof meta === "object" && meta.action === "show-ghost") {
+          const { text, pos } = meta;
+          if (!text || pos == null || pos < 0 || pos > newState.doc.content.size) {
+            return oldState;
+          }
+          try {
+            const ghostDeco = Decoration.widget(pos, createGhostWidget(text), {
+              side: 1,
+              isGhost: true,
+            });
+            // Merge ghost decoration with existing diff/streaming decos
+            const ghostDecoSet = DecorationSet.create(newState.doc, [ghostDeco]);
+            const mergedDecos = oldState.decos !== DecorationSet.empty
+              ? oldState.decos.add(newState.doc, [ghostDeco])
+              : ghostDecoSet;
+            return { ...oldState, decos: mergedDecos, ghostText: { pos, text } };
+          } catch (_) {
+            return oldState;
+          }
+        }
+
+        if (meta && typeof meta === "object" && meta.action === "clear-ghost") {
+          if (!oldState.ghostText) return oldState;
+          // Remove ghost widget decorations from the set
+          const ghostDecos = oldState.decos.find(
+            0, newState.doc.content.size + 1,
+            (spec) => spec.isGhost
+          );
+          if (ghostDecos.length > 0) {
+            const newDecoSet = oldState.decos.remove(ghostDecos);
+            return { ...oldState, decos: newDecoSet, ghostText: null };
+          }
+          return { ...oldState, ghostText: null };
+        }
+
         // Set a comparison doc (for version comparison)
         if (meta && typeof meta === "object" && meta.action === "set-compare-doc") {
           return { ...oldState, savedOldDoc: meta.doc, mode: "idle" };
@@ -298,11 +344,31 @@ export const aiTextPlugin = $prose(() => {
         }
 
         // Normal transaction: map existing decorations
-        if (tr.docChanged && oldState.decos !== DecorationSet.empty) {
-          return {
-            ...oldState,
-            decos: oldState.decos.map(tr.mapping, tr.doc),
-          };
+        if (tr.docChanged) {
+          // Always clear ghost text on any document change
+          if (oldState.ghostText) {
+            if (oldState.decos !== DecorationSet.empty) {
+              // Remove ghost decos, map remaining
+              const ghostDecos = oldState.decos.find(
+                0, _oldState.doc.content.size + 1,
+                (spec) => spec.isGhost
+              );
+              const withoutGhost = ghostDecos.length > 0
+                ? oldState.decos.remove(ghostDecos)
+                : oldState.decos;
+              const mapped = withoutGhost !== DecorationSet.empty
+                ? withoutGhost.map(tr.mapping, tr.doc)
+                : DecorationSet.empty;
+              return { ...oldState, decos: mapped, ghostText: null };
+            }
+            return { ...oldState, decos: DecorationSet.empty, ghostText: null };
+          }
+          if (oldState.decos !== DecorationSet.empty) {
+            return {
+              ...oldState,
+              decos: oldState.decos.map(tr.mapping, tr.doc),
+            };
+          }
         }
         return oldState;
       },

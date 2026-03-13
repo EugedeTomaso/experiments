@@ -68,9 +68,9 @@ export function RegisterPage({ onNavigate }) {
   return (
     <div className="auth-page">
       <div className="auth-container">
-        <div className="auth-brand">Mive</div>
+        <div className="auth-brand">Marvin</div>
         <h1 className="auth-heading">Create your account</h1>
-        <p className="auth-subheading">Start writing with Mive</p>
+        <p className="auth-subheading">Start writing with Marvin</p>
 
         <div className="auth-social-group">
           <button type="button" className="auth-social-btn" disabled>

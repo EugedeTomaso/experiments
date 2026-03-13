@@ -23,6 +23,7 @@ import { ProjectHome } from "./components/ProjectHome";
 import { AllProjects } from "./components/AllProjects";
 import { WelcomeWalkthrough } from "./components/WelcomeWalkthrough";
 import { SpotlightTour } from "./components/SpotlightTour";
+import { shouldShowWelcomeWalkthrough } from "./utils/walkthrough";
 import { HelpModal } from "./components/HelpModal";
 import { useComments } from "./hooks/useComments";
 import { createStreamParser } from "./streamParser";
@@ -31,6 +32,7 @@ import { createCollabSession } from "./collabPlugin";
 import PresenceIndicator from "./components/PresenceIndicator";
 import ConnectionBanner from "./components/ConnectionBanner";
 import AiSuggestionBanner from "./components/AiSuggestionBanner";
+import InlinePrompt from "./components/InlinePrompt";
 import "./App.css";
 
 const NEW_DOC_TEMPLATE = `\
@@ -74,7 +76,7 @@ const INITIAL_DEFAULT_AGENT = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Mive. Based on the project type and description, generate 2-3 assistants tailored to this project.
+const ASSISTANTS_PROMPT = `You are helping set up AI writing assistants for a project in a markdown editor called Marvin. Based on the project type and description, generate 2-3 assistants tailored to this project.
 
 Each assistant should serve a different purpose (e.g., creative collaborator, editor/critic, research/planning).
 
@@ -361,8 +363,11 @@ export default function App() {
   const preEditDraftsRef = useRef(new Map()); // Map<nodeId, preEditDraft>
 
   // --- Layout state ---
-  const [isOutlineOpen, setIsOutlineOpen] = useState(true);
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isDocEntering, setIsDocEntering] = useState(false);
+  const focusTimerRef = useRef(null);
   const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
     const saved = localStorage.getItem("mive:assistant-width");
@@ -393,6 +398,7 @@ export default function App() {
 
   // --- @ mention context ---
   const [mentionedFileIds, setMentionedFileIds] = useState([]);
+  const [mentionedAgentId, setMentionedAgentId] = useState(null);
 
   // --- Agent state ---
   const [agents, setAgents] = useState([]);
@@ -417,8 +423,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [showReceivedReviews, setShowReceivedReviews] = useState(false);
   const [showMarketplacePublish, setShowMarketplacePublish] = useState(false);
+  const [showReceivedReviews, setShowReceivedReviews] = useState(false);
   const [publishState, setPublishState] = useState(null); // { platform, connection }
   const [collabSession, setCollabSession] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
@@ -434,6 +440,41 @@ export default function App() {
       return INITIAL_DEFAULT_AGENT;
     }
   });
+  const [theme, setTheme] = useState(() => localStorage.getItem('mive:theme') || 'system');
+  const [aiIntensity, setAiIntensity] = useState(
+    () => localStorage.getItem('mive:ai-intensity') || 'active'
+  );
+  const [editorFont, setEditorFont] = useState(
+    () => localStorage.getItem('mive:editor-font') || 'sans'
+  );
+
+  useEffect(() => {
+    localStorage.setItem('mive:ai-intensity', aiIntensity);
+  }, [aiIntensity]);
+
+  useEffect(() => {
+    localStorage.setItem('mive:editor-font', editorFont);
+  }, [editorFont]);
+
+  // --- Ghost text handler ---
+  const ghostAbortRef = useRef(null);
+  const handleRequestGhostText = useCallback(async (context, cursorPos) => {
+    if (aiIntensity === "silent") return;
+    // Abort any in-flight ghost text request
+    if (ghostAbortRef.current) { ghostAbortRef.current.abort(); ghostAbortRef.current = null; }
+    const controller = new AbortController();
+    ghostAbortRef.current = controller;
+    try {
+      const data = await api.autocomplete(context, "ghost_inline");
+      if (controller.signal.aborted) return;
+      const completion = data.completion || "";
+      if (completion) {
+        editorRef.current?.showGhostText?.(completion, cursorPos);
+      }
+    } catch {
+      // Silently fail — ghost text is non-critical
+    }
+  }, [aiIntensity]);
 
   // --- Memory state ---
   const [memories, setMemories] = useState([]);
@@ -443,6 +484,8 @@ export default function App() {
 
   // --- Inline comment state ---
   const [commentInputState, setCommentInputState] = useState(null);
+  // --- Inline AI prompt (Cmd+J) ---
+  const [inlinePrompt, setInlinePrompt] = useState(null); // null or { top, left, from, to, selectedText }
   const editorRef = useRef(null);
   const editorWrapperRef = useRef(null);
 
@@ -462,8 +505,30 @@ export default function App() {
   const [critiqueThreadMessages, setCritiqueThreadMessages] = useState({});
   const [discussingSection, setDiscussingSection] = useState(null);
 
+  const currentRole = useMemo(() => {
+    const p = projects.find((p) => p.id === activeProjectId);
+    return p?.current_user_role || null;
+  }, [projects, activeProjectId]);
+  const canEdit = currentRole && currentRole !== "viewer" && currentRole !== "commenter";
+  const canApplyDocumentChanges = Boolean(canEdit);
+  const isReviewerOnlyUser = useMemo(
+    () =>
+      projects.length > 0 &&
+      projects.every((project) =>
+        ["viewer", "commenter"].includes(project.current_user_role)
+      ),
+    [projects]
+  );
+  const canCreateProjects = !isReviewerOnlyUser;
+
   // --- Comment state (centralized hook) ---
-  const commentState = useComments({ nodeId: activeNodeId, editorRef, editorWrapperRef, content: draft });
+  const commentState = useComments({
+    nodeId: activeNodeId,
+    editorRef,
+    editorWrapperRef,
+    content: draft,
+    canApplySuggestions: canApplyDocumentChanges,
+  });
   const {
     comments, openComments, decorationComments, activeThread: activeThreadComment,
     focusedId: focusedCommentId, flashId: flashCommentId, navIndex: focusedNavIndex, navTotal,
@@ -493,6 +558,31 @@ export default function App() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [handleNavNext, handleNavPrev]);
+
+  // Apply theme to document
+  useEffect(() => {
+    localStorage.setItem('mive:theme', theme);
+    if (theme === 'system') {
+      document.documentElement.removeAttribute('data-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
+
+  // Listen for system preference changes when in 'system' mode
+  useEffect(() => {
+    if (theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => {
+      document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [theme]);
 
   // --- Drag & drop ---
   const [draggingId, setDraggingId] = useState(null);
@@ -538,13 +628,6 @@ export default function App() {
     () => nodes.find((n) => String(n.id) === String(activeNodeId)),
     [nodes, activeNodeId]
   );
-
-  const currentRole = useMemo(() => {
-    const p = projects.find((p) => p.id === activeProjectId);
-    return p?.current_user_role || null;
-  }, [projects, activeProjectId]);
-
-  const canEdit = currentRole && currentRole !== "viewer" && currentRole !== "commenter";
 
   const tree = useMemo(() => buildTree(nodes), [nodes]);
 
@@ -601,6 +684,15 @@ export default function App() {
 
   // --- Effects ---
   useEffect(() => { activeNodeIdRef.current = activeNodeId; }, [activeNodeId]);
+
+  // Document open animation
+  useEffect(() => {
+    if (activeNodeId) {
+      setIsDocEntering(true);
+      const timer = setTimeout(() => setIsDocEntering(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [activeNodeId]);
 
   useEffect(() => {
     api.listProjects().then((data) => {
@@ -992,42 +1084,62 @@ export default function App() {
       setIsAssistantOpen(true);
     };
 
-    const handleFactCheckSelection = (e) => {
-      const { from, to } = e.detail;
-      handleFactCheckRef.current?.(from, to);
-    };
-
     const onSlashReview = () => handleRequestReview("all");
     const onSlashFactCheck = () => handleFactCheckRef.current?.();
 
     el.addEventListener("comment-selection-request", onSelectionRequest);
     el.addEventListener("comment-highlight-click", onHighlightClick);
     el.addEventListener("ai-selection-request", onAiRequest);
-    el.addEventListener("fact-check-selection-request", handleFactCheckSelection);
     el.addEventListener("slash-review-request", onSlashReview);
     el.addEventListener("slash-factcheck-request", onSlashFactCheck);
     return () => {
       el.removeEventListener("comment-selection-request", onSelectionRequest);
       el.removeEventListener("comment-highlight-click", onHighlightClick);
       el.removeEventListener("ai-selection-request", onAiRequest);
-      el.removeEventListener("fact-check-selection-request", handleFactCheckSelection);
       el.removeEventListener("slash-review-request", onSlashReview);
       el.removeEventListener("slash-factcheck-request", onSlashFactCheck);
     };
   }, [handleHighlightClick]);
 
-  // --- Cmd+J: toggle assistant pane ---
+  // --- Cmd+J: inline AI prompt ---
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        if (!canApplyDocumentChanges) return;
         e.preventDefault();
-        setIsAssistantOpen((prev) => {
-          if (prev) {
-            // Closing — return focus to editor
-            requestAnimationFrame(() => editorRef.current?.focus());
-          }
-          return !prev;
+        const view = editorRef.current?.getView?.();
+        if (!view) return;
+
+        const { from, to } = view.state.selection;
+        const coords = view.coordsAtPos(from);
+        const selectedText = from !== to
+          ? view.state.doc.textBetween(from, to, '\n')
+          : '';
+
+        setInlinePrompt({
+          top: coords.bottom + 8,
+          left: Math.max(32, Math.min(coords.left, window.innerWidth - 500)),
+          from,
+          to,
+          selectedText,
         });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [canApplyDocumentChanges]);
+
+  // --- Cmd+K: send selection to AI composer ---
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        const sel = editorRef.current?.getSelection();
+        if (sel) {
+          setPendingContext({ text: sel.text, from: sel.from, to: sel.to });
+        }
+        setAssistantTab("chat");
+        setIsAssistantOpen(true);
       }
     };
     document.addEventListener("keydown", handler);
@@ -1065,6 +1177,60 @@ export default function App() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // --- Focus mode: auto-activate after 3s of typing ---
+  useEffect(() => {
+    if (!activeNodeId) return;
+
+    const editorEl = document.querySelector('.editor-area');
+    if (!editorEl) return;
+
+    const handleTyping = (e) => {
+      // Only count actual character input, not shortcuts
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = setTimeout(() => {
+        setIsFocusMode(true);
+      }, 3000);
+    };
+
+    editorEl.addEventListener('keydown', handleTyping);
+    return () => {
+      editorEl.removeEventListener('keydown', handleTyping);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
+  }, [activeNodeId]);
+
+  // --- Focus mode: reveal on edge hover ---
+  useEffect(() => {
+    if (!isFocusMode) return;
+
+    const handleMouseMove = (e) => {
+      if (e.clientX < 24) {
+        setIsFocusMode(false);
+      } else if (e.clientX > window.innerWidth - 60) {
+        setIsFocusMode(false);
+      } else if (e.clientY < 12) {
+        setIsFocusMode(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [isFocusMode]);
+
+  // --- Cmd+Shift+F: toggle focus mode ---
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault();
+        setIsFocusMode((prev) => !prev);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
   // --- Helpers ---
   const getNextOrder = (parentId) => {
     const targetParent = normalizeId(parentId);
@@ -1084,10 +1250,12 @@ export default function App() {
 
   // --- Handlers ---
   const handleCreateProject = () => {
+    if (!canCreateProjects) return;
     setIsWizardOpen(true);
   };
 
   const handleQuickCreate = async ({ name, type }) => {
+    if (!canCreateProjects) return;
     const project = await api.createProject({
       name: name.trim() || "Untitled",
       project_type: type || "",
@@ -1209,6 +1377,7 @@ export default function App() {
   };
 
   const handleWizardComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
+    if (!canCreateProjects) return;
     setIsWizardOpen(false);
     const project = await api.createProject({
       name,
@@ -1253,9 +1422,16 @@ export default function App() {
   };
 
   // --- Walkthrough handlers ---
-  const showWalkthrough = !walkthroughDismissed && !isWizardOpen;
+  const showWalkthrough = shouldShowWelcomeWalkthrough({
+    isReviewerOnlyUser,
+    walkthroughDismissed,
+    isWizardOpen,
+    canCreateProjects,
+    projectCount: projects.length,
+  });
 
   const handleWalkthroughComplete = async ({ name, type, extension, structure, description, structureSummary }) => {
+    if (!canCreateProjects) return;
     localStorage.setItem("mive:walkthrough-seen", "true");
     setWalkthroughDismissed(true);
 
@@ -1330,7 +1506,7 @@ export default function App() {
   };
 
   const handleCreateNode = async (type) => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !canEdit) return;
     const isFile = type === "file";
     let title;
     if (isFile) {
@@ -1355,12 +1531,13 @@ export default function App() {
   };
 
   const handleRenameNode = async (nodeId, newTitle) => {
-    if (!newTitle.trim()) return;
+    if (!canEdit || !newTitle.trim()) return;
     const updated = await api.updateNode(nodeId, { title: newTitle.trim() });
     setNodes((prev) => prev.map((n) => (String(n.id) === String(updated.id) ? updated : n)));
   };
 
   const handleDeleteNode = async (nodeId) => {
+    if (!canEdit) return;
     const node = nodesById.get(String(nodeId));
     if (!node) return;
     const label = node.type === "folder" ? "folder" : "file";
@@ -1549,7 +1726,7 @@ export default function App() {
   handleFactCheckRef.current = handleFactCheck;
 
   const handleAssignAgent = async (agentId) => {
-    if (!activeNode) return;
+    if (!activeNode || !canEdit) return;
     try {
       if (agentId) {
         if (nodeDirectConfig) {
@@ -1591,7 +1768,7 @@ export default function App() {
   };
 
   const handleCreateAgentFromCreator = async ({ name, config }) => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !canEdit) return;
     const agent = await api.createAgent({
       project: activeProjectId,
       name,
@@ -1601,21 +1778,25 @@ export default function App() {
   };
 
   const handleUpdateAgent = async (agentId, { name, config }) => {
+    if (!canEdit) return;
     const updated = await api.updateAgent(agentId, { name, config });
     setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
   };
 
   const handleDeleteAgent = async (agentId) => {
+    if (!canEdit) return;
     await api.deleteAgent(agentId);
     setAgents((prev) => prev.filter((a) => a.id !== agentId));
   };
 
   const openAgentEditor = (agent) => {
+    if (!canEdit) return;
     setEditingAgent(agent);
     setIsAgentCreatorOpen(true);
   };
 
   const openAgentCreator = () => {
+    if (!canEdit) return;
     setEditingAgent(null);
     setIsAgentCreatorOpen(true);
   };
@@ -1748,6 +1929,7 @@ export default function App() {
     setChatInput("");
     setPendingContext(null);
     setMentionedFileIds([]);
+    setMentionedAgentId(null);
     setStreamingContent("");
     setIsEditingDocument(false);
     setDiffAvailable(false);
@@ -1789,7 +1971,17 @@ export default function App() {
       let routedAgentId = null;
       let routedAgentName = null;
 
-      if (agentMode === "auto" && agents.length >= 2) {
+      // If user @mentioned a specific agent, use it directly
+      if (mentionedAgentId) {
+        const overrideAgent = agents.find((a) => a.id === mentionedAgentId);
+        if (overrideAgent) {
+          routedAgentId = overrideAgent.id;
+          routedAgentName = overrideAgent.name;
+          config = { ...defaultAgent, ...(overrideAgent.config || {}) };
+        }
+      }
+
+      if (!config && agentMode === "auto" && agents.length >= 2) {
         // Auto mode: ask backend to route
         try {
           const routed = await api.routeAgent({
@@ -2315,7 +2507,81 @@ Rules for memory suggestions:
 
   const handleSendMessage = () => handleSendMessageDirect();
 
+  // --- Inline AI prompt (Cmd+J) ---
+  const inlinePromptStreamAI = useCallback(async (systemMsg, conversationMessages, onDelta, agentOverride) => {
+    const agent = agentOverride || defaultAgent;
+    const response = await fetch(`${API_BASE}/api/ai/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      body: JSON.stringify({
+        provider: agent.provider,
+        model: agent.model,
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: systemMsg },
+          ...conversationMessages,
+        ],
+      }),
+    });
+
+    if (!response.ok || !response.body) throw new Error("Inline prompt failed");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) {
+        const dataLines = event.split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim());
+        if (!dataLines.length) continue;
+        const data = dataLines.join("\n");
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.delta) onDelta(parsed.delta);
+        } catch (_) {}
+      }
+    }
+  }, [defaultAgent]);
+
+  const handleInlinePromptAccept = useCallback((result) => {
+    if (!canApplyDocumentChanges || !inlinePrompt || !result) return;
+    const { from, selectedText } = inlinePrompt;
+    setInlinePrompt(null);
+
+    if (selectedText) {
+      preEditDraftsRef.current.set(String(activeNodeId), draft);
+      const newDraft = draft.replace(selectedText, result);
+      editorRef.current?.replaceContentDiff?.(newDraft);
+      setTimeout(() => {
+        try {
+          editorRef.current?.showDiffHighlights?.();
+          const stats = editorRef.current?.getDiffStats?.();
+          if (stats) {
+            setDiffStats(stats);
+            setDiffVisible(true);
+            setDiffAvailable(true);
+            setCompareVersionId(null);
+          }
+        } catch (_) {}
+      }, 400);
+    } else {
+      const view = editorRef.current?.getView?.();
+      if (view) {
+        view.dispatch(view.state.tr.insertText(result, from));
+      }
+    }
+  }, [canApplyDocumentChanges, inlinePrompt, activeNodeId, draft]);
+
   const handleUndoEdit = () => {
+    if (!canApplyDocumentChanges) return;
     const nodeKey = String(activeNodeId);
     const preEditDraft = preEditDraftsRef.current.get(nodeKey);
     if (preEditDraft != null && editorRef.current) {
@@ -2334,6 +2600,7 @@ Rules for memory suggestions:
   };
 
   const handleAcceptEdit = () => {
+    if (!canApplyDocumentChanges) return;
     if (editorRef.current) {
       editorRef.current.clearAiHighlights();
     }
@@ -2801,15 +3068,16 @@ Rules for memory suggestions:
 
   // --- Render ---
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isFocusMode ? ' focus-mode' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
-          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Mive</button>
+          <button className="brand-name-btn" onClick={() => { setActiveProjectId(null); setActiveNodeId(null); }}>Marvin</button>
           <span className="topbar-divider" />
           <ProjectSwitcher
             projects={projects}
             activeProjectId={activeProjectId}
             nodes={nodes}
+            canCreateProjects={canCreateProjects}
             onSelect={setActiveProjectId}
             onCreate={handleCreateProject}
             onQuickCreate={handleQuickCreate}
@@ -2868,31 +3136,73 @@ Rules for memory suggestions:
               </button>
             ) : null;
           })()}
-          {activeProjectId && (
-            <button
-              className="topbar-btn"
-              onClick={() => setShowMarketplacePublish(true)}
-              title="Publish to Marketplace"
-            >
-              Marketplace
-            </button>
-          )}
-          {activeProjectId && (
-            <button
-              className="topbar-icon-btn"
-              onClick={() => setShowReceivedReviews(true)}
-              title="Reviews"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10 9 9 9 8 9" />
-              </svg>
-            </button>
-          )}
+          {activeProjectId && (() => {
+            const p = projects.find((pr) => pr.id === activeProjectId);
+            return p?.current_user_role === "owner" ? (
+              <button
+                className="topbar-btn"
+                onClick={() => setShowMarketplacePublish(true)}
+                title="Publish to Marketplace"
+              >
+                Marketplace
+              </button>
+            ) : null;
+          })()}
+          {activeProjectId && (() => {
+            const p = projects.find((pr) => pr.id === activeProjectId);
+            return p?.current_user_role === "owner" ? (
+              <button
+                className="topbar-icon-btn"
+                onClick={() => setShowReceivedReviews(true)}
+                title="Reviews"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </button>
+            ) : null;
+          })()}
           {collabSession && <PresenceIndicator awareness={collabSession.awareness} />}
+          <button
+            className={`topbar-icon-btn ai-intensity-indicator ai-intensity-${aiIntensity}`}
+            title={`AI: ${aiIntensity === 'silent' ? 'Silent' : aiIntensity === 'active' ? 'Active' : 'Co-author'}`}
+            onClick={() => {
+              const levels = ['silent', 'active', 'coauthor'];
+              const next = levels[(levels.indexOf(aiIntensity) + 1) % 3];
+              setAiIntensity(next);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </button>
+          <button
+            className="topbar-icon-btn"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+          </button>
           <button
             className="topbar-icon-btn"
             onClick={() => setIsHelpOpen(true)}
@@ -2973,6 +3283,19 @@ Rules for memory suggestions:
         />
       ) : (
       <div className="app">
+        {!isOutlineOpen && activeProjectId && (
+          <div className="sidebar-rail">
+            <button
+              className="rail-icon"
+              onClick={() => setIsOutlineOpen(true)}
+              title="Open sidebar"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </button>
+          </div>
+        )}
         <aside
           className={`outline-rail ${isOutlineOpen && activeProjectId ? "" : "collapsed"}`}
           style={isOutlineOpen && activeProjectId ? { width: `${outlineWidth}px` } : undefined}
@@ -3050,41 +3373,43 @@ Rules for memory suggestions:
                 </button>
               )}
             </div>
-            <div className="rail-create-wrapper" ref={createMenuRef}>
-              <button
-                className="rail-create-btn"
-                onClick={() => setCreateMenuOpen((v) => !v)}
-                aria-label="Create new"
-                title="New file or folder"
-              >
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-              {createMenuOpen && (
-                <div className="rail-create-menu">
-                  <button
-                    className="rail-create-menu-item"
-                    onClick={() => { setCreateMenuOpen(false); handleCreateNode("file"); }}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                      <path d="M4.5 1.5h4.586a1 1 0 0 1 .707.293l2.914 2.914a1 1 0 0 1 .293.707V13.5a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                      <path d="M9 1.5v3a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                    </svg>
-                    New file
-                  </button>
-                  <button
-                    className="rail-create-menu-item"
-                    onClick={() => { setCreateMenuOpen(false); handleCreateNode("folder"); }}
-                  >
-                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                      <path d="M1.5 3.5a1 1 0 0 1 1-1h3.586a1 1 0 0 1 .707.293L8.5 4.5h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                    </svg>
-                    New folder
-                  </button>
-                </div>
-              )}
-            </div>
+            {canEdit && (
+              <div className="rail-create-wrapper" ref={createMenuRef}>
+                <button
+                  className="rail-create-btn"
+                  onClick={() => setCreateMenuOpen((v) => !v)}
+                  aria-label="Create new"
+                  title="New file or folder"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+                {createMenuOpen && (
+                  <div className="rail-create-menu">
+                    <button
+                      className="rail-create-menu-item"
+                      onClick={() => { setCreateMenuOpen(false); handleCreateNode("file"); }}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                        <path d="M4.5 1.5h4.586a1 1 0 0 1 .707.293l2.914 2.914a1 1 0 0 1 .293.707V13.5a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                        <path d="M9 1.5v3a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                      </svg>
+                      New file
+                    </button>
+                    <button
+                      className="rail-create-menu-item"
+                      onClick={() => { setCreateMenuOpen(false); handleCreateNode("folder"); }}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                        <path d="M1.5 3.5a1 1 0 0 1 1-1h3.586a1 1 0 0 1 .707.293L8.5 4.5h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                      </svg>
+                      New folder
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {searchResults !== null ? (
             <div className="search-results">
@@ -3139,17 +3464,20 @@ Rules for memory suggestions:
                   showMeta={outlineWidth >= 240}
                   onHoverStart={handleHoverStart}
                   onHoverEnd={handleHoverEnd}
+                  canEdit={canEdit}
                 />
               ))}
               {tree.length === 0 && (
                 <div className="tree-empty-state">
-                  <p>No documents yet</p>
-                  <button
-                    className="tree-empty-action"
-                    onClick={() => handleCreateNode("file")}
-                  >
-                    Create your first document
-                  </button>
+                  <p>Your studio is ready.</p>
+                  {canEdit && (
+                    <button
+                      className="tree-empty-action"
+                      onClick={() => handleCreateNode("file")}
+                    >
+                      What are you working on?
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -3173,14 +3501,15 @@ Rules for memory suggestions:
 
         <main className={`editor-area${isAssistantOpen ? ' with-assistant' : ''}`}>
           {activeNode?.type === "file" && (
-            <div className="editor-content" ref={editorWrapperRef}>
+            <div className={`editor-content${isDocEntering ? ' doc-entering' : ''}`} ref={editorWrapperRef}>
               <div className="document-header">
                 <h1
                   className="editable-title"
-                  contentEditable
+                  contentEditable={canEdit}
                   suppressContentEditableWarning
                   spellCheck={false}
                   onBlur={(e) => {
+                    if (!canEdit) return;
                     const newTitle = e.target.textContent.trim();
                     if (newTitle && newTitle !== activeNode.title) {
                       handleRenameNode(activeNode.id, newTitle);
@@ -3202,7 +3531,13 @@ Rules for memory suggestions:
                     {saveStatus === "saved" && "Saved"}
                   </span>
                   <div className="doc-actions">
-                    <VersionsMenu versions={versions} onRestore={handleRestoreVersion} onCompare={handleCompareVersion} activeCompareId={compareVersionId} />
+                    <VersionsMenu
+                      versions={versions}
+                      onRestore={handleRestoreVersion}
+                      onCompare={handleCompareVersion}
+                      activeCompareId={compareVersionId}
+                      canRestore={canApplyDocumentChanges}
+                    />
                     <ExportMenu
                       node={activeNode}
                       project={projects.find(p => p.id === activeProjectId)}
@@ -3243,6 +3578,7 @@ Rules for memory suggestions:
                 <AiSuggestionBanner
                   aiSuggestions={collabSession.aiSuggestions}
                   currentUserId={user?.id}
+                  canAccept={canApplyDocumentChanges}
                   onViewDiff={(s) => {
                     editorRef.current?.compareWithVersion(s.oldMarkdown);
                   }}
@@ -3270,9 +3606,12 @@ Rules for memory suggestions:
                   focusedCommentId={focusedCommentId}
                   flashCommentId={flashCommentId}
                   editorRef={editorRef}
-                  readOnly={currentRole === "viewer"}
+                  readOnly={!canEdit}
                   currentRole={currentRole}
                   collabSession={collabSession}
+                  aiIntensity={aiIntensity}
+                  onRequestGhostText={handleRequestGhostText}
+                  editorFont={editorFont}
                 />
               </section>
 
@@ -3326,6 +3665,7 @@ Rules for memory suggestions:
               project={projects.find((p) => p.id === activeProjectId)}
               nodes={nodes}
               agents={agents}
+              canManageProject={canEdit}
               onUpdate={(updates) => {
                 api.updateProject(activeProjectId, updates).then((updated) => {
                   setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -3347,8 +3687,9 @@ Rules for memory suggestions:
           {!activeNode && !activeProjectId && (
             <AllProjects
               projects={projects}
+              canCreate={canCreateProjects}
               onSelect={setActiveProjectId}
-              onCreate={() => setIsWizardOpen(true)}
+              onCreate={handleCreateProject}
             />
           )}
         </main>
@@ -3374,6 +3715,7 @@ Rules for memory suggestions:
           onAgentChange={handleAssignAgent}
           onCreateAgent={openAgentCreator}
           onEditAgent={openAgentEditor}
+          canManageAgents={canEdit}
           onSuggestionAction={handleSuggestionAction}
           canSummarize={activeNode?.type === "file" && !!draft.trim()}
           isEditingDocument={isEditingDocument}
@@ -3397,6 +3739,8 @@ Rules for memory suggestions:
           nodes={nodes}
           mentionedFileIds={mentionedFileIds}
           onMentionedFilesChange={setMentionedFileIds}
+          mentionedAgentId={mentionedAgentId}
+          onMentionedAgentChange={setMentionedAgentId}
           memories={memories}
           onCreateMemory={handleCreateMemory}
           onDeleteMemory={handleDeleteMemory}
@@ -3435,6 +3779,7 @@ Rules for memory suggestions:
           isReviewing={isReviewing}
           isFactChecking={isFactChecking}
           factCheckProgress={factCheckProgress}
+          canApplySuggestions={canApplyDocumentChanges}
           critiques={critiques}
           isCritiquing={isCritiquing}
           activeCritiqueId={activeCritiqueId}
@@ -3444,6 +3789,7 @@ Rules for memory suggestions:
           onDiscussSection={handleDiscussSection}
           onApplyCritiqueMessage={handleApplyCritiqueMessage}
           onSelectCritique={setActiveCritiqueId}
+          aiIntensity={aiIntensity}
         />
       </div>
       )}
@@ -3485,6 +3831,12 @@ Rules for memory suggestions:
           try { await api.updateMemory(id, payload); refreshMemories(); } catch {}
         }}
         collabSession={collabSession}
+        theme={theme}
+        onThemeChange={setTheme}
+        aiIntensity={aiIntensity}
+        onAiIntensityChange={setAiIntensity}
+        editorFont={editorFont}
+        onEditorFontChange={setEditorFont}
       />
 
       <ShareDialog
@@ -3516,6 +3868,17 @@ Rules for memory suggestions:
         />
       )}
 
+      {inlinePrompt && (
+        <InlinePrompt
+          position={{ top: inlinePrompt.top, left: inlinePrompt.left }}
+          selectedText={inlinePrompt.selectedText}
+          agents={agents}
+          defaultAgent={defaultAgent}
+          onAccept={handleInlinePromptAccept}
+          onClose={() => setInlinePrompt(null)}
+          streamAI={inlinePromptStreamAI}
+        />
+      )}
 
       <HelpModal
         isOpen={isHelpOpen}

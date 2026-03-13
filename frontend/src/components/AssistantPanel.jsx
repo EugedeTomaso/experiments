@@ -1,10 +1,11 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { timeAgo } from "../utils";
-import { MentionPicker } from "./MentionPicker";
+import { CombinedMentionPicker } from "./CombinedMentionPicker";
 import { ReviewTab } from "./ReviewTab";
 import { VerifyTab } from "./VerifyTab";
 import CritiqueTab from "./CritiqueTab";
+import CreateFileCard from "./CreateFileCard";
 
 function truncate(str, max) {
   if (str.length <= max) return str;
@@ -96,6 +97,7 @@ export function AssistantPanel({
   onAgentChange,
   onCreateAgent,
   onEditAgent,
+  canManageAgents = true,
   onSuggestionAction,
   canSummarize,
   isEditingDocument,
@@ -119,6 +121,8 @@ export function AssistantPanel({
   nodes,
   mentionedFileIds,
   onMentionedFilesChange,
+  mentionedAgentId,
+  onMentionedAgentChange,
   memories,
   onCreateMemory,
   onDeleteMemory,
@@ -154,6 +158,7 @@ export function AssistantPanel({
   isReviewing,
   isFactChecking,
   factCheckProgress,
+  canApplySuggestions = true,
   // Critique tab data
   critiques,
   isCritiquing,
@@ -164,6 +169,9 @@ export function AssistantPanel({
   onDiscussSection,
   onApplyCritiqueMessage,
   onSelectCritique,
+  streamingCreateBlocks,
+  onCreateFile,
+  onCreateFolder,
 }) {
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
@@ -213,6 +221,16 @@ export function AssistantPanel({
         (!lowerFilter || n.title.toLowerCase().includes(lowerFilter))
     );
   }, [nodes, excludeIds, mentionFilter]);
+
+  const filteredMentionAgents = useMemo(() => {
+    if (!agents) return [];
+    const lowerFilter = mentionFilter.toLowerCase();
+    return agents.filter(
+      (a) => !lowerFilter || a.name.toLowerCase().includes(lowerFilter)
+    );
+  }, [agents, mentionFilter]);
+
+  const totalMentionItems = filteredMentionAgents.length + filteredMentionNodes.length;
 
   // Close agent dropdown on outside click
   useEffect(() => {
@@ -288,10 +306,19 @@ export function AssistantPanel({
     }
   };
 
-  const handleMentionSelect = (node) => {
+  const handleMentionSelectFile = (node) => {
     if (!node) return;
     onMentionedFilesChange([...(mentionedFileIds || []), node.id]);
-    // Remove the @filter text from input
+    const newValue = currentInput.replace(/@[^\s@]*$/, "");
+    onInputChange(newValue);
+    setIsMentionOpen(false);
+    setMentionFilter("");
+    inputRef.current?.focus();
+  };
+
+  const handleMentionSelectAgent = (agent) => {
+    if (!agent) return;
+    onMentionedAgentChange(agent.id);
     const newValue = currentInput.replace(/@[^\s@]*$/, "");
     onInputChange(newValue);
     setIsMentionOpen(false);
@@ -305,20 +332,25 @@ export function AssistantPanel({
 
   const handleKeyDown = (e) => {
     // Intercept keyboard when mention picker is open
-    if (isMentionOpen && filteredMentionNodes.length > 0) {
+    if (isMentionOpen && totalMentionItems > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setMentionIndex((i) => (i + 1) % filteredMentionNodes.length);
+        setMentionIndex((i) => (i + 1) % totalMentionItems);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setMentionIndex((i) => (i - 1 + filteredMentionNodes.length) % filteredMentionNodes.length);
+        setMentionIndex((i) => (i - 1 + totalMentionItems) % totalMentionItems);
         return;
       }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        handleMentionSelect(filteredMentionNodes[mentionIndex]);
+        const agentCount = filteredMentionAgents.length;
+        if (mentionIndex < agentCount) {
+          handleMentionSelectAgent(filteredMentionAgents[mentionIndex]);
+        } else {
+          handleMentionSelectFile(filteredMentionNodes[mentionIndex - agentCount]);
+        }
         return;
       }
       if (e.key === "Escape") {
@@ -423,7 +455,7 @@ export function AssistantPanel({
                     </button>
                   ))
                 ) : (
-                  <div className="agent-history-empty">No conversations yet</div>
+                  <div className="agent-history-empty">Start a conversation with your writing partner.</div>
                 )}
               </div>
             )}
@@ -433,7 +465,11 @@ export function AssistantPanel({
           <div className="assistant-agent-wrapper" ref={agentDropdownRef}>
             <button
               className="agent-selector-pill"
-              onClick={() => setIsAgentDropdownOpen((prev) => !prev)}
+              onClick={() => {
+                if (canManageAgents) {
+                  setIsAgentDropdownOpen((prev) => !prev);
+                }
+              }}
               aria-label="Select agent"
             >
               {agentMode === "auto" && (
@@ -450,7 +486,7 @@ export function AssistantPanel({
                 <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            {isAgentDropdownOpen && (
+            {canManageAgents && isAgentDropdownOpen && (
               <div className="assistant-agent-dropdown">
                 <div className="assistant-agent-dropdown-label">Agent</div>
                 <button
@@ -628,7 +664,17 @@ export function AssistantPanel({
                 )}
                 <div className={`agent-msg-content${msg.role === "assistant" ? " chat-content-md" : ""}`}>
                   {msg.role === "assistant" ? (
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <>
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      {msg.createBlocks?.map((block, j) => (
+                        <CreateFileCard
+                          key={j}
+                          block={block}
+                          onCreateFile={onCreateFile}
+                          onCreateFolder={onCreateFolder}
+                        />
+                      ))}
+                    </>
                   ) : (
                     msg.content
                   )}
@@ -668,6 +714,14 @@ export function AssistantPanel({
                 {streamingContent && (
                   <div className="agent-msg-content chat-content-md">
                     <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                    {streamingCreateBlocks?.map((block, j) => (
+                      <CreateFileCard
+                        key={j}
+                        block={block}
+                        onCreateFile={onCreateFile}
+                        onCreateFolder={onCreateFolder}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -727,61 +781,87 @@ export function AssistantPanel({
             )}
           </div>
           <div className="agent-action-block-buttons">
-            <button className="agent-action-btn agent-action-btn-primary" onClick={() => { setConfirmingUndo(false); onAcceptEdit(); }}>
-              Accept
-            </button>
+            {canApplySuggestions && (
+              <button className="agent-action-btn agent-action-btn-primary" onClick={() => { setConfirmingUndo(false); onAcceptEdit(); }}>
+                Accept
+              </button>
+            )}
             <button className="agent-action-btn" onClick={onToggleDiff}>
               {diffVisible ? "Hide changes" : "Show changes"}
             </button>
-            {!confirmingUndo ? (
-              <button className="agent-action-btn" onClick={() => setConfirmingUndo(true)}>
-                Undo
-              </button>
-            ) : (
-              <button className="agent-action-btn agent-action-btn-danger" onClick={() => { setConfirmingUndo(false); onUndoEdit(); }}>
-                Confirm undo
-              </button>
+            {canApplySuggestions && (
+              !confirmingUndo ? (
+                <button className="agent-action-btn" onClick={() => setConfirmingUndo(true)}>
+                  Undo
+                </button>
+              ) : (
+                <button className="agent-action-btn agent-action-btn-danger" onClick={() => { setConfirmingUndo(false); onUndoEdit(); }}>
+                  Confirm undo
+                </button>
+              )
             )}
           </div>
         </div>
       )}
 
-      {/* Context block — above composer */}
-      {pendingContext && (
-        <div className="agent-context-block">
-          <span className="agent-context-label">Selection</span>
-          <span className="agent-context-text">
-            "{truncate(pendingContext.text, 120)}"
-          </span>
-          <button
-            className="agent-context-dismiss"
-            onClick={onClearContext}
-            aria-label="Remove context"
-          >
-            <svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
-              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       {/* Composer */}
       <div className={`agent-composer${pendingContext ? " with-context" : ""}`}>
+        {/* Context block — inside composer as blockquote */}
+        {pendingContext && (
+          <div className="agent-context-block">
+            <div className="agent-context-quote">
+              <span className="agent-context-text">
+                {truncate(pendingContext.text, 140)}
+              </span>
+            </div>
+            <button
+              className="agent-context-dismiss"
+              onClick={onClearContext}
+              aria-label="Remove context"
+            >
+              <svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        )}
         {/* Mention picker — opens upward */}
-        {isMentionOpen && filteredMentionNodes.length > 0 && (
-          <MentionPicker
+        {isMentionOpen && totalMentionItems > 0 && (
+          <CombinedMentionPicker
+            agents={filteredMentionAgents}
             files={filteredMentionNodes}
             nodesById={nodesById}
             selectedIndex={mentionIndex}
-            onSelect={handleMentionSelect}
+            onSelectAgent={handleMentionSelectAgent}
+            onSelectFile={handleMentionSelectFile}
             onHoverIndex={setMentionIndex}
           />
         )}
 
         {/* Mention chips */}
-        {mentionedFileIds?.length > 0 && (
+        {(mentionedFileIds?.length > 0 || mentionedAgentId) && (
           <div className="mention-chips">
-            {mentionedFileIds
+            {mentionedAgentId && (() => {
+              const agent = agents.find((a) => a.id === mentionedAgentId);
+              return agent ? (
+                <span className="mention-chip mention-chip-agent">
+                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                    <path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5L8 1z" fill="currentColor" />
+                  </svg>
+                  <span className="mention-chip-title">{agent.name}</span>
+                  <button
+                    className="mention-chip-remove"
+                    onClick={() => onMentionedAgentChange(null)}
+                    aria-label="Remove agent"
+                  >
+                    <svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
+                      <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </span>
+              ) : null;
+            })()}
+            {(mentionedFileIds || [])
               .map((id) => nodesById.get(String(id)))
               .filter(Boolean)
               .map((file) => (
@@ -804,7 +884,7 @@ export function AssistantPanel({
 
         <textarea
           ref={inputRef}
-          placeholder={pendingContext ? "Ask about this selection\u2026" : "Ask anything, type @ to add files\u2026"}
+          placeholder={pendingContext ? "Ask about this selection\u2026" : "Ask anything, @ to mention files or agents\u2026"}
           value={currentInput}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -812,7 +892,11 @@ export function AssistantPanel({
         />
         <div className="agent-composer-footer">
           <div className="agent-composer-footer-left">
-            <span className="agent-composer-model">{agentName}</span>
+            <span className="agent-composer-model">
+              {mentionedAgentId
+                ? agents.find((a) => a.id === mentionedAgentId)?.name || agentName
+                : agentName}
+            </span>
             <div className="memory-popover-wrapper" ref={memoryPopoverRef}>
               <button
                 className={`memory-popover-trigger${isMemoryPopoverOpen ? " active" : ""}`}
@@ -957,6 +1041,7 @@ export function AssistantPanel({
               pendingCount={reviewPendingCount}
               acceptedCount={reviewAcceptedCount}
               dismissedCount={reviewDismissedCount}
+              canApplySuggestion={canApplySuggestions}
               focusedCommentId={focusedCommentId}
               aiThinkingId={aiThinkingId}
               getReplies={getReplies}
@@ -995,6 +1080,7 @@ export function AssistantPanel({
           <VerifyTab
             comments={verifyTabComments}
             pendingCount={verifyPendingCount}
+            canAccept={canApplySuggestions}
             focusedCommentId={focusedCommentId}
             onClickComment={onClickComment}
             onAccept={onApproveComment}

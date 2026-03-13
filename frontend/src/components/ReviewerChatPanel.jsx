@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 import { api } from "../api";
+import { ReviewerMarkdown } from "./ReviewerMarkdown";
+import { ReviewerThinkingState } from "./ReviewerThinkingState";
 
 export function ReviewerChatPanel({ reviewId, nodeId, nodeTitle }) {
   const [messages, setMessages] = useState([]);
@@ -33,12 +35,25 @@ export function ReviewerChatPanel({ reviewId, nodeId, nodeTitle }) {
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`reviewer-chat__msg reviewer-chat__msg--${msg.role}`}>
-            <div className="reviewer-chat__msg-content">{msg.content}</div>
+            <div className="reviewer-chat__msg-content">
+              {msg.role === "assistant" ? (
+                <ReviewerMarkdown compact content={msg.content} />
+              ) : (
+                <div className="reviewer-chat__plain">{msg.content}</div>
+              )}
+            </div>
           </div>
         ))}
         {loading && (
           <div className="reviewer-chat__msg reviewer-chat__msg--assistant">
-            <div className="reviewer-chat__msg-content reviewer-chat__typing">Thinking...</div>
+            <div className="reviewer-chat__msg-content reviewer-chat__msg-content--thinking">
+              <ReviewerThinkingState
+                kind="chat"
+                title="AI is thinking"
+                context={nodeTitle || "full manuscript"}
+                compact
+              />
+            </div>
           </div>
         )}
       </div>

@@ -105,7 +105,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
           {activeSection === "getting-started" && (
             <div className="settings-section">
               <p className="settings-description">
-                Quick guides to get the most out of Mive.
+                Quick guides to get the most out of Marvin.
               </p>
               <div className="help-guides">
                 <div className="help-guide-card">
@@ -181,7 +181,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
           {activeSection === "features" && (
             <div className="settings-section">
               <p className="settings-description">
-                Everything Mive can do for your writing.
+                Everything Marvin can do for your writing.
               </p>
               <div className="help-features-list">
                 {FEATURES.map((feature) => (
@@ -202,7 +202,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
           {activeSection === "faq" && (
             <div className="settings-section">
               <p className="settings-description">
-                Common questions about Mive.
+                Common questions about Marvin.
               </p>
               <div className="help-faq-list">
                 {FAQ.map((item, i) => (
@@ -245,7 +245,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
                     <path d="M9 17l.6 1.3 1.4.7-1.4.6L9 21l-.6-1.4-1.4-.6 1.4-.7Z" />
                   </svg>
                   <div className="help-contact-title">Request a feature</div>
-                  <div className="help-contact-desc">Ideas for making Mive better.</div>
+                  <div className="help-contact-desc">Ideas for making Marvin better.</div>
                 </a>
                 <a href="mailto:support@mive.app?subject=Help" className="help-contact-card">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

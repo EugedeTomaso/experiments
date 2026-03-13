@@ -73,7 +73,6 @@ const AskAIIcon = (
 export function SelectionToolbarView() {
   const ref = useRef(null);
   const commentBtnRef = useRef(null);
-  const factCheckBtnRef = useRef(null);
   const aiBtnRef = useRef(null);
   const boldBtnRef = useRef(null);
   const italicBtnRef = useRef(null);
@@ -245,34 +244,6 @@ export function SelectionToolbarView() {
     return () => btn.removeEventListener("mousedown", handler);
   }, [loading, get]);
 
-  // Fact-check button
-  useEffect(() => {
-    const btn = factCheckBtnRef.current;
-    if (!btn || loading) return;
-
-    const handler = (e) => {
-      e.preventDefault();
-      const sel = savedSelection.current;
-      if (!sel) return;
-
-      get().action((ctx) => {
-        const editorView = ctx.get(editorViewCtx);
-        editorView.dom.dispatchEvent(
-          new CustomEvent("fact-check-selection-request", {
-            detail: { from: sel.from, to: sel.to, text: sel.text },
-            bubbles: true,
-          })
-        );
-      });
-
-      suppressed.current = true;
-      tooltipProvider.current?.hide();
-    };
-
-    btn.addEventListener("mousedown", handler);
-    return () => btn.removeEventListener("mousedown", handler);
-  }, [loading, get]);
-
   // Ask AI button
   useEffect(() => {
     const btn = aiBtnRef.current;
@@ -348,16 +319,6 @@ export function SelectionToolbarView() {
         >
           {CommentIcon}
           <span className="fmt-comment-label">Comment</span>
-        </button>
-        <button
-          className="fmt-btn fmt-btn-comment"
-          title="Fact-check selection"
-          ref={factCheckBtnRef}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M13.5 4.5L6.5 11.5L2.5 7.5" />
-          </svg>
-          <span className="fmt-comment-label">Fact-Check</span>
         </button>
         <button
           className="fmt-btn fmt-btn-ai"

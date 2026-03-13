@@ -4,6 +4,8 @@ import { MarkdownEditor } from "../MarkdownEditor";
 import { AIToolsPanel } from "./AIToolsPanel";
 import { ReviewerChatPanel } from "./ReviewerChatPanel";
 import { ReportBuilder } from "./ReportBuilder";
+import { ReviewerIcon } from "./ReviewerIcon";
+import { REVIEWER_TREE_ICONS } from "./reviewerPanelConfig";
 
 export function ReaderView({ review, listing, onBack }) {
   const [nodes, setNodes] = useState([]);
@@ -102,7 +104,12 @@ export function ReaderView({ review, listing, onBack }) {
           style={{ paddingLeft: 12 + depth * 16 }}
           onClick={() => !isFolder && setSelectedNodeId(node.id)}
         >
-          <span className="reader-tree__icon">{isFolder ? "\u{1F4C1}" : "\u{1F4C4}"}</span>
+          <span className="reader-tree__icon">
+            <ReviewerIcon
+              name={isFolder ? REVIEWER_TREE_ICONS.folder : REVIEWER_TREE_ICONS.file}
+              size={14}
+            />
+          </span>
           <span className="reader-tree__label">{node.title}</span>
         </button>
         {isFolder && children.map((c) => renderTreeNode(c, depth + 1))}
@@ -169,6 +176,7 @@ export function ReaderView({ review, listing, onBack }) {
             </button>
           </div>
           <div className="reader-panel__content">
+            <div key={activeTab} className="reader-panel__content-view">
             {activeTab === "tools" && (
               <AIToolsPanel reviewId={review.id} nodeId={selectedNodeId} />
             )}
@@ -187,6 +195,7 @@ export function ReaderView({ review, listing, onBack }) {
                 onSubmitted={() => onBack()}
               />
             )}
+            </div>
           </div>
         </aside>
       </div>

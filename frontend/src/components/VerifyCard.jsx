@@ -10,6 +10,7 @@ const VERDICT_CONFIG = {
 export function VerifyCard({
   comment,
   isActive,
+  canAccept = true,
   onClick,
   onAccept,
   onDismiss,
@@ -82,7 +83,7 @@ export function VerifyCard({
 
       {isOpen && (
         <div className="review-card-actions">
-          {hasSuggestion && (
+          {hasSuggestion && canAccept && (
             <button className="review-card-btn review-card-btn--accept" onClick={(e) => { e.stopPropagation(); onAccept(comment.id); }}>
               Accept
             </button>

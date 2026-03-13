@@ -439,6 +439,7 @@ export const api = {
   getListingNode(listingId, nodeId) {
     return request(`/api/marketplace/${listingId}/nodes/${nodeId}/`);
   },
+
   // Reviews (reviewer)
   createReview(listingId) {
     return request("/api/reviews/", {
@@ -477,8 +478,11 @@ export const api = {
     });
   },
   deleteReviewComment(reviewId, commentId) {
-    return request(`/api/reviews/${reviewId}/comments/${commentId}/`, { method: "DELETE" });
+    return request(`/api/reviews/${reviewId}/comments/${commentId}/`, {
+      method: "DELETE",
+    });
   },
+
   // Listings (writer)
   createListing(payload) {
     return request("/api/listings/", {

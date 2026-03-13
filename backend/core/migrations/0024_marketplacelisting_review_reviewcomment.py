@@ -8,62 +8,166 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0023_backfill_user_profiles'),
+        ("core", "0023_backfill_user_profiles"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='MarketplaceListing',
+            name="MarketplaceListing",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('status', models.CharField(choices=[('draft', 'Draft'), ('listed', 'Listed'), ('delisted', 'Delisted')], default='draft', max_length=10)),
-                ('genre', models.CharField(blank=True, default='', max_length=100)),
-                ('word_count', models.IntegerField(default=0)),
-                ('synopsis', models.TextField(blank=True, default='')),
-                ('ai_score', models.JSONField(blank=True, default=dict)),
-                ('ai_score_updated_at', models.DateTimeField(blank=True, null=True)),
-                ('listed_at', models.DateTimeField(blank=True, null=True)),
-                ('delisted_at', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('project', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='listing', to='core.project')),
-                ('published_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='listings', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[("draft", "Draft"), ("listed", "Listed"), ("delisted", "Delisted")],
+                        default="draft",
+                        max_length=10,
+                    ),
+                ),
+                ("genre", models.CharField(blank=True, default="", max_length=100)),
+                ("word_count", models.IntegerField(default=0)),
+                ("synopsis", models.TextField(blank=True, default="")),
+                ("ai_score", models.JSONField(blank=True, default=dict)),
+                ("ai_score_updated_at", models.DateTimeField(blank=True, null=True)),
+                ("listed_at", models.DateTimeField(blank=True, null=True)),
+                ("delisted_at", models.DateTimeField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "project",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="listing",
+                        to="core.project",
+                    ),
+                ),
+                (
+                    "published_by",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="listings",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+            options={"ordering": ["-listed_at"]},
+        ),
+        migrations.CreateModel(
+            name="Review",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("in_progress", "In Progress"),
+                            ("submitted", "Submitted"),
+                            ("read_by_author", "Read by Author"),
+                        ],
+                        default="in_progress",
+                        max_length=20,
+                    ),
+                ),
+                ("summary", models.TextField(blank=True, default="")),
+                (
+                    "verdict",
+                    models.CharField(
+                        blank=True,
+                        choices=[
+                            ("promising", "Promising"),
+                            ("needs_work", "Needs Work"),
+                            ("publish_ready", "Publish Ready"),
+                        ],
+                        default="",
+                        max_length=20,
+                    ),
+                ),
+                ("started_at", models.DateTimeField(auto_now_add=True)),
+                ("submitted_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "listing",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="reviews",
+                        to="core.marketplacelisting",
+                    ),
+                ),
+                (
+                    "reviewer",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="reviews",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-listed_at'],
+                "ordering": ["-started_at"],
+                "unique_together": {("listing", "reviewer")},
             },
         ),
         migrations.CreateModel(
-            name='Review',
+            name="ReviewComment",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('status', models.CharField(choices=[('in_progress', 'In Progress'), ('submitted', 'Submitted'), ('read_by_author', 'Read by Author')], default='in_progress', max_length=20)),
-                ('summary', models.TextField(blank=True, default='')),
-                ('verdict', models.CharField(blank=True, choices=[('promising', 'Promising'), ('needs_work', 'Needs Work'), ('publish_ready', 'Publish Ready')], default='', max_length=20)),
-                ('started_at', models.DateTimeField(auto_now_add=True)),
-                ('submitted_at', models.DateTimeField(blank=True, null=True)),
-                ('listing', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews', to='core.marketplacelisting')),
-                ('reviewer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("body", models.TextField()),
+                ("position_from", models.IntegerField()),
+                ("position_to", models.IntegerField()),
+                (
+                    "comment_type",
+                    models.CharField(
+                        choices=[
+                            ("praise", "Praise"),
+                            ("suggestion", "Suggestion"),
+                            ("issue", "Issue"),
+                            ("note", "Note"),
+                        ],
+                        default="note",
+                        max_length=12,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "node",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="review_comments",
+                        to="core.node",
+                    ),
+                ),
+                (
+                    "review",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="comments",
+                        to="core.review",
+                    ),
+                ),
             ],
-            options={
-                'ordering': ['-started_at'],
-                'unique_together': {('listing', 'reviewer')},
-            },
-        ),
-        migrations.CreateModel(
-            name='ReviewComment',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('body', models.TextField()),
-                ('position_from', models.IntegerField()),
-                ('position_to', models.IntegerField()),
-                ('comment_type', models.CharField(choices=[('praise', 'Praise'), ('suggestion', 'Suggestion'), ('issue', 'Issue'), ('note', 'Note')], default='note', max_length=12)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('node', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='review_comments', to='core.node')),
-                ('review', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='comments', to='core.review')),
-            ],
-            options={
-                'ordering': ['node', 'position_from'],
-            },
+            options={"ordering": ["node", "position_from"]},
         ),
     ]

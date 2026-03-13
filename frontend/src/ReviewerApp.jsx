@@ -22,7 +22,7 @@ export function ReviewerApp() {
     <div className="reviewer-app">
       <header className="reviewer-topbar">
         <div className="reviewer-topbar-left">
-          <div className="reviewer-brand">Mive</div>
+          <div className="reviewer-brand">Marvin</div>
           <nav className="reviewer-nav">
             <button
               className={`reviewer-nav__item${view === "marketplace" ? " reviewer-nav__item--active" : ""}`}

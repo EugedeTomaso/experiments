@@ -3,6 +3,7 @@ import { VerifyCard } from "./VerifyCard";
 export function VerifyTab({
   comments,
   pendingCount,
+  canAccept = true,
   focusedCommentId,
   onClickComment,
   onAccept,
@@ -64,6 +65,7 @@ export function VerifyTab({
             key={c.id}
             comment={c}
             isActive={c.id === focusedCommentId}
+            canAccept={canAccept}
             onClick={() => onClickComment(c)}
             onAccept={onAccept}
             onDismiss={onDismiss}

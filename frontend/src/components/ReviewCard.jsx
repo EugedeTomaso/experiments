@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { timeAgo } from "../utils";
-import { AgentMentionPicker } from "./AgentMentionPicker";
+import { PortalMentionPicker } from "./PortalMentionPicker";
 
 export function ReviewCard({
   comment,
   replies,
   isActive,
   isAiThinking,
+  canApplySuggestion = true,
   onClick,
   onApprove,
   onApproveReply,
@@ -23,6 +24,7 @@ export function ReviewCard({
   const [mentionIndex, setMentionIndex] = useState(0);
   const replyInputRef = useRef(null);
   const cardRef = useRef(null);
+  const composerRef = useRef(null);
 
   const filteredAgents = useMemo(() => {
     if (mentionQuery === null || !agents) return [];
@@ -169,7 +171,7 @@ export function ReviewCard({
 
       {isOpen && (
         <div className="review-card-actions">
-          {isAI && hasSuggestion && (
+          {isAI && hasSuggestion && canApplySuggestion && (
             <button className="review-card-btn review-card-btn--accept" onClick={(e) => { e.stopPropagation(); onApprove(comment.id); }}>
               Accept
             </button>
@@ -206,7 +208,7 @@ export function ReviewCard({
                     <del className="review-card-diff-del">{r.quoted_text || comment.quoted_text}</del>
                     <ins className="review-card-diff-ins">{r.suggested_text}</ins>
                   </div>
-                  {isOpen && (
+                  {isOpen && canApplySuggestion && (
                     <button
                       className="review-card-btn review-card-btn--accept"
                       onClick={() => onApproveReply(r.id)}
@@ -229,18 +231,15 @@ export function ReviewCard({
               Ask Assistant
             </button>
           )}
-          <div className="review-card-reply-composer">
+          <div className="review-card-reply-composer" ref={composerRef}>
             {mentionQuery !== null && filteredAgents.length > 0 && (
-              <div style={{ position: "relative" }}>
-                <div style={{ position: "absolute", bottom: "100%", left: 0, zIndex: 10, width: "100%" }}>
-                  <AgentMentionPicker
-                    agents={filteredAgents}
-                    selectedIndex={mentionIndex}
-                    onSelect={handleSelectAgent}
-                    onHoverIndex={setMentionIndex}
-                  />
-                </div>
-              </div>
+              <PortalMentionPicker
+                triggerRef={composerRef}
+                agents={filteredAgents}
+                selectedIndex={mentionIndex}
+                onSelect={handleSelectAgent}
+                onHoverIndex={setMentionIndex}
+              />
             )}
             <textarea
               ref={replyInputRef}

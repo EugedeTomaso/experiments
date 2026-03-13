@@ -38,6 +38,7 @@
   --success-soft: rgba(5, 150, 105, 0.08);
   --success-border: rgba(5, 150, 105, 0.3);
   --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.08);
   --error: #dc2626;
   --error-soft: rgba(220, 38, 38, 0.08);
 
@@ -64,14 +65,71 @@
   --duration-fast: 150ms;
   --duration-normal: 200ms;
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --theme-transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
 
   /* Typography */
+  --font-display: 'Instrument Serif', Georgia, serif;
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces — warm deep grays, not pure black */
+  --canvas: #1a1a18;
+  --surface: #222220;
+  --surface-inset: #2a2a28;
+
+  /* Text hierarchy */
+  --text-1: #e8e8e6;
+  --text-2: #a8a8a6;
+  --text-3: #7a7a78;
+  --text-4: #5a5a58;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.15);
+
+  /* Accent — brighter blue for dark contrast */
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-soft: rgba(59, 130, 246, 0.12);
+  --accent-medium: rgba(59, 130, 246, 0.18);
+  --accent-border: rgba(59, 130, 246, 0.35);
+
+  /* Primary action — inverted for dark mode */
+  --primary: #e8e8e6;
+  --primary-hover: #d0d0ce;
+  --on-primary: #1a1a18;
+
+  /* Semantic */
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --success-border: rgba(16, 185, 129, 0.35);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.12);
+  --error: #ef4444;
+  --error-soft: rgba(239, 68, 68, 0.12);
+
+  /* Diff highlights */
+  --diff-add-bg: rgba(16, 185, 129, 0.18);
+  --diff-add-border: rgba(16, 185, 129, 0.45);
+  --diff-del-bg: rgba(239, 68, 68, 0.15);
+  --diff-del-text: #f87171;
+
+  /* Controls */
+  --control-bg: var(--surface);
+  --control-border: rgba(255, 255, 255, 0.12);
+  --control-focus: 0 0 0 2px rgba(59, 130, 246, 0.25);
+
+  /* Shadows — more prominent on dark surfaces */
+  --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 * {
@@ -83,6 +141,7 @@ body {
   background: var(--canvas);
   color: var(--text-1);
   min-height: 100vh;
+  transition: var(--theme-transition);
 }
 
 #root {
@@ -214,13 +273,13 @@ select {
 }
 
 .connection-banner.warning {
-  background: #fef3cd;
-  color: #856404;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .connection-banner.error {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--error-soft);
+  color: var(--error);
 }
 
 .connection-retry-btn {
@@ -247,8 +306,8 @@ select {
   gap: 12px;
   padding: 6px 16px;
   font-size: 13px;
-  background: #e8f0fe;
-  color: #1a56db;
+  background: var(--accent-soft);
+  color: var(--accent);
   position: sticky;
   top: 0;
   z-index: 49;

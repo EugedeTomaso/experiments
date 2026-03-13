@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from .settings_utils import build_allowed_hosts, split_csv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -29,7 +31,7 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = build_allowed_hosts(os.environ.get("DJANGO_ALLOWED_HOSTS", "*"))
 
 
 # Application definition
@@ -127,6 +129,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
@@ -155,8 +158,7 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_EXPOSE_HEADERS = ["Content-Disposition"]
-_csrf_env = [value.strip() for value in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")]
-CSRF_TRUSTED_ORIGINS = [value for value in _csrf_env if value]
+CSRF_TRUSTED_ORIGINS = split_csv(os.environ.get("CSRF_TRUSTED_ORIGINS", ""))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

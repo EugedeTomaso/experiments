@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from .models import MarketplaceListing, Review, ReviewComment
 
 
@@ -10,8 +11,14 @@ class MarketplaceListingListSerializer(serializers.ModelSerializer):
     class Meta:
         model = MarketplaceListing
         fields = [
-            "id", "project_name", "author_name", "genre", "word_count",
-            "synopsis", "score", "listed_at",
+            "id",
+            "project_name",
+            "author_name",
+            "genre",
+            "word_count",
+            "synopsis",
+            "score",
+            "listed_at",
         ]
 
     def get_score(self, obj):
@@ -25,8 +32,15 @@ class MarketplaceListingDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = MarketplaceListing
         fields = [
-            "id", "project_name", "author_name", "genre", "word_count",
-            "synopsis", "ai_score", "listed_at", "status",
+            "id",
+            "project_name",
+            "author_name",
+            "genre",
+            "word_count",
+            "synopsis",
+            "ai_score",
+            "listed_at",
+            "status",
         ]
 
 
@@ -48,10 +62,24 @@ class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = [
-            "id", "listing", "reviewer_name", "project_name", "status",
-            "summary", "verdict", "started_at", "submitted_at",
+            "id",
+            "listing",
+            "reviewer_name",
+            "project_name",
+            "status",
+            "summary",
+            "verdict",
+            "started_at",
+            "submitted_at",
         ]
-        read_only_fields = ["id", "reviewer_name", "project_name", "status", "started_at", "submitted_at"]
+        read_only_fields = [
+            "id",
+            "reviewer_name",
+            "project_name",
+            "status",
+            "started_at",
+            "submitted_at",
+        ]
 
 
 class ReviewCommentSerializer(serializers.ModelSerializer):
@@ -60,7 +88,13 @@ class ReviewCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReviewComment
         fields = [
-            "id", "node", "node_title", "body", "position_from",
-            "position_to", "comment_type", "created_at",
+            "id",
+            "node",
+            "node_title",
+            "body",
+            "position_from",
+            "position_to",
+            "comment_type",
+            "created_at",
         ]
         read_only_fields = ["id", "created_at"]

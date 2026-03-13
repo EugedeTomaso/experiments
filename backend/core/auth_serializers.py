@@ -8,12 +8,12 @@ class RegisterSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8, write_only=True)
-    user_type = serializers.ChoiceField(
-        choices=["writer", "reviewer"], default="writer"
-    )
+    user_type = serializers.ChoiceField(choices=["writer", "reviewer"], default="writer")
     bio = serializers.CharField(required=False, default="")
     specialties = serializers.ListField(
-        child=serializers.CharField(), required=False, default=list
+        child=serializers.CharField(),
+        required=False,
+        default=list,
     )
 
     def validate_email(self, value):
@@ -32,8 +32,12 @@ class RegisterSerializer(serializers.Serializer):
             first_name=validated_data["name"],
         )
         from .models import UserProfile
+
         UserProfile.objects.create(
-            user=user, user_type=user_type, bio=bio, specialties=specialties
+            user=user,
+            user_type=user_type,
+            bio=bio,
+            specialties=specialties,
         )
         return user
 

@@ -13,7 +13,7 @@ def backfill_profiles(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0022_userprofile'),
+        ("core", "0022_userprofile"),
     ]
 
     operations = [

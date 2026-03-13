@@ -60,7 +60,7 @@ export function formatTypeLabel(project) {
 
 const ROLE_LABELS = {
   viewer: "Viewer",
-  commenter: "Commenter",
+  commenter: "Reviewer",
   editor: "Editor",
   admin: "Admin",
 };
@@ -86,6 +86,10 @@ function ProjectPanelItem({
   activeProjectId,
   showRoleBadge,
 }) {
+  const canManageProject =
+    p.current_user_role === "owner" ||
+    p.current_user_role === "admin" ||
+    p.current_user_role === "editor";
   const color = getProjectColor(p.id);
   const typeLabel = formatTypeLabel(p);
 
@@ -143,7 +147,7 @@ function ProjectPanelItem({
             )}
           </>
         )}
-        {!isRenaming && (
+        {!isRenaming && canManageProject && (
           <button
             className="project-panel-item-menu-btn"
             onClick={(e) => {
@@ -198,6 +202,7 @@ export function ProjectSwitcher({
   projects,
   activeProjectId,
   nodes,
+  canCreateProjects = true,
   onSelect,
   onCreate,
   onQuickCreate,
@@ -475,7 +480,7 @@ export function ProjectSwitcher({
 
           {/* Footer */}
           <div className="project-panel-footer">
-            {isQuickCreating ? (
+            {canCreateProjects && isQuickCreating ? (
               <div className="project-panel-quick-form">
                 <input
                   ref={quickNameRef}
@@ -513,7 +518,7 @@ export function ProjectSwitcher({
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : canCreateProjects ? (
               <>
                 <button
                   className="project-panel-create-btn"
@@ -537,6 +542,10 @@ export function ProjectSwitcher({
                   </svg>
                 </button>
               </>
+            ) : (
+              <div className="project-panel-empty">
+                Reviewer access
+              </div>
             )}
           </div>
         </div>

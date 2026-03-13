@@ -81,10 +81,11 @@ export function FolderView({
       <div className="document-header">
         <h1
           className="editable-title"
-          contentEditable
+          contentEditable={canEdit}
           suppressContentEditableWarning
           spellCheck={false}
           onBlur={(e) => {
+            if (!canEdit) return;
             const newTitle = e.target.textContent.trim();
             if (newTitle && newTitle !== activeNode.title) {
               onRenameNode(activeNode.id, newTitle);
@@ -118,7 +119,7 @@ export function FolderView({
         )}
       </div>
 
-      {(hasPinnedCtx || showCtx) && (
+      {canEdit && (hasPinnedCtx || showCtx) && (
         <div className="folder-context-compact">
           <ContextFilePicker
             pinnedIds={activeNode.context_nodes || []}
@@ -145,7 +146,7 @@ export function FolderView({
             </button>
           ))}
         </div>
-        {!hasPinnedCtx && (
+        {canEdit && !hasPinnedCtx && (
           <button
             className={`folder-ctx-btn${showCtx ? " active" : ""}`}
             onClick={() => setShowCtx(!showCtx)}

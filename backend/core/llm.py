@@ -174,6 +174,16 @@ CRITIQUE_SYSTEM_PROMPT = (
     '{"overall_score": 7, "summary": "...", "sections": [{"title": "...", "score": 7, "body": "..."}, ...]}'
 )
 
+MARKETPLACE_SCORE_SYSTEM_PROMPT = """You are a manuscript evaluator. Analyze the provided text and return a JSON object with these exact keys:
+- "overall": float 1-10, weighted average of the 4 dimensions
+- "prose_quality": float 1-10, clarity, flow, narrative voice, language use
+- "structure": float 1-10, organization, pacing, narrative arcs, transitions
+- "consistency": float 1-10, character continuity, timeline, worldbuilding, plot holes
+- "completeness": float 1-10, how finished it feels, beginning/middle/end, loose threads
+- "summary": string, 2-3 sentence assessment
+
+Return ONLY valid JSON, no markdown fences."""
+
 
 def generate_review_sync(
     provider: str, api_key: str, model: str, content_md: str, focus: str = "all"
@@ -251,17 +261,6 @@ def generate_critique_sync(
     return {"overall_score": 0, "summary": "Failed to generate critique.", "sections": []}
 
 
-MARKETPLACE_SCORE_SYSTEM_PROMPT = """You are a manuscript evaluator. Analyze the provided text and return a JSON object with these exact keys:
-- "overall": float 1-10, weighted average of the 4 dimensions
-- "prose_quality": float 1-10, clarity, flow, narrative voice, language use
-- "structure": float 1-10, organization, pacing, narrative arcs, transitions
-- "consistency": float 1-10, character continuity, timeline, worldbuilding, plot holes
-- "completeness": float 1-10, how finished it feels, beginning/middle/end, loose threads
-- "summary": string, 2-3 sentence assessment
-
-Return ONLY valid JSON, no markdown fences."""
-
-
 def generate_marketplace_score(provider: str, api_key: str, model: str, content_md: str) -> dict:
     config = PROVIDERS.get(provider)
     if not config:
@@ -298,9 +297,13 @@ def generate_marketplace_score(provider: str, api_key: str, model: str, content_
             pass
 
     return {
-        "overall": 0, "prose_quality": 0, "structure": 0,
-        "consistency": 0, "completeness": 0,
-        "summary": "Failed to generate score.", "model": model,
+        "overall": 0,
+        "prose_quality": 0,
+        "structure": 0,
+        "consistency": 0,
+        "completeness": 0,
+        "summary": "Failed to generate score.",
+        "model": model,
     }
 
 
