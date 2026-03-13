@@ -127,6 +127,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 defaults={"config": agent_data["config"]},
             )
 
+    def perform_create(self, serializer):
+        project = serializer.save()
+        for agent_data in DEFAULT_AGENTS:
+            Agent.objects.get_or_create(
+                project=project,
+                name=agent_data["name"],
+                defaults={"config": agent_data["config"]},
+            )
+
     @action(detail=True, methods=["post"], url_path="regenerate-share-token")
     def regenerate_share_token(self, request, pk=None):
         project = self.get_object()

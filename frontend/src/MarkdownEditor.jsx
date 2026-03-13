@@ -6,7 +6,7 @@ import { gfm } from "@milkdown/preset-gfm";
 import { nord } from "@milkdown/theme-nord";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { history } from "@milkdown/plugin-history";
-import { TextSelection } from "@milkdown/kit/prose/state";
+import { TextSelection, Plugin } from "@milkdown/kit/prose/state";
 import { replaceAll } from "@milkdown/utils";
 import { $prose } from "@milkdown/kit/utils";
 import { diffReplaceAll } from "./diffUpdate";
@@ -14,6 +14,7 @@ import { aiTextPlugin, aiTextPluginKey } from "./aiTextAppearPlugin";
 import { ProsemirrorAdapterProvider, usePluginViewFactory } from "@prosemirror-adapter/react";
 import { slash, SlashView } from "./components/SlashMenu";
 import { selectionTooltip, SelectionToolbarView } from "./components/SelectionToolbar";
+import { reviewerTooltip, ReviewerToolbarView } from "./components/ReviewerToolbar";
 import { commentDecoPlugin, commentDecoPluginKey } from "./commentDecorationPlugin";
 import { applySuggestion } from "./commentPositions";
 import { linkPreviewPlugin } from "./linkPreviewPlugin";
@@ -23,7 +24,7 @@ import { mermaidPlugin } from "./mermaidPlugin";
 import { createMarginAvatarPlugin } from "./marginAvatarPlugin";
 import "@milkdown/theme-nord/style.css";
 
-function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, aiIntensity, onRequestGhostText, editorFont = 'sans' }) {
+function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCommentId, flashCommentId, editorRef, readOnly = false, currentRole, collabSession, reviewerMode = false }) {
   const pluginViewFactory = usePluginViewFactory();
   const [loading, get] = useInstance();
   const shellRef = useRef(null);
@@ -38,17 +39,25 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
           if (!collabSession) {
             ctx.set(defaultValueCtx, value || "");
           }
-          ctx.set(slash.key, {
-            view: pluginViewFactory({
-              component: SlashView,
-            }),
-          });
-          ctx.set(selectionTooltip.key, {
-            view: pluginViewFactory({
-              component: SelectionToolbarView,
-            }),
-          });
-          if (readOnly) {
+          if (reviewerMode) {
+            ctx.set(reviewerTooltip.key, {
+              view: pluginViewFactory({
+                component: ReviewerToolbarView,
+              }),
+            });
+          } else {
+            ctx.set(slash.key, {
+              view: pluginViewFactory({
+                component: SlashView,
+              }),
+            });
+            ctx.set(selectionTooltip.key, {
+              view: pluginViewFactory({
+                component: SelectionToolbarView,
+              }),
+            });
+          }
+          if (readOnly && !reviewerMode) {
             ctx.update(editorViewOptionsCtx, (prev) => ({
               ...prev,
               editable: () => false,
@@ -72,10 +81,20 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
         editor.use(history);
       }
 
+      editor.use(listener);
+
+      if (reviewerMode) {
+        editor.use(reviewerTooltip);
+        editor.use($prose(() => new Plugin({
+          filterTransaction(tr) {
+            return !tr.docChanged;
+          },
+        })));
+      } else {
+        editor.use(slash).use(selectionTooltip);
+      }
+
       editor
-        .use(listener)
-        .use(slash)
-        .use(selectionTooltip)
         .use(commentDecoPlugin)
         .use(aiTextPlugin)
         .use(linkPreviewPlugin)
@@ -88,7 +107,7 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
 
       return editor;
     },
-    [docId, !!collabSession]
+    [docId, !!collabSession, reviewerMode]
   );
 
   // Sync comments + focus/flash state into the decoration plugin
@@ -339,7 +358,7 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
 
   return (
     <div
-      className={`editor-shell font-${editorFont}${readOnly ? " editor-readonly" : ""}${currentRole === "commenter" ? " editor-commenter" : ""}`}
+      className={`editor-shell${readOnly ? " editor-readonly" : ""}${reviewerMode ? " editor-reviewer" : ""}${currentRole === "commenter" ? " editor-commenter" : ""}`}
       ref={shellRef}
     >
       <Milkdown />

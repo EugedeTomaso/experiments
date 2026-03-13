@@ -88,13 +88,7 @@ class ReviewCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReviewComment
         fields = [
-            "id",
-            "node",
-            "node_title",
-            "body",
-            "position_from",
-            "position_to",
-            "comment_type",
-            "created_at",
+            "id", "node", "node_title", "body", "quoted_text",
+            "position_from", "position_to", "comment_type", "created_at",
         ]
         read_only_fields = ["id", "created_at"]

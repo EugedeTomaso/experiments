@@ -541,6 +541,7 @@ class ReviewComment(models.Model):
     review = models.ForeignKey(Review, related_name="comments", on_delete=models.CASCADE)
     node = models.ForeignKey(Node, related_name="review_comments", on_delete=models.CASCADE)
     body = models.TextField()
+    quoted_text = models.TextField(blank=True, default="")
     position_from = models.IntegerField()
     position_to = models.IntegerField()
     comment_type = models.CharField(

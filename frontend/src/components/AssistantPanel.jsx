@@ -396,7 +396,12 @@ export function AssistantPanel({
   const hasMessages = messages.length > 0 || isStreaming;
 
   return (
-    <aside className={`agent-pane${!isOpen ? ' collapsed' : ''}`} style={isOpen && width ? { width } : undefined}>
+    <aside
+      className={`agent-pane${!isOpen ? " collapsed" : ""}`}
+      style={isOpen && width ? { width } : undefined}
+      aria-hidden={!isOpen}
+      inert={!isOpen ? "" : undefined}
+    >
       {/* Header */}
       <div className="agent-pane-header">
         <div className="agent-pane-header-left">

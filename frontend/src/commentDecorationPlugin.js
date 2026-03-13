@@ -27,6 +27,10 @@ function buildDecorations(doc, comments, focusedId, flashId) {
       if (comment.comment_type === "fact_check" && comment.verdict) {
         classes.push(`comment-highlight--${comment.verdict}`);
       }
+      const reviewTypes = ["praise", "suggestion", "issue", "note"];
+      if (reviewTypes.includes(comment.comment_type)) {
+        classes.push(`comment-highlight--review-${comment.comment_type}`);
+      }
       if (comment.id === focusedId) {
         classes.push("comment-highlight--active");
       }

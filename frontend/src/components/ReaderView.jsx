@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { MarkdownEditor } from "../MarkdownEditor";
 import { AIToolsPanel } from "./AIToolsPanel";
 import { ReviewerChatPanel } from "./ReviewerChatPanel";
 import { ReportBuilder } from "./ReportBuilder";
-import { ReviewerIcon } from "./ReviewerIcon";
-import { REVIEWER_TREE_ICONS } from "./reviewerPanelConfig";
+import { ReviewCommentPopover } from "./ReviewCommentPopover";
 
 export function ReaderView({ review, listing, onBack }) {
   const [nodes, setNodes] = useState([]);
@@ -14,7 +13,12 @@ export function ReaderView({ review, listing, onBack }) {
   const [nodeTitle, setNodeTitle] = useState("");
   const [comments, setComments] = useState([]);
   const [loadingNodes, setLoadingNodes] = useState(true);
+  const [nodeLoading, setNodeLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("tools");
+
+  const [popoverSelection, setPopoverSelection] = useState(null);
+  const [viewingComment, setViewingComment] = useState(null);
+  const editorContainerRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +44,7 @@ export function ReaderView({ review, listing, onBack }) {
 
   useEffect(() => {
     if (!selectedNodeId) return;
+    setNodeLoading(true);
     let cancelled = false;
     async function loadNode() {
       try {
@@ -50,6 +55,8 @@ export function ReaderView({ review, listing, onBack }) {
         }
       } catch (err) {
         console.error("Failed to load node:", err);
+      } finally {
+        if (!cancelled) setNodeLoading(false);
       }
     }
     loadNode();
@@ -68,13 +75,43 @@ export function ReaderView({ review, listing, onBack }) {
     loadComments();
   }, [review.id]);
 
-  const handleAddComment = useCallback(async (commentData) => {
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
+
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+
+    function handleCommentRequest(e) {
+      setViewingComment(null);
+      setPopoverSelection(e.detail);
+    }
+
+    function handleHighlightClick(e) {
+      setPopoverSelection(null);
+      const { commentIds, rect } = e.detail;
+      const comment = commentsRef.current.find((c) => commentIds.includes(c.id));
+      if (comment) {
+        setViewingComment({ comment, rect });
+      }
+    }
+
+    container.addEventListener("review-comment-request", handleCommentRequest);
+    container.addEventListener("comment-highlight-click", handleHighlightClick);
+    return () => {
+      container.removeEventListener("review-comment-request", handleCommentRequest);
+      container.removeEventListener("comment-highlight-click", handleHighlightClick);
+    };
+  }, [loadingNodes, selectedNodeId]);
+
+  const handleSaveComment = useCallback(async (commentData) => {
     try {
       const created = await api.createReviewComment(review.id, {
         node: selectedNodeId,
         ...commentData,
       });
       setComments((prev) => [...prev, created]);
+      setPopoverSelection(null);
     } catch (err) {
       console.error("Failed to add comment:", err);
     }
@@ -89,6 +126,12 @@ export function ReaderView({ review, listing, onBack }) {
     }
   }, [review.id]);
 
+  const handleExpandToPanel = useCallback((draft) => {
+    setActiveTab("report");
+  }, []);
+
+  const nodeComments = comments.filter((c) => c.node === selectedNodeId);
+
   const rootNodes = nodes.filter((n) => !n.parent_id);
   const childrenOf = (parentId) => nodes.filter((n) => n.parent_id === parentId).sort((a, b) => a.order - b.order);
 
@@ -102,7 +145,13 @@ export function ReaderView({ review, listing, onBack }) {
         <button
           className={`reader-tree__node${isSelected ? " reader-tree__node--active" : ""}${isFolder ? " reader-tree__node--folder" : ""}`}
           style={{ paddingLeft: 12 + depth * 16 }}
-          onClick={() => !isFolder && setSelectedNodeId(node.id)}
+          onClick={() => {
+            if (!isFolder) {
+              setSelectedNodeId(node.id);
+              setPopoverSelection(null);
+              setViewingComment(null);
+            }
+          }}
         >
           <span className="reader-tree__icon">
             <ReviewerIcon
@@ -111,13 +160,16 @@ export function ReaderView({ review, listing, onBack }) {
             />
           </span>
           <span className="reader-tree__label">{node.title}</span>
+          {!isFolder && (
+            <span className="reader-tree__comment-count">
+              {comments.filter((c) => c.node === node.id).length || ""}
+            </span>
+          )}
         </button>
         {isFolder && children.map((c) => renderTreeNode(c, depth + 1))}
       </div>
     );
   }
-
-  const nodeComments = comments.filter((c) => c.node === selectedNodeId);
 
   if (loadingNodes) {
     return <div className="reader-view__loading">Loading document...</div>;
@@ -131,6 +183,11 @@ export function ReaderView({ review, listing, onBack }) {
           <span className="reader-view__project-name">{listing.project_name}</span>
           {nodeTitle && <span className="reader-view__node-name">/ {nodeTitle}</span>}
         </div>
+        <div className="reader-view__topbar-right">
+          <span className="reader-view__comment-total">
+            {comments.length} comment{comments.length !== 1 ? "s" : ""}
+          </span>
+        </div>
       </header>
 
       <div className="reader-view__body">
@@ -140,17 +197,40 @@ export function ReaderView({ review, listing, onBack }) {
           </div>
         </aside>
 
-        <div className="reader-view__editor">
-          {selectedNodeId ? (
+        <div className="reader-view__editor" ref={editorContainerRef} style={{ position: "relative" }}>
+          {selectedNodeId && !nodeLoading ? (
             <MarkdownEditor
               key={selectedNodeId}
               value={nodeContent}
               readOnly={true}
+              reviewerMode={true}
               docId={`review-${selectedNodeId}`}
               onChange={() => {}}
+              comments={nodeComments}
             />
+          ) : selectedNodeId ? (
+            <div className="reader-view__no-selection">Loading chapter...</div>
           ) : (
             <div className="reader-view__no-selection">Select a document to read</div>
+          )}
+
+          {popoverSelection && (
+            <ReviewCommentPopover
+              selection={popoverSelection}
+              onSave={handleSaveComment}
+              onCancel={() => setPopoverSelection(null)}
+              onExpand={handleExpandToPanel}
+              containerRef={editorContainerRef}
+            />
+          )}
+
+          {viewingComment && (
+            <ReviewCommentPopover
+              selection={{ rect: viewingComment.rect }}
+              existingComment={viewingComment.comment}
+              onCancel={() => setViewingComment(null)}
+              containerRef={editorContainerRef}
+            />
           )}
         </div>
 
@@ -172,7 +252,7 @@ export function ReaderView({ review, listing, onBack }) {
               className={`reader-panel__tab${activeTab === "report" ? " reader-panel__tab--active" : ""}`}
               onClick={() => setActiveTab("report")}
             >
-              Report
+              Report ({comments.length})
             </button>
           </div>
           <div className="reader-panel__content">

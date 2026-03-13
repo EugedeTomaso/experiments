@@ -89,6 +89,7 @@ export function SelectionToolbarView() {
     emphasis: false,
     strikethrough: false,
     inlineCode: false,
+    highlight: false,
   });
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export function SelectionToolbarView() {
     };
   }, [loading]);
 
-  // Save current selection and detect active marks on every view update
+  // Save current selection and detect active marks on editor view updates.
   useEffect(() => {
     if (!view) return;
     const { selection } = view.state;
@@ -127,20 +128,32 @@ export function SelectionToolbarView() {
       }
     }
 
-    // Detect active marks
+    // Detect active marks. Guard state updates to prevent render loops.
     const schema = view.state.schema;
-    setActiveMarks({
+    const nextActiveMarks = {
       strong: schema.marks.strong ? isMarkActive(view.state, schema.marks.strong) : false,
       emphasis: schema.marks.emphasis ? isMarkActive(view.state, schema.marks.emphasis) : false,
       strikethrough: schema.marks.strikethrough ? isMarkActive(view.state, schema.marks.strikethrough) : false,
       inlineCode: schema.marks.inlineCode ? isMarkActive(view.state, schema.marks.inlineCode) : false,
       highlight: schema.marks.highlight ? isMarkActive(view.state, schema.marks.highlight) : false,
+    };
+    setActiveMarks((prev) => {
+      if (
+        prev.strong === nextActiveMarks.strong &&
+        prev.emphasis === nextActiveMarks.emphasis &&
+        prev.strikethrough === nextActiveMarks.strikethrough &&
+        prev.inlineCode === nextActiveMarks.inlineCode &&
+        prev.highlight === nextActiveMarks.highlight
+      ) {
+        return prev;
+      }
+      return nextActiveMarks;
     });
-  });
+  }, [view, prevState]);
 
   useEffect(() => {
     tooltipProvider.current?.update(view, prevState);
-  });
+  }, [view, prevState]);
 
   // Bold
   useEffect(() => {

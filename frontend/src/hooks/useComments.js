@@ -59,9 +59,14 @@ export function useComments({
   // Tab-filtered derived state for review/verify panels
   const reviewTabComments = useMemo(() =>
     comments
-      .filter(c => !c.parent && c.comment_type !== "fact_check" && c.status !== "resolved" && c.quoted_text && isAnchored(c))
-      .sort((a, b) => (a.position_from ?? Infinity) - (b.position_from ?? Infinity)),
-    [comments, content]
+      .filter((c) => !c.parent && c.comment_type !== "fact_check" && c.status !== "resolved")
+      .sort((a, b) => {
+        const aPos = a.position_from ?? Infinity;
+        const bPos = b.position_from ?? Infinity;
+        if (aPos !== bPos) return aPos - bPos;
+        return new Date(a.created_at) - new Date(b.created_at);
+      }),
+    [comments]
   );
 
   const verifyTabComments = useMemo(() =>

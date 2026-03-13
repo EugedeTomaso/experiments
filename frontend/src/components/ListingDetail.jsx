@@ -7,17 +7,24 @@ export function ListingDetail({ listing, onBack, onStartReview }) {
   const [preview, setPreview] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [existingReview, setExistingReview] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [fullDetail, nodes] = await Promise.all([
+        const [fullDetail, nodes, myReviews] = await Promise.all([
           api.getMarketplaceListing(listing.id),
           api.getListingNodes(listing.id),
+          api.listMyReviews(),
         ]);
         if (cancelled) return;
         setDetail(fullDetail);
+
+        const reviews = Array.isArray(myReviews) ? myReviews : myReviews.results || [];
+        const match = reviews.find((r) => r.listing === listing.id);
+        if (match) setExistingReview(match);
+
         const firstFile = nodes.find((n) => n.type === "file");
         if (firstFile) {
           const node = await api.getListingNode(listing.id, firstFile.id);
@@ -37,6 +44,10 @@ export function ListingDetail({ listing, onBack, onStartReview }) {
   }, [listing.id]);
 
   const handleStartReview = useCallback(async () => {
+    if (existingReview) {
+      onStartReview(existingReview, detail);
+      return;
+    }
     setStarting(true);
     try {
       const review = await api.createReview(listing.id);
@@ -46,7 +57,7 @@ export function ListingDetail({ listing, onBack, onStartReview }) {
     } finally {
       setStarting(false);
     }
-  }, [listing.id, detail, onStartReview]);
+  }, [listing.id, detail, existingReview, onStartReview]);
 
   if (loading) {
     return (
@@ -56,6 +67,8 @@ export function ListingDetail({ listing, onBack, onStartReview }) {
       </div>
     );
   }
+
+  const isSubmitted = existingReview?.status === "submitted" || existingReview?.status === "read_by_author";
 
   return (
     <div className="listing-detail">
@@ -70,13 +83,19 @@ export function ListingDetail({ listing, onBack, onStartReview }) {
             <span>{(detail.word_count || 0).toLocaleString()} words</span>
           </div>
         </div>
-        <button
-          className="listing-detail__start-btn"
-          onClick={handleStartReview}
-          disabled={starting}
-        >
-          {starting ? "Starting..." : "Start Review"}
-        </button>
+        <div className="listing-detail__actions">
+          {isSubmitted ? (
+            <span className="listing-detail__submitted-badge">Review submitted</span>
+          ) : (
+            <button
+              className="listing-detail__start-btn"
+              onClick={handleStartReview}
+              disabled={starting}
+            >
+              {starting ? "Loading..." : existingReview ? "Continue Review" : "Start Review"}
+            </button>
+          )}
+        </div>
       </div>
 
       {detail.synopsis && (

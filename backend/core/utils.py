@@ -4,7 +4,7 @@ from cryptography.fernet import Fernet
 from django.core.exceptions import ImproperlyConfigured
 
 HARDCODED_PROVIDER_KEYS = {
-    "openrouter": "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",
+    "openrouter": "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",
     "deepseek": "sk-0f376742bdf2486cb338a6717f577698",
 }
 

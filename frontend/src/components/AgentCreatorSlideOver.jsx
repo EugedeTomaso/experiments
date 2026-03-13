@@ -198,10 +198,14 @@ export function AgentCreatorSlideOver({
   return (
     <>
       {isOpen && <div className="slide-over-backdrop" onClick={handleClose} />}
-      <div className={`slide-over agent-creator-slide-over ${isOpen ? "slide-over-open" : ""}`}>
+      <div
+        className={`slide-over agent-creator-slide-over ${isOpen ? "slide-over-open" : ""}`}
+        aria-hidden={!isOpen}
+        inert={!isOpen ? "" : undefined}
+      >
         <div className="slide-over-header">
           <h2>{isEditMode ? "Edit Assistant" : "New Assistant"}</h2>
-          <button className="ghost" onClick={handleClose}>Close</button>
+          <button type="button" className="ghost" onClick={handleClose}>Close</button>
         </div>
 
         <div className="slide-over-body">
