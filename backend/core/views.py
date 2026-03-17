@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from datetime import timedelta
 
@@ -20,7 +21,7 @@ from .llm import (
     _sync_anthropic_review,
     _sync_openai_compatible_review,
 )
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from .permissions import (
     get_accessible_projects,
     get_project_for_object,
@@ -46,6 +47,8 @@ from .serializers import (
     WorkspaceSerializer,
 )
 from .utils import ensure_hardcoded_provider_keys, get_hardcoded_provider_key
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +251,9 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        queryset = Comment.objects.select_related("agent", "node__project").filter(
+        queryset = Comment.objects.select_related("agent", "node__project").prefetch_related(
+            "replies",
+        ).filter(
             node__project__in=get_accessible_projects(self.request.user)
         ).annotate(
             reply_count=Count("replies")
@@ -444,7 +449,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
 
     def get_queryset(self):
-        queryset = Conversation.objects.filter(
+        queryset = Conversation.objects.prefetch_related(
+            Prefetch(
+                "messages",
+                queryset=Message.objects.order_by("-created_at"),
+                to_attr="prefetched_messages",
+            ),
+        ).filter(
             node__project__in=get_accessible_projects(self.request.user)
         ).annotate(
             message_count=Count("messages")
@@ -559,6 +570,8 @@ class MemoryViewSet(viewsets.ModelViewSet):
 
 
 class AIStreamView(APIView):
+    throttle_scope = "ai"
+
     def post(self, request):
         provider = request.data.get("provider")
         model = request.data.get("model")
@@ -668,6 +681,8 @@ class AIRouteAgentView(APIView):
 
 
 class AIAutocompleteView(APIView):
+    throttle_scope = "ai"
+
     def post(self, request):
         text = request.data.get("text", "").strip()
         if not text:
@@ -688,6 +703,7 @@ class AIAutocompleteView(APIView):
             completion = generate_autocomplete_sync(api_key, text, context)
             return Response({"completion": completion})
         except Exception as exc:
+            logger.exception("AIAutocomplete error")
             return Response({"detail": str(exc)}, status=500)
 
 
@@ -739,6 +755,7 @@ class NodeSummaryView(APIView):
         try:
             summary_text = generate_summary_sync(provider, api_key, model, node.title, node.content_md)
         except Exception as exc:
+            logger.exception("Summary generation error")
             return Response({"detail": str(exc)}, status=500)
 
         node.summary = summary_text
@@ -795,6 +812,7 @@ class NodeSearchView(APIView):
                 .order_by("-rank")[:20]
             )
         except Exception:
+            logger.warning("Full-text search failed, falling back to icontains", exc_info=True)
             # Fallback to simple icontains search
             results = (
                 Node.objects.filter(project=project)
@@ -884,6 +902,7 @@ class AIReviewView(APIView):
                 provider, api_key, model, content, focus
             )
         except Exception as exc:
+            logger.exception("Review generation error")
             return Response({"detail": str(exc)}, status=500)
 
         comments = []
@@ -957,6 +976,7 @@ class AICritiqueView(APIView):
         try:
             result = generate_critique_sync(provider, api_key, model, content)
         except Exception as e:
+            logger.exception("Critique generation error")
             return Response({"error": str(e)}, status=500)
 
         for i, section in enumerate(result.get("sections", [])):
@@ -1062,6 +1082,7 @@ class AICritiqueDiscussView(APIView):
                 "thread_id": thread.id,
             }, status=200)
         except Exception as e:
+            logger.exception("Critique discussion error")
             return Response({"error": str(e)}, status=500)
 
 
@@ -1111,6 +1132,7 @@ class AIFactCheckView(APIView):
             try:
                 claims = extract_claims_sync(provider, api_key, model, content)
             except Exception as exc:
+                logger.exception("Claim extraction error")
                 yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
                 yield "event: done\ndata: [DONE]\n\n"
                 return
@@ -1141,6 +1163,7 @@ class AIFactCheckView(APIView):
                 try:
                     exa_results = search_exa(claim_text, num_results=5)
                 except Exception:
+                    logger.warning("Exa search failed", exc_info=True)
                     exa_results = []
 
                 # Build source list (truncate text for storage)
@@ -1155,6 +1178,7 @@ class AIFactCheckView(APIView):
                         provider, api_key, model, claim_text, quoted_text, exa_results
                     )
                 except Exception:
+                    logger.warning("Claim verification failed", exc_info=True)
                     verdict_data = {
                         "verdict": "dubious",
                         "explanation": "Verification failed.",
@@ -1286,6 +1310,7 @@ class AICommentReplyView(APIView):
             else:
                 ai_response = _sync_openai_compatible(api_key, config["base_url"], model, messages)
         except Exception as exc:
+            logger.exception("AI comment reply error")
             return Response({"detail": str(exc)}, status=500)
 
         # Extract suggestion and explanation from AI response

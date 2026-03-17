@@ -104,7 +104,7 @@ class Node(models.Model):
     parent = models.ForeignKey(
         "self", related_name="children", null=True, blank=True, on_delete=models.CASCADE
     )
-    type = models.CharField(max_length=20, choices=NodeType.choices)
+    type = models.CharField(max_length=20, choices=NodeType.choices, db_index=True)
     title = models.CharField(max_length=200)
     order = models.IntegerField(default=0)
     content_md = models.TextField(blank=True, default="")
@@ -122,6 +122,9 @@ class Version(models.Model):
     node = models.ForeignKey(Node, related_name="versions", on_delete=models.CASCADE)
     content_md = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"v{self.id} of {self.node.title}"
 
 
 class Comment(models.Model):
@@ -155,7 +158,7 @@ class Comment(models.Model):
         max_length=20, choices=AuthorType.choices, default=AuthorType.USER
     )
     status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.OPEN
+        max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True
     )
     suggested_text = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -163,7 +166,7 @@ class Comment(models.Model):
     position_from = models.IntegerField(null=True, blank=True)
     position_to = models.IntegerField(null=True, blank=True)
     comment_type = models.CharField(
-        max_length=20, choices=CommentType.choices, default=CommentType.COMMENT
+        max_length=20, choices=CommentType.choices, default=CommentType.COMMENT, db_index=True
     )
     verdict = models.CharField(
         max_length=20, choices=Verdict.choices, null=True, blank=True
@@ -172,6 +175,9 @@ class Comment(models.Model):
     agent = models.ForeignKey(
         "Agent", null=True, blank=True, on_delete=models.SET_NULL, related_name="comments"
     )
+
+    def __str__(self):
+        return f"Comment on {self.node.title}"
 
 
 class AgentConfig(models.Model):
@@ -209,6 +215,9 @@ class AgentConfig(models.Model):
                 name="agentconfig_scope_valid",
             )
         ]
+
+    def __str__(self):
+        return f"Config: {self.scope_type} ({self.agent})"
 
 
 class Agent(models.Model):
@@ -284,6 +293,9 @@ class ProviderKey(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return self.provider
+
     def set_api_key(self, api_key: str) -> None:
         self.api_key_encrypted = encrypt_value(api_key)
 
@@ -307,7 +319,7 @@ class Memory(models.Model):
     project = models.ForeignKey(
         Project, related_name="memories", null=True, blank=True, on_delete=models.CASCADE
     )
-    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES)
+    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, db_index=True)
     content = models.TextField()
     source = models.CharField(max_length=20, default="manual")
     created_at = models.DateTimeField(auto_now_add=True)

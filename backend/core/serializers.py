@@ -218,7 +218,11 @@ class ConversationSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     def get_preview(self, obj):
-        last_msg = obj.messages.order_by("-created_at").first()
+        prefetched = getattr(obj, "prefetched_messages", None)
+        if prefetched is not None:
+            last_msg = prefetched[0] if prefetched else None
+        else:
+            last_msg = obj.messages.order_by("-created_at").first()
         if not last_msg:
             return ""
         text = last_msg.content.replace("\n", " ").strip()
