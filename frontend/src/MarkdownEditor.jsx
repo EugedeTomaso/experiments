@@ -30,6 +30,8 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
   const shellRef = useRef(null);
   const ghostTimerRef = useRef(null);
   const ghostAbortRef = useRef(null);
+  const prevDocIdRef = useRef(docId);
+  const suppressOnChangeRef = useRef(false);
 
   useEditor(
     (root) => {
@@ -101,14 +103,38 @@ function MarkdownEditorInner({ value, onChange, docId, comments = [], focusedCom
         .use(mermaidPlugin)
         .config((ctx) => {
           ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
+            if (suppressOnChangeRef.current) return;
             onChange?.(markdown);
           });
         });
 
       return editor;
     },
-    [docId, !!collabSession, reviewerMode]
+    [!!collabSession, reviewerMode]
   );
+
+  // When docId changes, swap content instantly via replaceAll (no editor recreation)
+  useEffect(() => {
+    if (prevDocIdRef.current === docId) return;
+    prevDocIdRef.current = docId;
+    if (loading || collabSession) return;
+    const editor = get();
+    if (!editor?.action) return;
+    try {
+      suppressOnChangeRef.current = true;
+      editor.action(replaceAll(value || ""));
+      // Reset undo history for the new document
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        // Clear AI text plugin state
+        view.dispatch(view.state.tr.setMeta(aiTextPluginKey, "clear"));
+      });
+      // Re-enable onChange on next microtask (after listener fires)
+      Promise.resolve().then(() => { suppressOnChangeRef.current = false; });
+    } catch {
+      suppressOnChangeRef.current = false;
+    }
+  }, [docId, value, loading, get, collabSession]);
 
   // Sync comments + focus/flash state into the decoration plugin
   useEffect(() => {

@@ -3592,7 +3592,6 @@ Rules for memory suggestions:
                 onClick={() => editorRef.current?.focus()}
               >
                 <MarkdownEditor
-                  key={activeNode.id}
                   docId={activeNode.id}
                   value={activeNode.content_md || ""}
                   onChange={setDraft}
