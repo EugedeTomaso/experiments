@@ -1735,12 +1735,17 @@
 }
 
 .doc-entering .editor-section {
-  animation: fadeInUp 300ms ease-out 100ms forwards;
-  opacity: 0;
+  animation: fadeInUp 250ms ease-out forwards;
 }
 
 .editor-shell .milkdown {
   min-height: 360px;
+  animation: editorFadeIn 150ms ease-out;
+}
+
+@keyframes editorFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .editor-empty {

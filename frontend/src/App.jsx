@@ -884,15 +884,19 @@ export default function App() {
     });
 
     let destroyed = false;
+    let hasConnected = false;
 
     const unsubscribe = session.onConnectionChange((state) => {
       if (destroyed) return;
-      setConnectionStatus(state);
-      // If the server confirms connection, commit to collab mode
       if (state === "connected") {
+        hasConnected = true;
         clearTimeout(connectTimeout);
         setCollabSession(session);
       }
+      // Only propagate reconnecting/disconnected if we had a successful connection;
+      // otherwise the banner flashes during the initial connection probe.
+      if (!hasConnected && state !== "connected") return;
+      setConnectionStatus(state);
     });
 
     // Give the WebSocket server a few seconds to connect.

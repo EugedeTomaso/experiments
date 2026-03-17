@@ -141,6 +141,10 @@ Key components in `src/components/`:
 - Publish: `/api/publish/{connect,callback,connections,history}/`
 - Search: `/api/search/`
 
+## Test Credentials
+
+- **QA user**: admin@admin.com / admin123 (use for dogfooding, e2e, visual tests)
+
 ## Post-Deploy Verification
 
 After every deploy to production, run a browser-based smoke test (dogfood) against https://marvintext.com/app to verify:
