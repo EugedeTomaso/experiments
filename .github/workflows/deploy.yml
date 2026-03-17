@@ -31,6 +31,10 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
             echo "=== Waiting for services to start ==="
             sleep 10
+            echo "=== Running migrations ==="
+            docker compose -f docker-compose.prod.yml exec -T backend python manage.py migrate --noinput
+            echo "=== Collecting static files ==="
+            docker compose -f docker-compose.prod.yml exec -T backend python manage.py collectstatic --noinput
             echo "=== Deploy complete ==="
           DEPLOY
 
