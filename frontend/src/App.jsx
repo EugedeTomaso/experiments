@@ -894,18 +894,31 @@ export default function App() {
 
     let destroyed = false;
     let hasConnected = false;
+    let connectedAt = 0;
 
     const unsubscribe = session.onConnectionChange((state) => {
       if (destroyed) return;
       if (state === "connected") {
         hasConnected = true;
+        connectedAt = Date.now();
         clearTimeout(connectTimeout);
         setCollabSession(session);
         setCollabReady(true);
+        setConnectionStatus("connected");
+        return;
       }
-      // Only propagate reconnecting/disconnected if we had a successful connection;
-      // otherwise the banner flashes during the initial connection probe.
-      if (!hasConnected && state !== "connected") return;
+      // Only propagate reconnecting/disconnected if we had a successful connection
+      if (!hasConnected) return;
+      // If the connection was too short-lived (< 10s), the WS server is unstable —
+      // silently fall back to API-based saving instead of showing the reconnecting banner.
+      if (Date.now() - connectedAt < 10_000) {
+        destroyed = true;
+        unsubscribe();
+        session.destroy();
+        setCollabSession(null);
+        setConnectionStatus("disconnected");
+        return;
+      }
       setConnectionStatus(state);
     });
 
