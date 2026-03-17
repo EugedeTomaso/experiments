@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAdminUser
 from rest_framework.views import APIView
 
 from .llm import (
@@ -108,8 +109,12 @@ DEFAULT_AGENTS = [
 
 
 class WorkspaceViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Workspace.objects.all()
     serializer_class = WorkspaceSerializer
+
+    def get_queryset(self):
+        return Workspace.objects.filter(
+            projects__in=get_accessible_projects(self.request.user)
+        ).distinct()
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -117,15 +122,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return get_accessible_projects(self.request.user).order_by("created_at")
-
-    def perform_create(self, serializer):
-        project = serializer.save()
-        for agent_data in DEFAULT_AGENTS:
-            Agent.objects.get_or_create(
-                project=project,
-                name=agent_data["name"],
-                defaults={"config": agent_data["config"]},
-            )
 
     def perform_create(self, serializer):
         project = serializer.save()
@@ -238,7 +234,10 @@ class VersionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = VersionSerializer
 
     def get_queryset(self):
-        queryset = Version.objects.all().order_by("-created_at")
+        accessible = get_accessible_projects(self.request.user)
+        queryset = Version.objects.filter(
+            node__project__in=accessible
+        ).order_by("-created_at")
         node_id = self.request.query_params.get("node")
         if node_id:
             queryset = queryset.filter(node_id=node_id)
@@ -508,6 +507,11 @@ class MessageViewSet(viewsets.ModelViewSet):
 class ProviderKeyViewSet(viewsets.ModelViewSet):
     serializer_class = ProviderKeySerializer
 
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [IsAdminUser()]
+        return super().get_permissions()
+
     def get_queryset(self):
         ensure_hardcoded_provider_keys()
         return ProviderKey.objects.all().order_by("provider")
@@ -558,16 +562,13 @@ class AIStreamView(APIView):
     def post(self, request):
         provider = request.data.get("provider")
         model = request.data.get("model")
-        print(f"[AIStream] provider={provider}, model={model}", flush=True)
         if not provider:
             return Response({"detail": "provider is required"}, status=400)
 
         provider_key = ProviderKey.objects.filter(provider=provider).first()
         api_key = provider_key.get_api_key() if provider_key else ""
-        print(f"[AIStream] db_key_len={len(api_key) if api_key else 0}, has_provider_key={provider_key is not None}", flush=True)
         if not api_key:
             api_key = get_hardcoded_provider_key(provider)
-            print(f"[AIStream] fallback_key_len={len(api_key) if api_key else 0}", flush=True)
         if not api_key:
             return Response(
                 {"detail": "Provider key missing"},

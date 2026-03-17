@@ -23,6 +23,7 @@ services:
       DB_PORT: 5432
       DJANGO_DEBUG: "1"
       DJANGO_ALLOWED_HOSTS: "*"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:5174"
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-s0LCwfe5XXrkm0KD-jNNAw4VolMipNOSZAK2xBGijVU=}
     volumes:
       - ./backend:/app
