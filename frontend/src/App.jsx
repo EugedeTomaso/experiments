@@ -368,6 +368,7 @@ export default function App() {
   const [isAssistantOpen, setIsAssistantOpen] = useState(true);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isDocEntering, setIsDocEntering] = useState(false);
+  const [collabReady, setCollabReady] = useState(false);
   const focusTimerRef = useRef(null);
   const [assistantTab, setAssistantTab] = useState("chat");
   const [assistantWidth, setAssistantWidth] = useState(() => {
@@ -873,10 +874,18 @@ export default function App() {
   // Collab session lifecycle — only activate if WebSocket server is reachable
   useEffect(() => {
     const node = nodes.find((n) => String(n.id) === String(activeNodeId));
-    if (!activeNodeId || !node || node.type !== "file") return;
+    if (!activeNodeId || !node || node.type !== "file") {
+      setCollabReady(true);
+      return;
+    }
 
     const jwt = localStorage.getItem("mive:access_token");
-    if (!jwt) return;
+    if (!jwt) {
+      setCollabReady(true);
+      return;
+    }
+
+    setCollabReady(false);
 
     const session = createCollabSession(activeNodeId, jwt, {
       name: user?.username || "Anonymous",
@@ -892,6 +901,7 @@ export default function App() {
         hasConnected = true;
         clearTimeout(connectTimeout);
         setCollabSession(session);
+        setCollabReady(true);
       }
       // Only propagate reconnecting/disconnected if we had a successful connection;
       // otherwise the banner flashes during the initial connection probe.
@@ -909,6 +919,7 @@ export default function App() {
         session.destroy();
         setCollabSession(null);
         setConnectionStatus("disconnected");
+        setCollabReady(true);
       }
     }, 3000);
 
@@ -3591,7 +3602,7 @@ Rules for memory suggestions:
                 style={{ '--editor-zoom': editorZoom / 100 }}
                 onClick={() => editorRef.current?.focus()}
               >
-                <MarkdownEditor
+                {collabReady ? <MarkdownEditor
                   docId={activeNode.id}
                   value={activeNode.content_md || ""}
                   onChange={setDraft}
@@ -3605,7 +3616,7 @@ Rules for memory suggestions:
                   aiIntensity={aiIntensity}
                   onRequestGhostText={handleRequestGhostText}
                   editorFont={editorFont}
-                />
+                /> : <div className="editor-shell" style={{ minHeight: 360 }} />}
               </section>
 
               <div className="editor-status-bar">
