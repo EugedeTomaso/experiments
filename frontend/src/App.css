@@ -10127,6 +10127,34 @@ button.ghost:focus-visible {
   background: var(--border-subtle);
 }
 
+.share-publish-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.share-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+
+.share-action-btn:hover {
+  background: var(--surface);
+  color: var(--text-1);
+  border-color: var(--border);
+}
+
 /* --- Ghost Textarea --- */
 .ghost-textarea-wrapper {
   position: relative;

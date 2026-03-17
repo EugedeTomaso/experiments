@@ -231,7 +231,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
                 We're here to help.
               </p>
               <div className="help-contact-cards">
-                <a href="mailto:support@mive.app?subject=Bug Report" className="help-contact-card">
+                <a href="mailto:support@marvintext.com?subject=Bug Report" className="help-contact-card">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 8v4m0 4h.01" />
@@ -239,7 +239,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
                   <div className="help-contact-title">Report a bug</div>
                   <div className="help-contact-desc">Something broken? Let us know.</div>
                 </a>
-                <a href="mailto:support@mive.app?subject=Feature Request" className="help-contact-card">
+                <a href="mailto:support@marvintext.com?subject=Feature Request" className="help-contact-card">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 3l1.5 3.4L17 8l-3.5 1.6L12 13l-1.5-3.4L7 8l3.5-1.6Z" />
                     <path d="M9 17l.6 1.3 1.4.7-1.4.6L9 21l-.6-1.4-1.4-.6 1.4-.7Z" />
@@ -247,7 +247,7 @@ export function HelpModal({ isOpen, onClose, onReplayTour }) {
                   <div className="help-contact-title">Request a feature</div>
                   <div className="help-contact-desc">Ideas for making Marvin better.</div>
                 </a>
-                <a href="mailto:support@mive.app?subject=Help" className="help-contact-card">
+                <a href="mailto:support@marvintext.com?subject=Help" className="help-contact-card">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z" />
                     <polyline points="22 6 12 13 2 6" />

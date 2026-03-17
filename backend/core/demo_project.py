@@ -1,6 +1,6 @@
 """
 Creates a demo project with sample folders and documents when a new user registers.
-The demo showcases Mive's AI-first capabilities with a guided tour.
+The demo showcases Marvin's AI-first capabilities with a guided tour.
 """
 import uuid
 from .models import Agent, Comment, Critique, Node, Project, Version
@@ -12,11 +12,11 @@ from .utils import get_default_workspace
 # ---------------------------------------------------------------------------
 
 WELCOME_MD = """\
-Welcome to **Mive** — where AI is your writing partner from the very first word.
+Welcome to **Marvin** — where AI is your writing partner from the very first word.
 
-Mive isn't just another editor with AI bolted on. Everything here is built around the idea that writing is better when you have a smart collaborator by your side — one that understands your project, remembers your style, and never gets tired.
+Marvin isn't just another editor with AI bolted on. Everything here is built around the idea that writing is better when you have a smart collaborator by your side — one that understands your project, remembers your style, and never gets tired.
 
-Here's what makes Mive different:
+Here's what makes Marvin different:
 
 - **AI that knows your project** — your assistant reads your brief, your documents, and your structure to give contextual help
 - **Multiple AI agents** — set up different personas (a creative partner, a strict editor, a researcher) and switch between them with @mentions
@@ -126,7 +126,7 @@ Run a critique on this document. Look at the section scores and try discussing o
 """
 
 SMART_AGENTS_MD = """\
-Agents are the heart of Mive's AI-first approach. Instead of one generic assistant, you can create specialized personas — each with its own personality, expertise, and writing style.
+Agents are the heart of Marvin's AI-first approach. Instead of one generic assistant, you can create specialized personas — each with its own personality, expertise, and writing style.
 
 ## Your pre-configured agents
 
@@ -200,7 +200,7 @@ Place your cursor at the end of this line and type `/continue` to see the AI pic
 """
 
 FIRST_PROJECT_MD = """\
-You've seen what Mive can do. Now it's time to create something of your own.
+You've seen what Marvin can do. Now it's time to create something of your own.
 
 ## Create a new project
 
@@ -210,9 +210,9 @@ Click **New Project** in the sidebar. You'll be guided through a quick setup:
 2. **Answer a question or two** — the AI might ask for details to structure things better
 3. **Name it** — pick a name or let the AI suggest one
 
-That's it. Mive will generate a document structure tailored to your project type — chapters for a novel, sections for an article, briefs for a product spec — plus custom AI agents suited to your work.
+That's it. Marvin will generate a document structure tailored to your project type — chapters for a novel, sections for an article, briefs for a product spec — plus custom AI agents suited to your work.
 
-## Tips for getting the most out of Mive
+## Tips for getting the most out of Marvin
 
 - **Write your project brief** — the more context the AI has, the better it helps
 - **Use different agents for different tasks** — creative brainstorming, then editing, then fact-checking
@@ -221,7 +221,7 @@ That's it. Mive will generate a document structure tailored to your project type
 
 ## Your writing, amplified
 
-Mive doesn't write *for* you — it writes *with* you. The AI handles the heavy lifting so you can focus on what matters: your ideas, your voice, your story.
+Marvin doesn't write *for* you — it writes *with* you. The AI handles the heavy lifting so you can focus on what matters: your ideas, your voice, your story.
 
 Happy writing.
 """
@@ -311,13 +311,13 @@ DEMO_AGENTS = [
 
 DEMO_SUGGESTIONS = [
     {
-        "quoted_text": "Mive isn't just another editor with AI bolted on.",
+        "quoted_text": "Marvin isn't just another editor with AI bolted on.",
         "body": (
             "This is a strong opening hook, but consider making the contrast "
             "even sharper by showing what 'bolted on' means in practice."
         ),
         "suggested_text": (
-            "Mive isn't another editor where AI lives in a sidebar you forget about."
+            "Marvin isn't another editor where AI lives in a sidebar you forget about."
         ),
     },
     {
@@ -349,7 +349,7 @@ DEMO_SUGGESTIONS = [
 DEMO_CRITIQUE = {
     "overall_score": 7,
     "summary": (
-        "A solid introduction that clearly communicates Mive's value proposition. "
+        "A solid introduction that clearly communicates Marvin's value proposition. "
         "The AI-first positioning is effective and the tone is inviting. "
         "There's room to improve specificity in a few areas and the call-to-action "
         "could be stronger."
@@ -360,10 +360,10 @@ DEMO_CRITIQUE = {
             "title": "Opening Hook",
             "score": 8,
             "body": (
-                "The opening line immediately establishes Mive's identity. "
+                "The opening line immediately establishes Marvin's identity. "
                 "'AI is your writing partner from the very first word' is memorable "
                 "and sets the right expectation. The follow-up paragraph effectively "
-                "contrasts Mive with generic editors."
+                "contrasts Marvin with generic editors."
             ),
         },
         {
@@ -399,7 +399,7 @@ def create_demo_project(user):
     project = Project.objects.create(
         workspace=workspace,
         owner=user,
-        name="Discover Mive",
+        name="Discover Marvin",
         brief="Your AI-powered writing studio — explore what AI can do for your writing.",
     )
 

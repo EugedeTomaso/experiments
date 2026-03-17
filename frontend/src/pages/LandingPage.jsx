@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MiveLogo } from "../components/MiveLogo";
+import { MarvinLogo } from "../components/MarvinLogo";
 import { EditorDemo } from "../components/EditorDemo";
 
 /* ── Inline SVG icons ── */
@@ -162,7 +162,7 @@ export function LandingPage() {
       {/* ── Navbar ── */}
       <nav className={`landing-nav${scrolled ? " scrolled" : ""}`}>
         <Link to="/" className="landing-nav-brand">
-          <MiveLogo size={22} />
+          <MarvinLogo size={22} />
           Marvin
         </Link>
         <div className="landing-nav-links">
@@ -355,7 +355,7 @@ export function LandingPage() {
         <div className="landing-footer-top">
           <div>
             <div className="landing-footer-brand">
-              <MiveLogo size={20} />
+              <MarvinLogo size={20} />
               Marvin
             </div>
             <p className="landing-footer-tagline">Where every word gets sharper.</p>

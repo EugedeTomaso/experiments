@@ -1,4 +1,4 @@
-export function MiveLogo({ size = 24, className = "" }) {
+export function MarvinLogo({ size = 24, className = "" }) {
   return (
     <svg
       width={size}

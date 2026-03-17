@@ -3141,18 +3141,7 @@ Rules for memory suggestions:
               </button>
             ) : null;
           })()}
-          {activeProjectId && (() => {
-            const p = projects.find((pr) => pr.id === activeProjectId);
-            return p?.current_user_role === "owner" ? (
-              <button
-                className="topbar-btn"
-                onClick={() => setShowMarketplacePublish(true)}
-                title="Publish to Marketplace"
-              >
-                Marketplace
-              </button>
-            ) : null;
-          })()}
+{/* Marketplace button removed — now inside Share dialog */}
           {activeProjectId && (() => {
             const p = projects.find((pr) => pr.id === activeProjectId);
             return p?.current_user_role === "owner" ? (
@@ -3849,6 +3838,7 @@ Rules for memory suggestions:
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         onProjectUpdate={() => api.listProjects().then(setProjects)}
+        onOpenMarketplace={() => { setIsShareOpen(false); setShowMarketplacePublish(true); }}
       />
 
       {showMarketplacePublish && activeProjectId && (

@@ -29,7 +29,7 @@ export function RegisterPage({ onNavigate }) {
   if (!userType) {
     return (
       <div className="auth-page">
-        <div className="auth-brand">Mive</div>
+        <div className="auth-brand">Marvin</div>
         <div className="auth-card" style={{ maxWidth: 480 }}>
           <h2 className="auth-title">I want to...</h2>
           <div style={{ display: "flex", gap: 16, marginTop: 24 }}>

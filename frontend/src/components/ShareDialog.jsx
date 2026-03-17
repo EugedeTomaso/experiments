@@ -3,7 +3,7 @@ import { api } from "../api";
 
 const ROLES = ["viewer", "commenter", "editor", "admin"];
 
-export function ShareDialog({ project, isOpen, onClose, onProjectUpdate }) {
+export function ShareDialog({ project, isOpen, onClose, onProjectUpdate, onOpenMarketplace }) {
   const [members, setMembers] = useState([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("editor");
@@ -265,6 +265,38 @@ export function ShareDialog({ project, isOpen, onClose, onProjectUpdate }) {
             </div>
           </div>
         )}
+
+        {/* Publish & Review */}
+        <div className="share-link-section">
+          <div className="share-link-toggle">
+            <div>
+              <span className="share-link-label">Publish & Review</span>
+              <span className="share-link-desc">Get feedback or list on the marketplace</span>
+            </div>
+          </div>
+          <div className="share-publish-actions">
+            {onOpenMarketplace && (
+              <button className="share-action-btn" onClick={onOpenMarketplace}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                Publish to Marketplace
+              </button>
+            )}
+            {onOpenMarketplace && (
+              <button className="share-action-btn" onClick={onOpenMarketplace}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Ask a human review
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

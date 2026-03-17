@@ -1,4 +1,4 @@
-# Mive Design System
+# Marvin Design System
 
 Writing and creation tool with three-zone layout: outline rail, markdown editor, and AI assistant panel.
 

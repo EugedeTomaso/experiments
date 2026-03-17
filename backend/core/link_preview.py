@@ -13,7 +13,7 @@ _cache = {}
 
 TIMEOUT = 5.0
 MAX_BODY = 512_000
-USER_AGENT = "Mozilla/5.0 (compatible; Mive/1.0)"
+USER_AGENT = "Mozilla/5.0 (compatible; Marvin/1.0)"
 
 
 def _extract_metadata(url, html):
