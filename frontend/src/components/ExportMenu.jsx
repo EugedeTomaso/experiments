@@ -57,11 +57,18 @@ export function ExportMenu({ node, project, nodes, onPublish }) {
 
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e) => {
+    const handleClick = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const handleKey = (e) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [isOpen]);
 
   // Load connections when opened

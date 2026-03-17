@@ -64,7 +64,7 @@ export function VersionsMenu({
                   {i === 0 && <span className="versions-item-latest">Latest</span>}
                 </div>
                 <div className="versions-item-snippet">
-                  {(v.content_md || "").slice(0, 80) || "Empty"}
+                  {(v.content_md || "").replace(/<[^>]+>/g, "").replace(/[#*_~`>\-\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Empty"}
                 </div>
               </div>
               <div className="versions-item-actions">

@@ -1170,10 +1170,10 @@ export default function App() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // --- Cmd+B: toggle outline sidebar ---
+  // --- Cmd+\: toggle outline sidebar ---
   useEffect(() => {
     const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
         e.preventDefault();
         setIsOutlineOpen((prev) => !prev);
       }

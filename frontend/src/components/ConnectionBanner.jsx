@@ -24,11 +24,11 @@ export default function ConnectionBanner({ connectionState, onRetry }) {
     <div className={`connection-banner ${isReconnecting ? "warning" : "error"}`}>
       <span>
         {isReconnecting
-          ? `Reconectando... edición disponible por ${countdown}s más`
-          : "Sin conexión — reintentando automáticamente"}
+          ? `Reconnecting... editing available for ${countdown}s`
+          : "Disconnected — retrying automatically"}
       </span>
       <button className="connection-retry-btn" onClick={onRetry}>
-        Reintentar
+        Retry
       </button>
     </div>
   );

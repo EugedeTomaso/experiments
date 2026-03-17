@@ -11,6 +11,14 @@ export function MarketplacePublishDialog({ projectId, projectName, onClose }) {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     async function load() {
       try {
         const listings = await api.listMyListings();

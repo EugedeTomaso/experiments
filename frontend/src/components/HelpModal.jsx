@@ -19,7 +19,7 @@ const SHORTCUTS = [
     { keys: "\u2318 \u21e7 Z", action: "Redo" },
   ]},
   { category: "Navigation", items: [
-    { keys: "\u2318 B", action: "Toggle sidebar" },
+    { keys: "\u2318 \\", action: "Toggle sidebar" },
     { keys: "\u2318 J", action: "Toggle assistant" },
     { keys: "\u2318 ,", action: "Open settings" },
   ]},
