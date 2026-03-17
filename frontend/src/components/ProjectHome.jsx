@@ -35,8 +35,6 @@ export function ProjectHome({
 }) {
   const [autoContext, setAutoContext] = useState(project?.auto_context !== false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-
-  if (!project) return null;
   const [newMemoryText, setNewMemoryText] = useState("");
   const [editingMemoryId, setEditingMemoryId] = useState(null);
   const [editingMemoryText, setEditingMemoryText] = useState("");
